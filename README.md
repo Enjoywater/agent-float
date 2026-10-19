@@ -44,6 +44,7 @@ v1은 Claude Code 세션만 읽는다. 다른 에이전트는 같은 구조에 p
 make test     # 단위 테스트 (swift test)
 make bundle   # build/Agent Float.app 조립 + ad-hoc 서명
 make run      # 조립 후 실행
+make install  # 조립 후 /Applications 에 설치하고 실행 (켜져 있던 앱은 먼저 종료)
 make clean
 ```
 
@@ -53,7 +54,8 @@ Dock 아이콘 없이 메뉴바 아이콘으로 동작한다. 메뉴: `위치 �
 
 - 처음 Ghostty 탭으로 이동할 때 "Ghostty 제어" 승인 창이 뜬다. 거절했다면 시스템 설정 > 개인정보 보호 및 보안 > 자동화에서 켤 수 있다
 - ad-hoc 서명이라 다시 빌드하면 승인을 다시 물을 수 있다
-- `로그인 시 실행`은 등록할 때의 앱 위치를 기억한다. `make clean` 뒤에도 쓰려면 앱을 `~/Applications` 등에 복사한 뒤 등록한다
+- `로그인 시 실행`은 등록할 때의 앱 위치를 기억한다. `make install`로 설치한 앱에서 등록하면 `make clean`의 영향을 받지 않는다
+- 다른 폴더에 설치하려면 `make install INSTALL_DIR=~/Applications`
 
 ## 개발용 환경 변수
 
