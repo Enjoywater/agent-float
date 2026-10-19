@@ -3,6 +3,15 @@ public protocol TerminalNavigator: Sendable {
     func navigate(to session: AgentSession) async throws
 }
 
+/// 사용자가 터미널에서 직접 고른 탭이 어느 세션의 것인지 알아낸다 (spec 4.6 해제 조건 2).
+/// 그 앱이 맨 앞일 때만 의미가 있어 앱의 번들 id 를 함께 둔다
+public protocol FocusProbe: Sendable {
+    var bundleIdentifier: String { get }
+    /// 감시를 켤지 정할 때 쓴다. 짝지을 수 없는 세션만 남았는데 감시가 깨어나면 유휴 CPU 가 0 이 아니게 된다 (spec 4.9)
+    func canProbe(_ session: AgentSession) -> Bool
+    func focusedSessions(among sessions: [AgentSession]) async throws -> Set<SessionKey>
+}
+
 public struct NavigatorRegistry: Sendable {
     private let navigators: [any TerminalNavigator]
 

@@ -114,12 +114,17 @@ public enum GhosttyMatcher {
     }
 }
 
-/// 사용자가 Ghostty 에서 직접 고른 탭이 어느 세션의 것인지 알아낸다 (spec 4.6 해제 조건 2)
-public struct GhosttyFocusProbe: Sendable {
+public struct GhosttyFocusProbe: FocusProbe {
+    public let bundleIdentifier = TerminalBundle.ghostty
     private let runner: any CommandRunning
 
     public init(runner: any CommandRunning) {
         self.runner = runner
+    }
+
+    public func canProbe(_ session: AgentSession) -> Bool {
+        if case .ghostty = session.locator { return true }
+        return false
     }
 
     /// 클릭 이동과 같은 짝짓기를 써야, 줄을 눌러 가게 되는 탭과 직접 골랐다고 보는 탭이 어긋나지 않는다
