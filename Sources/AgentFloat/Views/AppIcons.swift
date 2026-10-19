@@ -39,6 +39,7 @@ enum AppIcons {
     /// 설치된 쪽을 고른다. 둘 다 있으면 spec 4.4 의 예인 Cursor 를 먼저 본다
     private static let otherCandidates: [String: [String]] = [
         "Apple_Terminal": [TerminalBundle.appleTerminal],
+        "iTerm.app": [TerminalBundle.iTerm],
         "vscode": [TerminalBundle.cursor, TerminalBundle.vscode],
     ]
 

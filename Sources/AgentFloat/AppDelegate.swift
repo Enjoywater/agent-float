@@ -59,10 +59,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             OrcaNavigator(runner: runner, activateOrca: {
                 activator.activate(bundleIdentifier: TerminalBundle.orca)
             }),
+            AppleTerminalNavigator(runner: runner),
+            ITermNavigator(runner: runner),
+            makeTmuxNavigator(runner: runner, activator: activator),
             AppActivationNavigator(inspector: DarwinProcessInspector(), activateFirstApp: { pids in
                 activator.activateFirstRegularApp(among: pids)
             }),
         ])
+    }
+
+    /// tmux 클라이언트를 띄운 바깥 터미널이 tty 로 탭을 고를 수 있는 앱이면 그 탭까지, 아니면 그 앱만 앞으로 올린다
+    private static func makeTmuxNavigator(runner: ProcessCommandRunner, activator: AppActivator) -> TmuxNavigator {
+        let appleTerminal = AppleTerminalNavigator(runner: runner)
+        let iTerm = ITermNavigator(runner: runner)
+        return TmuxNavigator(runner: runner, inspector: DarwinProcessInspector(), executable: TmuxCLI.resolveExecutable()) { sessionPid, chain, clientTty in
+            guard let app = activator.chooseFirstRegularApp(forSession: sessionPid, among: chain) else {
+                throw NavigationError.terminalNotFound
+            }
+            switch app.bundleIdentifier {
+            case TerminalBundle.appleTerminal?:
+                try await appleTerminal.selectTab(tty: clientTty)
+            case TerminalBundle.iTerm?:
+                try await iTerm.selectTab(tty: clientTty)
+            default:
+                guard activator.activate(pid: app.pid) else { throw NavigationError.terminalNotFound }
+            }
+        }
     }
 
     /// 실제 세션을 띄우거나 바꾸지 않고 화면·전환을 확인할 수 있게 입력을 바꿔 끼운다

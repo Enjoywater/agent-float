@@ -25,7 +25,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>세션이 열린 Ghostty 탭으로 이동하려면 Ghostty 제어 권한이 필요합니다.</string>
+	<string>세션이 열린 터미널 탭으로 이동하려면 그 터미널을 제어할 권한이 필요합니다.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSPrincipalClass</key>

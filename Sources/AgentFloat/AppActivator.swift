@@ -18,17 +18,29 @@ final class AppActivator {
         }
     }
 
-    /// 가까운 조상부터 보므로 처음 만나는 Dock 앱이 세션을 띄운 터미널이다. 같은 앱의 보조 프로세스는 Dock 앱이 아니라 건너뛴다
     nonisolated func activateFirstRegularApp(among pids: [Int32]) -> Bool {
+        guard let session = pids.first, let app = chooseFirstRegularApp(forSession: session, among: pids) else { return false }
+        return activate(pid: app.pid)
+    }
+
+    /// 가까운 조상부터 보므로 처음 만나는 Dock 앱이 세션을 띄운 터미널이다. 같은 앱의 보조 프로세스는 Dock 앱이 아니라 건너뛴다.
+    /// 고르기만 하고 기록한다. tmux 바깥 터미널처럼 앱에 따라 올리는 방법(탭 선택 스크립트·LaunchServices)이 달라서다
+    nonisolated func chooseFirstRegularApp(forSession session: Int32, among pids: [Int32]) -> (pid: Int32, bundleIdentifier: String?)? {
         onMain {
             for pid in pids {
                 guard let app = NSRunningApplication(processIdentifier: pid), app.activationPolicy == .regular else { continue }
-                guard let url = app.bundleURL else { return false }
-                if let session = pids.first { fallbackChoices[session] = app.processIdentifier }
-                Self.open(url)
-                return true
+                fallbackChoices[session] = app.processIdentifier
+                return (app.processIdentifier, app.bundleIdentifier)
             }
-            return false
+            return nil
+        }
+    }
+
+    nonisolated func activate(pid: Int32) -> Bool {
+        onMain {
+            guard let url = NSRunningApplication(processIdentifier: pid)?.bundleURL else { return false }
+            Self.open(url)
+            return true
         }
     }
 
