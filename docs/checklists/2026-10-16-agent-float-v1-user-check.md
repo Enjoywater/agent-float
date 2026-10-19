@@ -14,12 +14,12 @@
 - 로그를 같이 보려면 `AGENT_FLOAT_DEBUG=1 "build/Agent Float.app/Contents/MacOS/AgentFloat"` 로 실행
   - 이 방식은 Ghostty 셸에서 띄우면 승인 창이 Ghostty 몫으로 처리되어 뜨지 않음
   - 승인 창 흐름(아래 1번)을 보려면 `open`으로 실행
-- 볼 로그: `navigate ok|failed|unconfirmed front=…`, `open application failed`, `ghostty watch on|off|checked|failed … next=… suspended=…|resumed`, `marked seen` (fix round 1)
+- 볼 로그: `navigate ok|failed|unconfirmed front=…`, `open application failed`, `focus watch on|off|checked|failed bundle=… next=… suspended=…|resumed` (v1.1 전에는 `ghostty watch …`), `marked seen` (fix round 1)
 
 ### Ghostty 자동화 권한과 이동
 1. 첫 승인 창 (TCC)
    - 할 일: 다른 앱을 앞에 둔 채 Ghostty 세션 줄 클릭
-   - 기대: "Agent Float이(가) Ghostty을(를) 제어하려고 합니다" 승인 창. 안내 문구 `세션이 열린 Ghostty 탭으로 이동하려면 Ghostty 제어 권한이 필요합니다.` 표시. 허용
+   - 기대: "Agent Float이(가) Ghostty을(를) 제어하려고 합니다" 승인 창. 안내 문구 `세션이 열린 터미널 탭으로 이동하려면 그 터미널을 제어할 권한이 필요합니다.` 표시 (v1.1에서 터미널 공통 문구로 바뀜). 허용
    - 주의: NEW가 있는 동안 Ghostty가 맨 앞이면, 클릭하지 않아도 감시가 먼저 이 창을 띄울 수 있음
    - 주의: ad-hoc 서명이라 다시 빌드할 때마다 다시 물을 수 있음
    - 2026-10-19: 다시 빌드한 앱의 첫 Ghostty 이동이 클릭 뒤 3.5초 걸렸고(이후는 0.5초 안팎) 그 사이 커서가 움직임 → 승인 창에 사용자가 답했을 수 있으나 화면으로 못 봄. 승인 창이 떴는지는 사용자 확인
@@ -49,7 +49,7 @@
    - 실패 모습 c: 경고음 + `navigate failed` → 목록·switch 실패
    - 실패 모습 d: Orca에 새 창이 생김 → LaunchServices 다시 열기 이벤트 부작용. 보고
    - 확인함 (2026-10-19, 화면 조작): 첫 클릭은 실패(`terminalNotFound`): 아직 열지 않은 워크트리의 터미널은 목록에 탭 id가 임시 값(`pty:…`)으로 나옴 → handle로 찾게 고침(R43). 탭 id가 진짜 값이 된 뒤 다시 클릭 → Orca가 앞으로, 그 탭이 보임, 0.69초, 새 창 없음
-7. Terminal.app 폴백 (Step 3-1)
+7. Terminal.app 폴백 (Step 3-1) — v1.1에서 탭 이동으로 바뀜, 37번 참고
    - 할 일: Terminal.app에서 아무 폴더에 `claude` 실행. 다른 앱을 앞에 두고 그 줄 클릭
    - 기대: Terminal.app이 앞으로 옴 (정확한 탭 이동은 아님), NEW 해제, 새 창은 안 생김
    - 실패 모습: 앞에 안 오면 경고음 + NEW 유지 (R37). 앞에 왔는데 경고음이거나 새 창이 생기면 보고
@@ -57,7 +57,7 @@
    - 할 일: Cursor 내장 터미널에서 `claude` 실행 후 같은 확인
    - 기대: Cursor가 앞으로 옴, NEW 해제, 새 창은 안 생김
    - 실패 모습: 7번과 같음
-9. 갈 곳이 없는 세션 (선택)
+9. 갈 곳이 없는 세션 (선택) — v1.1에서 tmux 안 세션은 pane 이동으로 바뀜, 39번 참고. 아래 결과는 v1 기준
    - 할 일: tmux 안에서 `claude` 실행 후 그 줄 클릭
    - 기대: 경고음, 아무것도 안 움직임, NEW 유지
    - 판정 확인함 (2026-10-17, 화면 잠금 중): tmux 안 세션은 부모를 따라가도 tmux 서버 → launchd뿐이라 일반 앱이 없음 → 이동 실패 경로(경고음, R39). 설계 4.4대로 hover 강조는 나타남
@@ -178,3 +178,20 @@
    - 이전 실행에서 cron(예약 반복)을 건 세션을 `--resume`으로 이어 열었을 때, cron이 실제로 이어지는지 확인
    - 이어진다면: 지금은 이어 연 시점 이전 기록을 무시하므로 그 세션이 진행 대신 완료로 보일 수 있음 → 보고
    - 확인·수정함 (2026-10-17, R41): 이어짐. kill 뒤에도, 종료 창에서 "작업 중단"을 고른 뒤에도 resume하면 cron이 되살아나 다시 울림 → 완료로 잘못 보이던 것을 고침. 같이 찾은 결함: 한 번짜리 cron이 울린 뒤에도 진행으로 굳던 것도 고침. 고친 뒤 실측: resume → 진행, CronDelete → 완료, 한 번짜리 울린 뒤 → 완료
+
+### v1.1 터미널 (2026-10-19)
+37. Terminal.app 탭 이동
+   - 기대: 다른 탭을 보는 중에 끝난 세션은 `NEW` 유지. 줄 클릭 → Terminal이 앞으로 오고 그 탭 선택, `NEW` 해제. Terminal이 앞일 때 그 탭을 직접 고르면 3초 안에 해제
+   - 확인함 (2026-10-19, 화면 조작): 승인 창 허용 뒤 기대대로. 줄 클릭 0.23초, 직접 선택(Ctrl+Tab) 2.51초
+38. iTerm2 탭 이동
+   - 기대: 37번과 같음
+   - 확인함 (2026-10-19, iTerm2 3.7.4): 기대대로. 줄 클릭 0.28초, 직접 선택(⌘2) 0.46초
+39. tmux pane 이동
+   - 기대: 줄 클릭 → tmux가 그 pane으로 전환. 바깥이 Terminal.app·iTerm2면 그 탭까지, Ghostty·그 밖이면 앱만 앞으로. 붙은 클라이언트가 없으면 Ghostty 새 탭에서 붙음
+   - 확인함 (2026-10-19, tmux 3.6a): Terminal 안·Ghostty 안·클라이언트 없음 세 경우 모두 기대대로
+   - 알아 둘 것: 그 세션을 보는 클라이언트가 없고 다른 세션을 보는 클라이언트만 있으면, 가장 최근에 쓴 클라이언트를 그 세션으로 옮김
+   - 알아 둘 것: Ghostty 안 tmux는 Ghostty가 앞에 오면 `NEW`가 꺼짐 (tmux가 있는 탭이 안 보여도)
+40. 승인 창 (Terminal·iTerm 제어)
+   - 기대: 각 앱에 처음 이동하거나 그 앱이 맨 앞일 때 감시가 처음 돌 때 한 번. 30초 안에 답하지 않으면 그 클릭은 경고음
+   - 확인함 (2026-10-19): 두 앱 모두 허용. 답하지 않는 동안 감시 명령은 약 2분 뒤 시간 초과로 끝나고 다음 주기에 다시 물음
+

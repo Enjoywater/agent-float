@@ -26,9 +26,11 @@ v1은 Claude Code 세션만 읽는다. 다른 에이전트는 같은 구조에 p
 |---|---|
 | Ghostty | 그 탭으로 이동 (탭 제목과 작업 폴더로 찾음) |
 | Orca | 그 터미널 탭으로 이동 (`orca` CLI 사용) |
+| Terminal.app · iTerm2 | 그 탭으로 이동 (세션의 tty로 찾음) |
+| tmux (어느 터미널 안이든) | 그 pane으로 전환한 뒤 바깥 터미널을 앞으로. Terminal.app·iTerm2면 그 탭까지. 붙은 클라이언트가 없으면 Ghostty 새 탭에서 붙음 |
 | `claude --bg` 백그라운드 세션 | Ghostty 새 탭에서 `claude attach <jobId>` 실행 |
-| 그 밖의 터미널 (Terminal.app, Cursor 등) | 그 앱만 앞으로 올림 |
-| 갈 곳이 없는 세션 (tmux 안 등) | 경고음 |
+| 그 밖의 터미널 (Cursor, Warp 등) | 그 앱만 앞으로 올림 |
+| 갈 곳이 없는 세션 | 경고음 |
 
 이동한 뒤 1초 안에 대상 앱이 실제로 앞에 와야 `NEW`가 꺼진다.
 
@@ -52,7 +54,7 @@ Dock 아이콘 없이 메뉴바 아이콘으로 동작한다. 메뉴: `위치 �
 
 ### 권한
 
-- 처음 Ghostty 탭으로 이동할 때 "Ghostty 제어" 승인 창이 뜬다. 거절했다면 시스템 설정 > 개인정보 보호 및 보안 > 자동화에서 켤 수 있다
+- Ghostty·Terminal.app·iTerm2로 처음 이동할 때 그 앱마다 "제어" 승인 창이 한 번 뜬다. 거절했다면 시스템 설정 > 개인정보 보호 및 보안 > 자동화에서 켤 수 있다
 - ad-hoc 서명이라 다시 빌드하면 승인을 다시 물을 수 있다
 - `로그인 시 실행`은 등록할 때의 앱 위치를 기억한다. `make install`로 설치한 앱에서 등록하면 `make clean`의 영향을 받지 않는다
 - 다른 폴더에 설치하려면 `make install INSTALL_DIR=~/Applications`
@@ -93,6 +95,7 @@ docs/
 - 데스크탑(Space)을 넘기는 애니메이션 동안에는 알약이 같이 밀려 나간다. 전환이 끝나면 같은 자리에 있다
 - Magnet 같은 창 관리 앱이 알약을 화면 칸에 붙일 수 있다
 - Orca에서 직접 탭을 옮긴 것은 감지하지 못해 `NEW`가 남는다
+- Ghostty 안의 tmux는 tmux pane까지는 가지만 Ghostty 탭은 고르지 못한다 (Ghostty가 탭의 tty를 알려 주지 않음)
 - Claude Code 세션 파일 형식은 공개 규격이 아니라 실측에 기대고 있다. 모르는 상태 값은 회색으로 표시한다
 
 자세한 판단 근거는 [설계 문서](docs/specs/2026-10-16-agent-float-design.md)와 [결정 기록](docs/plans/2026-10-16-agent-float-rulings.md)에 있다.

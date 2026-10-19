@@ -146,7 +146,23 @@ Ghostty·Orca 여러 터미널에서 AI 에이전트 세션(현재는 Claude Cod
 **백그라운드 세션** **[판단]**
 - 붙어 있는 터미널이 없으므로, 클릭 시 Ghostty 새 탭을 열어 `claude attach <jobId>` 실행 (Ghostty AppleScript `new tab` + surface configuration의 command/initial input)
 
-**기타 터미널 (폴백) [사용자]**: 클릭하면 그 세션을 띄운 터미널 앱을 앞으로 올림 (정확한 탭 이동은 아님). 앱 판별: Claude 프로세스에서 부모 프로세스를 따라 올라가며 처음 만나는 일반 GUI 앱(Dock에 뜨는 앱). 예: Terminal.app, Cursor 내장 터미널. 그런 앱을 못 찾으면(예: tmux 서버 아래에서 실행) 이동 실패로 보고 경고음을 냄 (R39). 소리 없이 무시하는 것은 이동할 곳이 아예 없는 세션(hover 강조도 없는 줄)뿐
+**Terminal.app · iTerm2** (v1.1, 실측 확인)
+- 세션 프로세스의 제어 터미널(tty, `proc_bsdinfo.e_tdev`)을 읽음. 두 앱은 AppleScript로 탭(iTerm2는 세션)마다 `tty`를 알려 줌 → 같은 tty인 탭을 고르고 창을 앞으로, 앱 활성화
+  - Terminal.app: `set selected of <tab> to true` + `set frontmost of <window> to true`
+  - iTerm2: `select <window>`, `select <tab>`, `select <session>` (세션 `select`만으로는 탭·창이 안 바뀜)
+- 판별: `TERM_PROGRAM`이 `Apple_Terminal` / `iTerm.app`. tty를 못 읽으면 앱만 올리는 폴백
+- tty는 `/dev/ttys<숫자>` 형태만 스크립트에 넣음
+- 직접 선택 감지: 그 앱이 맨 앞일 때 선택된 탭(iTerm2는 현재 세션)의 tty로 Ghostty와 같은 방식으로 `NEW` 해제. 앱별로 권한 거부를 따로 관리 (R38 일반화)
+
+**tmux** (v1.1, 실측 확인)
+- 세션 프로세스 환경변수 `TMUX`(`<소켓>,<서버 pid>,<번호>`)와 `TMUX_PANE`(`%<숫자>`)으로 pane을 정확히 앎. tmux 안에서는 `TERM_PROGRAM`이 `tmux`로 덮이므로 이것을 먼저 봄
+- 이동: `display-message`로 pane이 살아 있는지와 세션 이름을 확인 → `list-clients`에서 그 세션을 보는 클라이언트(없으면 가장 최근 활동 클라이언트)를 골라 `switch-client -c <client tty> -t <pane>`(세션·창·pane이 함께 바뀜)
+- 바깥 터미널: 클라이언트 pid에서 부모를 따라 첫 일반 앱을 고름. Terminal.app·iTerm2면 클라이언트 tty로 그 탭까지, 그 밖(Ghostty 포함)은 앱만 올림. Ghostty는 tty를 알려 주지 않아 tmux가 있는 탭까지는 못 감
+- 붙은 클라이언트가 없으면 `select-window`·`select-pane`으로 pane을 고른 뒤 Ghostty 새 탭에서 `<tmux 경로> -S <소켓> attach -t <pane>` 실행. 소켓 경로는 `[A-Za-z0-9/._-]`만 받음
+- tmux 실행 파일은 `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` 순서로 찾음 (앱은 로그인 셸 PATH를 받지 않음)
+- tmux 안의 직접 선택 감지는 없음 (v1.2 후보)
+
+**기타 터미널 (폴백) [사용자]**: 클릭하면 그 세션을 띄운 터미널 앱을 앞으로 올림 (정확한 탭 이동은 아님). 앱 판별: Claude 프로세스에서 부모 프로세스를 따라 올라가며 처음 만나는 일반 GUI 앱(Dock에 뜨는 앱). 예: Cursor 내장 터미널, tty를 못 읽은 Terminal.app. 그런 앱을 못 찾으면 이동 실패로 보고 경고음을 냄 (R39). 소리 없이 무시하는 것은 이동할 곳이 아예 없는 세션(hover 강조도 없는 줄)뿐
 
 ### 4.5 화면 — 접힌 상태(알약) **[사용자: 접이식 알약 + 펼침 시 묶음·두 줄]**
 
@@ -257,7 +273,7 @@ Ghostty·Orca 여러 터미널에서 AI 에이전트 세션(현재는 Claude Cod
 | 별도 앱에서 Ghostty로 AppleScript 보낼 때 권한(TCC) 요청 흐름 | 사용자 확인 대기 | `NSAppleEventsUsageDescription` 들어 있음. 첫 클릭 또는 첫 미확인 감시에서 승인 창 1회 예상. 실측 도구는 Ghostty 안에서 실행해 Ghostty가 보낸 것으로 처리되어 승인 창이 없었음. ad-hoc 서명이라 다시 빌드하면 다시 물을 수 있음. 거부되면(-1743/-1744) 직접 선택 감시는 다음 이동 성공까지 멈춤. 2026-10-19: 다시 빌드한 앱의 첫 이동이 클릭 뒤 3.5초 걸렸고(이후는 0.5초 안팎) 그 사이 커서가 움직임 → 승인 창에 사용자가 답했을 가능성이 있으나 화면으로 못 봄 |
 | 백그라운드 세션 `claude attach <jobId>`를 Ghostty 새 탭으로 여는 것 | 사용자 확인 대기 | 스크립트가 Ghostty 사전으로 컴파일됨(`osacompile`), `surface configuration`에 `initial input`·`command` 속성 존재(sdef). 새 탭을 여는 실행은 하지 않음 |
 | 기타 터미널 폴백: 부모 프로세스 순회 | ✅ 확인 | Ghostty는 root 소유 `/usr/bin/login`을 거쳐 셸을 띄움(실측, Terminal.app도 기본 설정에서 login을 거침) → `PROC_PIDTBSDINFO`가 EPERM이라 순회가 login에서 끊기던 것을 `PROC_PIDT_SHORTBSDINFO`로 고침. 수정 뒤 셸 → login → Ghostty, Orca 세션 → 보조 프로세스 → Orca까지 도달하고 첫 일반 앱을 고름 |
-| 기타 터미널 폴백: 찾은 앱을 앞으로 올림 | 사용자 확인 대기 | Terminal.app·Cursor에서 확인 예정(아직 실행 안 함). 갈 곳이 없는 tmux 안 세션은 2026-10-19에 확인: 클릭하면 `navigate failed`(경고음 경로), 앞 앱 그대로, `NEW` 유지. macOS 14+ 협조적 활성화가 비활성 앱의 `activate()`를 무시할 수 있어 LaunchServices 경로로 엶 |
+| 기타 터미널 폴백: 찾은 앱을 앞으로 올림 | 사용자 확인 대기 | Cursor에서 확인 예정(아직 실행 안 함). Terminal.app은 v1.1에서 탭 이동으로 바뀜. 갈 곳이 없는 tmux 안 세션은 2026-10-19에 확인: 클릭하면 `navigate failed`(경고음 경로), 앞 앱 그대로, `NEW` 유지. macOS 14+ 협조적 활성화가 비활성 앱의 `activate()`를 무시할 수 있어 LaunchServices 경로로 엶 |
 | 미확인 Ghostty 감시의 실행 조건 | ✅ 확인 | 합성 세션으로 실측: 미확인 Ghostty 세션이 생기면 감시 시작, 없어지면 멈춤(Ghostty 밖 미확인만 남으면 멈춤). Ghostty가 맨 앞이 아닐 때 5주기 동안 osascript 0회, CPU 18초에 0.01초 |
 | Ghostty에서 그 탭을 직접 고르면 3초 안에 `NEW` 해제 | ✅ 확인 | 2026-10-19: Ghostty가 맨 앞일 때 탭을 고른 뒤 3.2초에 해제(측정 도구 실행 시간 약 0.3초 포함, 감시 주기 3초). 해제 뒤 알약 폭이 줄고 테두리 빛이 꺼짐 |
 | 세션 줄 클릭 → 그 터미널로 이동 + `NEW` 해제, 실패면 경고음 + `NEW` 유지 | ✅ 확인 | 2026-10-19: 브라우저가 앞일 때 Ghostty 줄 클릭 → 0.48~0.68초에 그 탭으로 이동, `NEW` 해제. 실패 경로는 tmux 안 세션으로 확인(`NEW` 유지). 해제 조건은 명령 성공 뒤 1초 안에 기대한 앱(Ghostty·Orca·폴백이 고른 앱)이 맨 앞에 오는 것이고, 30초 제한 시간과 `ExpectedFrontmost` 규칙은 단위 테스트로 확인 |
@@ -265,6 +281,10 @@ Ghostty·Orca 여러 터미널에서 AI 에이전트 세션(현재는 Claude Cod
 | 창 동작: 끌기·누르고 있기·위치 저장·화면 끝·포커스 유지·메뉴 | ✅ 확인 | 2026-10-19 합성 입력(`cliclick`)으로: 접힌 알약과 펼친 요약 줄 끌기 중 펼침·접힘 없음, 0.6초 눌러도 안 펼쳐지고 떼면 펼쳐짐, 끈 뒤 종료·끈 직후 종료 모두 같은 자리로 복원, 화면 끝 너머에 두고 접으면 안쪽 끝에 붙음, 다른 앱에 입력하는 중에 알약을 누르거나 끌어도 입력이 그 앱으로 감, `위치 초기화`·`Agent Float 종료` 동작. 합성 입력에서는 끌기가 시작되기까지 약 0.5초가 걸려 그 사이 움직임은 반영 안 됨(실제 마우스에서는 사용자 확인) |
 | 데스크탑 전환 중 고정 | ❌ 한계 (R45) | 전환 뒤에는 같은 자리, 전환 애니메이션 동안은 같이 밀려 나감. 레벨 4종 비교로 공개 API 한계 확인 |
 | 외부 창 관리 앱과의 간섭 | 참고 | 알약을 화면 아래 끝까지 끌자 Magnet이 화면의 1/3 칸 위치로 옮김. 앱 결함 아님(7장) |
+| Terminal.app 탭 이동·직접 선택 감지 (v1.1) | ✅ 확인 | 2026-10-19: 승인 창(새 문구) 허용 뒤, 다른 탭을 보는 중 완료 → `NEW` 유지, 브라우저가 앞일 때 줄 클릭 → 0.23초에 그 탭으로·`NEW` 해제, Ctrl+Tab으로 탭 직접 선택 → 2.51초에 해제 |
+| iTerm2 탭 이동·직접 선택 감지 (v1.1) | ✅ 확인 | 2026-10-19 (iTerm2 3.7.4): 가린 탭에서 완료 → `NEW` 유지, ⌘2로 탭 직접 선택 → 0.46초에 해제, 줄 클릭 → 0.28초에 그 탭으로. 보이는 탭에서 끝난 세션은 바로 확인 처리 |
+| tmux pane 이동 (v1.1) | ✅ 확인 | 2026-10-19 (tmux 3.6a): Terminal 안 → tmux 창 전환 + Terminal 탭까지, Ghostty 안 → tmux 창 전환 + Ghostty 앱까지(탭은 그대로), 클라이언트 없는 서버 → Ghostty 새 탭에서 attach 후 그 창이 보임. 다른 세션을 보는 클라이언트만 있으면 가장 최근 클라이언트를 옮김 |
+| 승인 창에 답이 없을 때 | 참고 | 탭 확인 명령이 약 2분 뒤 AppleEvent 시간 초과(-1712)로 끝나고 감시 간격이 최대 60초까지 늘어남. 허용 뒤 다음 주기에 정상 |
 
 ## 6. 빌더 재량
 
@@ -283,10 +303,12 @@ v1 구조(`TerminalNavigator`·`AgentProvider` 등록 방식)에 구현체만 �
 
 | 항목 | 방식 (추정) | 정확도 |
 |---|---|---|
-| Terminal.app 정확한 탭 이동 | AppleScript가 탭마다 `tty`를 노출 → Claude 프로세스의 tty와 직접 매칭 | 탭 단위 정확 |
-| tmux 안의 세션 | `tmux list-panes -a -F '#{pane_tty} #{pane_id}'`로 pane을 찾아 `select-window`·`select-pane`, 바깥 터미널 앱은 활성화 | pane 단위 정확 |
 | Cursor·VS Code 내장 터미널 | 외부에서 터미널 탭을 고르는 API 없음 → 앱(창) 활성화가 한계 | 앱 단위 |
 | **플로팅에서 특정 세션에 간단한 메시지 보내기 [사용자]** | 펼친 목록의 세션 줄에서 짧은 답장(예: `ASK` 질문에 바로 답하기)을 입력해 그 세션으로 전송. 후보 경로: Ghostty AppleScript `input text`(sdef에 있음), `orca terminal send`, Claude Code 세션 파일의 `messagingSocketPath`(세션별 `.key` 인증 필요) | 터미널·에이전트별로 다름. 패널이 키 입력을 받아야 해서 "포커스를 뺏지 않음" 원칙과 충돌 → 입력할 때만 일시적으로 키 창이 되는 설계 필요 |
 | 다른 AI 에이전트 (Gemini, cursor-agent, Codex 등) | 에이전트별 hook이 4.0의 "외부가 써 주는 상태 디렉터리"에 상태 기록 → 공통 provider가 읽음 | 에이전트별 hook 이벤트 지원 범위에 따름 |
 | 외부 창 관리 앱(Magnet 등)의 칸 붙이기에서 빼기 | 창 관리 앱은 손쉬운 사용 API로 창을 다루므로, 패널을 일반 창으로 보이지 않게 하는 방법(접근성 역할 조정 등)을 조사 | 앱마다 다름 (2026-10-19 Magnet 간섭 실측) |
 | 데스크탑 전환 애니메이션 중에도 고정 | 공개 API의 창 레벨로는 불가(R45). 다른 공개 경로가 있는지 조사, 사적 API는 쓰지 않음 | 미정 |
+| WezTerm 정확한 pane 이동 | 환경변수 `WEZTERM_PANE` + `wezterm cli activate-pane --pane-id` | pane 단위 정확 |
+| cmux | CLI·소켓 API의 `pane.focus`·`window.focus` (공식 문서 확인 필요) | pane 단위 정확(추정) |
+| kitty | `kitten @ focus-window --match id:<KITTY_WINDOW_ID>`. 사용자가 원격 제어를 켜야 함 | 켜면 창 단위 정확 |
+| tmux 안의 직접 선택 감지, Ghostty 안 tmux의 바깥 탭 | 클라이언트가 보는 pane을 주기적으로 확인. Ghostty 탭은 tmux 제목(`set-titles`)과 탭 제목을 맞추는 방법을 조사 | 미정 |

@@ -71,3 +71,16 @@ Subagent-driven 구현 중 컨트롤러가 사용자 대신 내린 판단. 각 �
   - 실측: 전환이 끝나면 새 데스크탑의 같은 자리에 있지만, 넘어가는 동안은 이전 데스크탑과 같이 밀려 나감. 시험 창으로 `floating`·`statusBar`·`popUpMenu`·`screenSaver` 레벨을 같은 collection behavior로 비교했더니 모두 같이 밀림
   - 이유: 공개 API의 창 레벨로는 막을 수 없음. 사용자 요구("모든 데스크탑에서 같은 자리")는 전환 뒤 위치로 충족되고 남는 것은 보이는 모습뿐. 사적 API(CGS)는 쓰지 않음
   - 틀리면: 전환 중 잠깐 사라졌다 나타나는 모습이 거슬리면 v2에서 다른 방법을 조사해야 함
+
+## v1.1 터미널 (2026-10-19)
+
+계획: `docs/plans/2026-10-19-agent-float-v1.1-terminals.md`. 직접 구현(executing-plans) 후 마지막에 리뷰 1회
+
+- Ruling R46: Terminal.app·iTerm2는 세션 프로세스의 tty로 탭을 고름 — 두 앱 모두 AppleScript가 탭·세션마다 tty를 알려 줘서 짝이 하나로 정해짐(제목 매칭보다 확실) — 틀리면: tty를 못 읽는 경우 앱만 올리는 폴백으로 내려감
+- Ruling R47: tmux는 환경변수 `TMUX`·`TMUX_PANE`으로 pane을 정하고, 바깥 터미널은 클라이언트 pid의 부모에서 찾음. 그 세션을 보는 클라이언트를 먼저, 없으면 가장 최근 클라이언트를 `switch-client`로 옮김 — tmux 안에서는 `TERM_PROGRAM`이 덮여 바깥 앱을 알 방법이 클라이언트뿐 — 틀리면: 다른 세션을 보던 클라이언트의 화면이 바뀜
+- Ruling R48: 붙은 클라이언트가 없는 tmux 세션은 Ghostty 새 탭에서 `<tmux 절대 경로> -S <소켓> attach -t <pane>`. attach 전에 `select-window`·`select-pane` — attach는 세션의 현재 창을 바꾸지 않음. 소켓 경로·pane id는 형식 검사 뒤에만 셸 입력에 넣음 — 틀리면: Ghostty가 없는 환경에서는 경고음
+- Ruling R49: 직접 선택 감시를 앱별 probe(`FocusProbe`)와 앱별 schedule로 일반화. 감시는 짝지을 수 있는 미확인 세션이 있을 때만, 맨 앞 앱의 probe 하나만 실행 — spec 4.9 유휴 CPU, R38 권한 거부를 앱마다 따로 — 틀리면: 없음(Ghostty 동작은 그대로)
+- Ruling R50: 이동 성공 뒤 감시 재개는 그 세션을 짝지을 수 있는 probe의 앱만 — 다른 앱의 권한 상태는 이 이동으로 알 수 없음 — 틀리면: tmux 이동으로 Terminal 권한이 풀려도 Terminal 감시는 다음 Terminal 이동 때 재개
+- Ruling R51: `AppModel.activate` 시작 때 그 세션 pid의 폴백 선택 기록을 비움 — 지난 클릭이 기록 뒤 실패하면 다음 클릭이 옛 앱을 기다리게 됨 — 틀리면: 없음
+- 구현 중 결정: `TmuxCLI.isPaneId`를 Task 1에서 먼저 정의, `FocusProbe`는 `NavigatorRegistry.swift`에 둠, 부모 순회를 `ProcessAncestry.chain`으로 빼 폴백과 tmux가 같이 씀, `display-message`의 명령 실패만 찾지 못함으로 바꿈(취소는 그대로 올림), `activateFirstRegularApp`을 고르기·올리기로 나눔
+- 실측 중 알게 된 것: 이 세션에서 처음 띄운 Terminal은 이 세션의 `CLAUDE_CODE_*` 환경을 물려받아 그 안의 claude가 하위 세션(세션 파일 없음)이 됨 → 시험 스크립트에서 환경을 비워 해결. 사용자가 띄운 터미널에는 해당 없음
