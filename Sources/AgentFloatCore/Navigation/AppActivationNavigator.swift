@@ -1,8 +1,5 @@
 /// 정확한 탭을 모르는 세션을 위한 앱 단위 폴백. GUI 앱 판별·활성화는 AppKit 이 필요해 앱 타깃이 클로저로 주입한다
 public struct AppActivationNavigator: TerminalNavigator {
-    // 순환하는 부모 표나 비정상적으로 깊은 트리에서도 순회가 끝나도록 상한을 둔다
-    private static let maxChainLength = 32
-
     private let inspector: any ProcessInspecting
     private let activateFirstApp: @Sendable ([Int32]) -> Bool
 
@@ -18,13 +15,22 @@ public struct AppActivationNavigator: TerminalNavigator {
 
     public func navigate(to session: AgentSession) async throws {
         guard case let .application(pid) = session.locator else { throw NavigationError.terminalNotFound }
-        // 가까운 조상부터 넘겨야 가장 안쪽의 GUI 앱이 먼저 고려된다
+        guard activateFirstApp(ProcessAncestry.chain(from: pid, inspector: inspector)) else { throw NavigationError.terminalNotFound }
+    }
+}
+
+enum ProcessAncestry {
+    // 순환하는 부모 표나 비정상적으로 깊은 트리에서도 순회가 끝나도록 상한을 둔다
+    static let maxChainLength = 32
+
+    /// 가까운 조상부터 담아야 가장 안쪽의 GUI 앱이 먼저 고려된다
+    static func chain(from pid: Int32, inspector: any ProcessInspecting) -> [Int32] {
         var chain = [pid]
-        while chain.count < Self.maxChainLength,
+        while chain.count < maxChainLength,
               let parent = inspector.parentPid(of: chain[chain.count - 1]),
               !chain.contains(parent) {
             chain.append(parent)
         }
-        guard activateFirstApp(chain) else { throw NavigationError.terminalNotFound }
+        return chain
     }
 }
