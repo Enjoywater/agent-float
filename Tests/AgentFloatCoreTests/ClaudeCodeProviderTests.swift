@@ -9,13 +9,19 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         var alive: Set<Int32>
         var environments: [Int32: [String: String]]
         var ttys: [Int32: String]
+        var parents: [Int32: Int32]
         var environmentCalls = 0
     }
 
     private let state: Mutex<State>
 
-    init(alive: Set<Int32> = [], environments: [Int32: [String: String]] = [:], ttys: [Int32: String] = [:]) {
-        state = Mutex(State(alive: alive, environments: environments, ttys: ttys))
+    init(
+        alive: Set<Int32> = [],
+        environments: [Int32: [String: String]] = [:],
+        ttys: [Int32: String] = [:],
+        parents: [Int32: Int32] = [:]
+    ) {
+        state = Mutex(State(alive: alive, environments: environments, ttys: ttys, parents: parents))
     }
 
     var environmentCalls: Int { state.withLock { $0.environmentCalls } }
@@ -35,7 +41,9 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         }
     }
 
-    func parentPid(of pid: Int32) -> Int32? { nil }
+    func parentPid(of pid: Int32) -> Int32? {
+        state.withLock { $0.parents[pid] }
+    }
 
     func tty(pid: Int32) -> String? {
         state.withLock { $0.ttys[pid] }
@@ -224,11 +232,20 @@ private final class FakeInspector: ProcessInspecting, Sendable {
 
     // MARK: Terminal.app · iTerm2 · tmux
 
-    private func placedSession(pid: Int32, n: Int, environment: [String: String], tty: String? = nil) throws -> AgentSession {
+    private func placedSession(
+        pid: Int32,
+        n: Int,
+        environment: [String: String],
+        tty: String? = nil,
+        ttys: [Int32: String] = [:],
+        parents: [Int32: Int32] = [:]
+    ) throws -> AgentSession {
         let id = Self.sessionId(n)
         try writeSession(pid: pid, sessionId: id)
         try writeTranscript(sessionId: id, title: "터미널 세션")
-        let inspector = FakeInspector(alive: [pid], environments: [pid: environment], ttys: tty.map { [pid: $0] } ?? [:])
+        var allTtys = ttys
+        if let tty { allTtys[pid] = tty }
+        let inspector = FakeInspector(alive: [pid], environments: [pid: environment], ttys: allTtys, parents: parents)
         return try session(try provider(inspector).snapshot(now: Self.now), id)
     }
 
@@ -249,9 +266,34 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(found.locator == .application(pid: 4012))
     }
 
+    /// nvim `:terminal` 처럼 안쪽 pty 를 만드는 프로그램은 TERM_PROGRAM 을 덮지 않아, 세션의 tty 는 탭의 tty 가 아니다
+    @Test func nestedPtyUsesOutermostTty() throws {
+        // 세션 4016(안쪽 pty) → 셸 600(안쪽) → nvim 601(탭의 pty) → 셸 602(탭) → Terminal 603(tty 없음)
+        let found = try placedSession(
+            pid: 4016, n: 16, environment: ["TERM_PROGRAM": "Apple_Terminal"],
+            ttys: [4016: "/dev/ttys020", 600: "/dev/ttys020", 601: "/dev/ttys004", 602: "/dev/ttys004"],
+            parents: [4016: 600, 600: 601, 601: 602, 602: 603]
+        )
+        #expect(found.locator == .appleTerminal(tty: "/dev/ttys004"))
+    }
+
+    @Test func nonDeviceTtyFallsBack() throws {
+        let found = try placedSession(pid: 4017, n: 17, environment: ["TERM_PROGRAM": "iTerm.app"], tty: "/dev/console")
+        #expect(found.locator == .application(pid: 4017))
+    }
+
+    /// tmux 에서 CLI 로 띄운 IDE 는 TMUX 를 물려받지만 그 안의 세션은 tmux 서버 아래에 있지 않다
+    @Test func inheritedTmuxEnvironmentIsIgnored() throws {
+        let environment = ["TERM_PROGRAM": "vscode", "TMUX": "/private/tmp/tmux-501/default,4242,0", "TMUX_PANE": "%7"]
+        let found = try placedSession(pid: 4018, n: 18, environment: environment, parents: [4018: 700, 700: 701])
+        #expect(found.terminalApp == .other("vscode"))
+        #expect(found.locator == .application(pid: 4018))
+    }
+
     @Test func tmuxSessionUsesPaneFromEnvironment() throws {
         let environment = ["TERM_PROGRAM": "tmux", "TMUX": "/private/tmp/tmux-501/default,4242,0", "TMUX_PANE": "%7"]
-        let found = try placedSession(pid: 4013, n: 13, environment: environment, tty: "/dev/ttys006")
+        // 세션 → pane 의 셸 → tmux 서버(4242)
+        let found = try placedSession(pid: 4013, n: 13, environment: environment, tty: "/dev/ttys006", parents: [4013: 800, 800: 4242])
         #expect(found.terminalApp == .other("tmux"))
         #expect(found.locator == .tmux(socket: "/private/tmp/tmux-501/default", paneId: "%7", pid: 4013))
     }

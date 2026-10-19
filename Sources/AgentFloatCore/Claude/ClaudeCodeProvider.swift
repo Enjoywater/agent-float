@@ -156,8 +156,8 @@ public final class ClaudeCodeProvider: AgentProvider, Sendable {
         let context = terminalContext(for: processKey, state: &state)
         let fallback = TerminalLocator.application(pid: file.pid)
         // tmux 안에서는 TERM_PROGRAM 이 바깥 터미널 대신 tmux 로 덮이므로 tmux 환경을 먼저 본다
-        if let tmux = Self.tmuxLocator(environment: context.tmux, pane: context.tmuxPane, pid: file.pid) {
-            return (.other("tmux"), tmux)
+        if let tmux = context.tmux {
+            return (.other("tmux"), .tmux(socket: tmux.socket, paneId: tmux.paneId, pid: file.pid))
         }
         switch context.program {
         case "ghostty":
@@ -179,27 +179,40 @@ public final class ClaudeCodeProvider: AgentProvider, Sendable {
     private func terminalContext(for key: ProcessKey, state: inout Caches) -> TerminalContext {
         if let cached = state.terminals[key] { return cached }
         let environment = inspector.environment(pid: key.pid)
+        let ancestors = ProcessAncestry.chain(from: key.pid, inspector: inspector)
         let context = TerminalContext(
             program: Self.nonEmpty(environment["TERM_PROGRAM"]),
             paneKey: Self.nonEmpty(environment["ORCA_PANE_KEY"]),
             orcaHandle: Self.nonEmpty(environment["ORCA_TERMINAL_HANDLE"]),
-            tty: inspector.tty(pid: key.pid),
-            tmux: Self.nonEmpty(environment["TMUX"]),
-            tmuxPane: Self.nonEmpty(environment["TMUX_PANE"])
+            tty: outermostTty(along: ancestors),
+            tmux: Self.tmuxPane(environment: environment["TMUX"], pane: environment["TMUX_PANE"], ancestors: ancestors)
         )
         // 조회 실패와 빈 환경을 구분할 수 없어, 비어 있으면 캐시하지 않고 다음 주기에 다시 읽는다
         if !environment.isEmpty { state.terminals[key] = context }
         return context
     }
 
-    /// `TMUX` 는 `<소켓 경로>,<서버 pid>,<세션 번호>`. 경로에 쉼표가 들어가도 뒤의 두 값만 떼어 낸다 (tmux 3.6 실측)
-    private static func tmuxLocator(environment tmux: String?, pane: String?, pid: Int32) -> TerminalLocator? {
+    /// `TMUX` 는 `<소켓 경로>,<서버 pid>,<세션 번호>`. 경로에 쉼표가 들어가도 뒤의 두 값만 떼어 낸다 (tmux 3.6 실측).
+    /// tmux 에서 CLI 로 띄운 IDE 처럼 환경만 물려받은 프로세스도 있어, 서버가 실제로 조상일 때만 tmux 안으로 본다
+    private static func tmuxPane(environment tmux: String?, pane: String?, ancestors: [Int32]) -> TmuxPane? {
         guard let tmux, let pane, TmuxCLI.isPaneId(pane) else { return nil }
         let parts = tmux.split(separator: ",", omittingEmptySubsequences: false)
-        guard parts.count >= 3 else { return nil }
+        guard parts.count >= 3, let serverPid = Int32(parts[parts.count - 2]), ancestors.contains(serverPid) else { return nil }
         let socket = parts.dropLast(2).joined(separator: ",")
         guard socket.hasPrefix("/") else { return nil }
-        return .tmux(socket: socket, paneId: pane, pid: pid)
+        return TmuxPane(socket: socket, paneId: pane)
+    }
+
+    /// nvim `:terminal`·screen 처럼 안쪽 pty 를 만드는 프로그램 아래에서는 세션의 tty 가 탭의 tty 가 아니다.
+    /// 그래서 tty 가 이어지는 가장 바깥 조상(탭을 연 셸)의 tty 를 쓴다. 터미널 앱 자신은 tty 가 없어 거기서 멈춘다
+    private func outermostTty(along ancestors: [Int32]) -> String? {
+        var outermost: String?
+        for pid in ancestors {
+            guard let tty = inspector.tty(pid: pid) else { break }
+            outermost = tty
+        }
+        // 의사 터미널이 아닌 값(`/dev/console` 등)은 어느 탭과도 맞지 않아 매번 경고음만 나므로 폴백으로 보낸다
+        return outermost.flatMap { TtyFormat.isDevicePath($0) ? $0 : nil }
     }
 
     private static func orcaLocator(paneKey: String?, handle: String?) -> TerminalLocator? {
@@ -326,8 +339,12 @@ private struct TerminalContext {
     let paneKey: String?
     let orcaHandle: String?
     let tty: String?
-    let tmux: String?
-    let tmuxPane: String?
+    let tmux: TmuxPane?
+}
+
+private struct TmuxPane {
+    let socket: String
+    let paneId: String
 }
 
 private struct FileStamp: Equatable {
