@@ -35,8 +35,8 @@ public enum ExpectedFrontmost: Equatable, Sendable {
     }
 }
 
-/// Ghostty 직접 선택 감시의 간격. 실패가 이어지면 간격을 늘리고, 자동화 권한이 거부되면 다시 허용될 때까지 멈춘다 (R38)
-public struct GhosttyWatchSchedule: Equatable, Sendable {
+/// 직접 선택 감시의 간격(앱마다 하나). 실패가 이어지면 간격을 늘리고, 자동화 권한이 거부되면 다시 허용될 때까지 멈춘다 (R38)
+public struct FocusWatchSchedule: Equatable, Sendable {
     public static let baseInterval: Duration = .seconds(3)
     public static let maxInterval: Duration = .seconds(60)
     // 2^5 배면 이미 상한을 넘으므로 그 이상은 셀 필요가 없다
@@ -56,7 +56,7 @@ public struct GhosttyWatchSchedule: Equatable, Sendable {
     }
 
     public mutating func recordFailure(_ error: any Error) {
-        // 감시를 멈추거나 세션이 사라져 스스로 취소한 것은 Ghostty 쪽 실패가 아니다
+        // 감시를 멈추거나 세션이 사라져 스스로 취소한 것은 그 앱 쪽 실패가 아니다
         if error is CancellationError { return }
         if Self.isAutomationDenied(error) {
             isSuspended = true

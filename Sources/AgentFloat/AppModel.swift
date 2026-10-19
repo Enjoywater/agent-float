@@ -15,14 +15,15 @@ final class AppModel {
 
     @ObservationIgnored private let store: SessionStore
     @ObservationIgnored private let navigators: NavigatorRegistry
-    @ObservationIgnored private let focusProbe: GhosttyFocusProbe
+    @ObservationIgnored private let focusProbes: [any FocusProbe]
     @ObservationIgnored private let activator: AppActivator
     @ObservationIgnored private let worker: SnapshotWorker
     @ObservationIgnored private var tracker = SignalTracker()
     @ObservationIgnored private var watcher: DirectoryWatcher?
     @ObservationIgnored private var pollTask: Task<Void, Never>?
-    @ObservationIgnored private var ghosttyWatchTask: Task<Void, Never>?
-    @ObservationIgnored private var ghosttyWatchSchedule = GhosttyWatchSchedule()
+    @ObservationIgnored private var focusWatchTask: Task<Void, Never>?
+    /// 앱별로 둔다. 한 앱의 자동화 권한이 거부돼도 다른 앱의 감시는 계속돼야 한다
+    @ObservationIgnored private var focusWatchSchedules: [String: FocusWatchSchedule] = [:]
     @ObservationIgnored private var isRefreshing = false
     @ObservationIgnored private var isNavigating = false
     @ObservationIgnored private var needsAnotherRefresh = false
@@ -39,10 +40,10 @@ final class AppModel {
     private static let arrivalWindow: Duration = .seconds(1)
     private static let arrivalPollInterval: Duration = .milliseconds(50)
 
-    init(store: SessionStore, navigators: NavigatorRegistry, focusProbe: GhosttyFocusProbe, activator: AppActivator) {
+    init(store: SessionStore, navigators: NavigatorRegistry, focusProbes: [any FocusProbe], activator: AppActivator) {
         self.store = store
         self.navigators = navigators
-        self.focusProbe = focusProbe
+        self.focusProbes = focusProbes
         self.activator = activator
         worker = SnapshotWorker(store: store)
     }
@@ -88,6 +89,8 @@ final class AppModel {
         guard !isNavigating else { return }
         isNavigating = true
         defer { isNavigating = false }
+        // 지난 클릭이 바깥 앱을 기록한 뒤 실패했으면 그 기록이 남아, 이번 클릭이 엉뚱한 앱을 기다리게 된다
+        if let pid = Self.sessionPid(of: session.locator) { _ = activator.takeFallbackChoice(forSession: pid) }
         do {
             try await navigators.navigate(to: session, timeout: Self.navigationTimeout)
         } catch {
@@ -96,8 +99,8 @@ final class AppModel {
             NSSound.beep()
             return
         }
-        // 자동화 권한이 다시 허용됐을 수 있는 시점이라 멈춰 둔 감시를 다시 시도한다 (R38)
-        resumeGhosttyWatch()
+        // 자동화 권한이 다시 허용됐을 수 있는 시점이라 그 앱의 멈춰 둔 감시를 다시 시도한다 (R38)
+        resumeFocusWatch(after: session)
         guard await targetCameForward(for: session) else {
             let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
             DebugLog.write("navigate unconfirmed session=\(session.key.sessionId) front=\(front)")
@@ -110,10 +113,7 @@ final class AppModel {
 
     /// 명령이 성공해도 앱이 앞에 오지 않았다면 사용자는 아무것도 못 봤으므로 NEW 를 끄지 않는다 (R37)
     private func targetCameForward(for session: AgentSession) async -> Bool {
-        var activatedPid: Int32?
-        if case let .application(pid) = session.locator {
-            activatedPid = activator.takeFallbackChoice(forSession: pid)
-        }
+        let activatedPid = Self.sessionPid(of: session.locator).flatMap { activator.takeFallbackChoice(forSession: $0) }
         guard let expected = ExpectedFrontmost.expected(for: session.locator, activatedPid: activatedPid) else { return false }
         let deadline = ContinuousClock.now + Self.arrivalWindow
         while true {
@@ -121,6 +121,14 @@ final class AppModel {
             if expected.isReached(byBundle: front?.bundleIdentifier, pid: front?.processIdentifier) { return true }
             guard ContinuousClock.now < deadline else { return false }
             try? await Task.sleep(for: Self.arrivalPollInterval)
+        }
+    }
+
+    /// 바깥 앱을 실행해 봐야 고를 수 있는 이동만 그 선택을 세션 pid 로 기록한다
+    private static func sessionPid(of locator: TerminalLocator) -> Int32? {
+        switch locator {
+        case let .application(pid), let .tmux(_, _, pid): pid
+        case .ghostty, .orca, .background, .appleTerminal, .iTerm, .none: nil
         }
     }
 
@@ -169,62 +177,81 @@ final class AppModel {
         let freshSummary = tracker.summary(of: sessions)
         if freshSummary != summary { summary = freshSummary }
         if tracker.unseen != unseen { unseen = tracker.unseen }
-        updateGhosttyWatch()
+        updateFocusWatch()
     }
 
-    // MARK: Ghostty 직접 선택 감지 (spec 4.6 해제 조건 2)
+    // MARK: 직접 선택 감지 (spec 4.6 해제 조건 2)
 
-    private var unseenGhosttySessions: [AgentSession] {
-        sessions.filter { session in
-            guard tracker.unseen.contains(session.key), case .ghostty = session.locator else { return false }
-            return true
-        }
+    private func schedule(for probe: any FocusProbe) -> FocusWatchSchedule {
+        focusWatchSchedules[probe.bundleIdentifier] ?? FocusWatchSchedule()
     }
 
-    /// 미확인 Ghostty 세션이 있을 때만 주기를 돌린다. 없을 때 깨어나지 않아야 유휴 CPU 가 0 에 머문다 (spec 4.9).
-    /// 자동화 권한이 거부된 동안에는 매번 실패할 osascript 를 띄우지 않도록 멈춰 둔다 (R38)
-    private func updateGhosttyWatch() {
-        guard !unseenGhosttySessions.isEmpty, !ghosttyWatchSchedule.isSuspended else {
-            guard let task = ghosttyWatchTask else { return }
+    /// 감시를 멈추지 않은 probe 가 짝지을 수 있는 미확인 세션
+    private func watchableSessions(for probe: any FocusProbe) -> [AgentSession] {
+        guard !schedule(for: probe).isSuspended else { return [] }
+        return sessions.filter { tracker.unseen.contains($0.key) && probe.canProbe($0) }
+    }
+
+    private var watchedProbes: [any FocusProbe] {
+        focusProbes.filter { !watchableSessions(for: $0).isEmpty }
+    }
+
+    /// 짝지을 수 있는 미확인 세션이 있을 때만 주기를 돌린다. 없을 때 깨어나지 않아야 유휴 CPU 가 0 에 머문다 (spec 4.9).
+    /// 자동화 권한이 거부된 앱은 매번 실패할 osascript 를 띄우지 않도록 빼 둔다 (R38)
+    private func updateFocusWatch() {
+        let watched = watchedProbes
+        guard !watched.isEmpty else {
+            guard let task = focusWatchTask else { return }
             task.cancel()
-            ghosttyWatchTask = nil
-            DebugLog.write("ghostty watch off suspended=\(ghosttyWatchSchedule.isSuspended)")
+            focusWatchTask = nil
+            let suspended = focusWatchSchedules.filter(\.value.isSuspended).keys.sorted()
+            DebugLog.write("focus watch off suspended=\(suspended)")
             return
         }
-        guard ghosttyWatchTask == nil else { return }
-        DebugLog.write("ghostty watch on")
-        ghosttyWatchTask = Task { [weak self] in
+        guard focusWatchTask == nil else { return }
+        DebugLog.write("focus watch on bundles=\(watched.map(\.bundleIdentifier))")
+        focusWatchTask = Task { [weak self] in
             while !Task.isCancelled {
-                guard let interval = self?.ghosttyWatchSchedule.interval else { return }
+                guard let interval = self?.nextFocusInterval else { return }
                 try? await Task.sleep(for: interval, tolerance: .milliseconds(500))
                 guard let self, !Task.isCancelled else { return }
-                await self.checkGhosttyFocus()
+                await self.checkFocus()
             }
         }
     }
 
-    private func resumeGhosttyWatch() {
-        guard ghosttyWatchSchedule.isSuspended else { return }
-        ghosttyWatchSchedule.resume()
-        DebugLog.write("ghostty watch resumed")
-        updateGhosttyWatch()
+    /// 실패가 이어진 앱만 간격이 늘어나므로, 감시 중인 앱 중 가장 짧은 간격으로 깨어난다
+    private var nextFocusInterval: Duration {
+        watchedProbes.map { schedule(for: $0).interval }.min() ?? FocusWatchSchedule.baseInterval
     }
 
-    private func checkGhosttyFocus() async {
-        // Ghostty 가 맨 앞이 아니면 선택된 탭이 있어도 사용자가 보고 있는 화면이 아니다
+    private func resumeFocusWatch(after session: AgentSession) {
+        for probe in focusProbes where probe.canProbe(session) && schedule(for: probe).isSuspended {
+            focusWatchSchedules[probe.bundleIdentifier]?.resume()
+            DebugLog.write("focus watch resumed bundle=\(probe.bundleIdentifier)")
+        }
+        updateFocusWatch()
+    }
+
+    private func checkFocus() async {
+        // 맨 앞 앱이 아니면 선택된 탭이 있어도 사용자가 보고 있는 화면이 아니다
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        guard front == TerminalBundle.ghostty else { return }
-        let candidates = unseenGhosttySessions
+        guard let probe = focusProbes.first(where: { $0.bundleIdentifier == front }) else { return }
+        let candidates = watchableSessions(for: probe)
         guard !candidates.isEmpty else { return }
+        let bundle = probe.bundleIdentifier
+        var schedule = schedule(for: probe)
         do {
-            let shown = try await focusProbe.focusedSessions(among: candidates)
-            ghosttyWatchSchedule.recordSuccess()
-            DebugLog.write("ghostty watch checked candidates=\(candidates.count) shown=\(shown.count)")
+            let shown = try await probe.focusedSessions(among: candidates)
+            schedule.recordSuccess()
+            focusWatchSchedules[bundle] = schedule
+            DebugLog.write("focus watch checked bundle=\(bundle) candidates=\(candidates.count) shown=\(shown.count)")
             markSeen(shown)
         } catch {
-            ghosttyWatchSchedule.recordFailure(error)
-            DebugLog.write("ghostty watch failed error=\(error) next=\(ghosttyWatchSchedule.interval) suspended=\(ghosttyWatchSchedule.isSuspended)")
-            if ghosttyWatchSchedule.isSuspended { updateGhosttyWatch() }
+            schedule.recordFailure(error)
+            focusWatchSchedules[bundle] = schedule
+            DebugLog.write("focus watch failed bundle=\(bundle) error=\(error) next=\(schedule.interval) suspended=\(schedule.isSuspended)")
+            if schedule.isSuspended { updateFocusWatch() }
         }
     }
 }

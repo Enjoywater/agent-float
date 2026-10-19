@@ -42,7 +42,7 @@ import Testing
     // MARK: 직접 선택 감시 주기 (R38)
 
     @Test func failuresBackOffExponentiallyUpToAMinute() {
-        var schedule = GhosttyWatchSchedule()
+        var schedule = FocusWatchSchedule()
         #expect(schedule.interval == .seconds(3))
         var intervals: [Duration] = []
         for _ in 0..<7 {
@@ -54,7 +54,7 @@ import Testing
     }
 
     @Test func successResetsTheInterval() {
-        var schedule = GhosttyWatchSchedule()
+        var schedule = FocusWatchSchedule()
         schedule.recordFailure(NavigationError.commandFailed("timeout"))
         schedule.recordFailure(NavigationError.commandFailed("timeout"))
         schedule.recordSuccess()
@@ -67,7 +67,7 @@ import Testing
             "execution error: Ghostty got an error: A privacy consent request is required. (-1744)",
         ]
         for message in denials {
-            var schedule = GhosttyWatchSchedule()
+            var schedule = FocusWatchSchedule()
             schedule.recordFailure(NavigationError.commandFailed(message))
             #expect(schedule.isSuspended, "\(message)")
             schedule.resume()
@@ -77,15 +77,15 @@ import Testing
     }
 
     @Test func cancellationIsNotAFailure() {
-        var schedule = GhosttyWatchSchedule()
+        var schedule = FocusWatchSchedule()
         schedule.recordFailure(CancellationError())
         #expect(schedule.interval == .seconds(3))
         #expect(!schedule.isSuspended)
     }
 
     @Test func otherErrorsAreNotTreatedAsDenial() {
-        #expect(!GhosttyWatchSchedule.isAutomationDenied(NavigationError.commandFailed("exit status 1")))
-        #expect(!GhosttyWatchSchedule.isAutomationDenied(NavigationError.terminalNotFound))
-        #expect(GhosttyWatchSchedule.isAutomationDenied(NavigationError.commandFailed("Not authorized to send Apple events to Ghostty.")))
+        #expect(!FocusWatchSchedule.isAutomationDenied(NavigationError.commandFailed("exit status 1")))
+        #expect(!FocusWatchSchedule.isAutomationDenied(NavigationError.terminalNotFound))
+        #expect(FocusWatchSchedule.isAutomationDenied(NavigationError.commandFailed("Not authorized to send Apple events to Ghostty.")))
     }
 }

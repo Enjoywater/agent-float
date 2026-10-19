@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = AppModel(
             store: SessionStore(providers: [Self.makeProvider(environment)]),
             navigators: Self.makeNavigators(runner: runner, activator: activator),
-            focusProbe: GhosttyFocusProbe(runner: runner),
+            focusProbes: [GhosttyFocusProbe(runner: runner), AppleTerminalFocusProbe(runner: runner), ITermFocusProbe(runner: runner)],
             activator: activator
         )
         let controller = PanelController(model: model)
