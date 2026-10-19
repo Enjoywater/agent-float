@@ -147,7 +147,8 @@ Ghostty·Orca 여러 터미널에서 AI 에이전트 세션(현재는 Claude Cod
 - 붙어 있는 터미널이 없으므로, 클릭 시 Ghostty 새 탭을 열어 `claude attach <jobId>` 실행 (Ghostty AppleScript `new tab` + surface configuration의 command/initial input)
 
 **Terminal.app · iTerm2** (v1.1, 실측 확인)
-- 세션 프로세스의 제어 터미널(tty, `proc_bsdinfo.e_tdev`)을 읽음. 두 앱은 AppleScript로 탭(iTerm2는 세션)마다 `tty`를 알려 줌 → 같은 tty인 탭을 고르고 창을 앞으로, 앱 활성화
+- 제어 터미널(tty, `proc_bsdinfo.e_tdev`)을 읽음. 두 앱은 AppleScript로 탭(iTerm2는 세션)마다 `tty`를 알려 줌 → 같은 tty인 탭을 고르고 창을 앞으로, 앱 활성화
+  - 세션 프로세스 자신이 아니라 부모를 따라 tty가 이어지는 가장 바깥 프로세스(탭을 연 셸)의 tty를 씀. nvim `:terminal`·screen처럼 안쪽 pty를 만드는 프로그램 아래에서는 세션의 tty가 탭의 tty가 아님 (R52)
   - Terminal.app: `set selected of <tab> to true` + `set frontmost of <window> to true`
   - iTerm2: `select <window>`, `select <tab>`, `select <session>` (세션 `select`만으로는 탭·창이 안 바뀜)
 - 판별: `TERM_PROGRAM`이 `Apple_Terminal` / `iTerm.app`. tty를 못 읽으면 앱만 올리는 폴백
@@ -156,8 +157,10 @@ Ghostty·Orca 여러 터미널에서 AI 에이전트 세션(현재는 Claude Cod
 
 **tmux** (v1.1, 실측 확인)
 - 세션 프로세스 환경변수 `TMUX`(`<소켓>,<서버 pid>,<번호>`)와 `TMUX_PANE`(`%<숫자>`)으로 pane을 정확히 앎. tmux 안에서는 `TERM_PROGRAM`이 `tmux`로 덮이므로 이것을 먼저 봄
+  - 서버 pid가 세션의 조상일 때만 tmux 안으로 봄. tmux 안에서 띄운 IDE처럼 환경변수만 물려받은 프로세스를 거르기 위함 (R53)
 - 이동: `display-message`로 pane이 살아 있는지와 세션 이름을 확인 → `list-clients`에서 그 세션을 보는 클라이언트(없으면 가장 최근 활동 클라이언트)를 골라 `switch-client -c <client tty> -t <pane>`(세션·창·pane이 함께 바뀜)
 - 바깥 터미널: 클라이언트 pid에서 부모를 따라 첫 일반 앱을 고름. Terminal.app·iTerm2면 클라이언트 tty로 그 탭까지, 그 밖(Ghostty 포함)은 앱만 올림. Ghostty는 tty를 알려 주지 않아 tmux가 있는 탭까지는 못 감
+- 바깥 탭 선택이 실패하면(제어 권한 거절, 그 tty의 탭 없음) 앱만 올리는 폴백으로 내려가지 않고 이동 실패(경고음). pane은 이미 바뀐 상태 — 알려진 한계
 - 붙은 클라이언트가 없으면 `select-window`·`select-pane`으로 pane을 고른 뒤 Ghostty 새 탭에서 `<tmux 경로> -S <소켓> attach -t <pane>` 실행. 소켓 경로는 `[A-Za-z0-9/._-]`만 받음
 - tmux 실행 파일은 `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` 순서로 찾음 (앱은 로그인 셸 PATH를 받지 않음)
 - tmux 안의 직접 선택 감지는 없음 (v1.2 후보)
@@ -191,10 +194,12 @@ Ghostty·Orca 여러 터미널에서 AI 에이전트 세션(현재는 Claude Cod
 - 세션 단위로 해제. 완료가 2개 미확인이면 둘 다 확인해야 꼬리가 사라짐
 - 해제 조건:
   1. 플로팅에서 그 세션 줄을 클릭해 이동 **[사용자]**
-  2. Ghostty에서 사용자가 그 탭을 직접 선택 — 미확인이 있고 Ghostty가 앞에 있을 때만 수 초 간격으로 `focused terminal` 확인 **[판단]**
+  2. Ghostty·Terminal.app·iTerm2에서 사용자가 그 탭을 직접 선택 — 그 앱의 미확인이 있고 그 앱이 맨 앞에 있을 때만 수 초 간격으로 선택된 탭 확인(Ghostty는 `focused terminal`, Terminal.app·iTerm2는 선택된 탭의 tty) **[판단]**
+     - 제어 권한이 거절되면 그 앱의 확인은 그 앱 세션으로 이동에 성공할 때까지 멈춤 (R38·R50). 백그라운드 세션이나 붙은 클라이언트 없는 tmux 세션을 Ghostty 새 탭으로 연 것은 여기서 말하는 이동에 들지 않아, Ghostty 확인이 다시 켜지지 않음 — 알려진 한계
   3. 그 세션이 다시 `busy`가 됨 (새 지시를 넣음)
   4. 펼치기만 해서는 해제 안 됨 **[판단]** — 펼치자마자 사라지면 NEW를 볼 수 없음
 - Orca에서 직접 탭을 옮긴 경우는 감지 못함 (Orca는 작업 폴더별 활성 탭만 알려주고, 화면에 보이는 작업 폴더는 모름) → 3번으로 해제됨
+- tmux 안에서 직접 pane을 옮긴 경우도 감지 못함 (4.4) → 3번으로 해제됨
 
 ### 4.7 화면 — 펼친 상태 **[사용자]**
 
@@ -222,7 +227,8 @@ Ghostty·Orca 여러 터미널에서 AI 에이전트 세션(현재는 Claude Cod
 
 - `~/.claude/sessions/` 디렉터리 변경 감시(FSEvents/DispatchSource) + 저빈도 폴링 보조 (pid 생존·경과시간 갱신용)
 - `claude agents --json`을 주기적으로 실행하지 않음 (매번 큰 바이너리를 띄우는 비용)
-- Ghostty AppleScript는 클릭 이동 시와 4.6의 미확인 해제 확인 시에만 호출
+- 터미널 AppleScript(Ghostty·Terminal.app·iTerm2)는 클릭 이동 시와 4.6의 미확인 해제 확인 시에만 호출. 해제 확인은 맨 앞 앱의 것 하나만 실행 (R49)
+- tmux CLI는 클릭 이동 시에만 호출
 - 목표: 변화 없을 때 CPU 사실상 0
 
 ### 4.10 시각 디자인 — macOS 26 Liquid Glass 문법 **[사용자: iOS·macOS스러운 디자인]**
@@ -311,4 +317,5 @@ v1 구조(`TerminalNavigator`·`AgentProvider` 등록 방식)에 구현체만 �
 | WezTerm 정확한 pane 이동 | 환경변수 `WEZTERM_PANE` + `wezterm cli activate-pane --pane-id` | pane 단위 정확 |
 | cmux | CLI·소켓 API의 `pane.focus`·`window.focus` (공식 문서 확인 필요) | pane 단위 정확(추정) |
 | kitty | `kitten @ focus-window --match id:<KITTY_WINDOW_ID>`. 사용자가 원격 제어를 켜야 함 | 켜면 창 단위 정확 |
+| iTerm2 tmux 통합(`tmux -CC`) | 제어 모드 클라이언트의 tty는 `tmux -CC`를 실행한 탭의 것이라, 지금은 tmux 창이 열린 탭이 아니라 그 탭으로 갈 수 있음(미실측). iTerm2 쪽에서 tmux 창과 탭의 짝을 얻는 방법 조사 | 미정 |
 | tmux 안의 직접 선택 감지, Ghostty 안 tmux의 바깥 탭 | 클라이언트가 보는 pane을 주기적으로 확인. Ghostty 탭은 tmux 제목(`set-titles`)과 탭 제목을 맞추는 방법을 조사 | 미정 |

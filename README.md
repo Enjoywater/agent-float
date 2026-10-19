@@ -18,7 +18,7 @@ v1은 Claude Code 세션만 읽는다. 다른 에이전트는 같은 구조에 p
 봐야 할 것이 있으면 알약 테두리 빛이 돈다.
 
 - `ASK`: 나를 기다리는 세션이 있음. 대기가 실제로 풀려야 꺼짐
-- `NEW`: 아직 확인하지 않은 완료가 있음. 플로팅에서 그 줄을 누르거나, Ghostty에서 그 탭을 직접 고르거나, 세션이 다시 일을 시작하면 꺼짐. 펼치기만 해서는 꺼지지 않음
+- `NEW`: 아직 확인하지 않은 완료가 있음. 플로팅에서 그 줄을 누르거나, Ghostty·Terminal.app·iTerm2에서 그 탭을 직접 고르거나, 세션이 다시 일을 시작하면 꺼짐. 펼치기만 해서는 꺼지지 않음
 
 ## 터미널 이동
 
@@ -80,8 +80,8 @@ Sources/
     Claude/              세션 파일·transcript 읽기와 상태 판정
     Provider/            에이전트 provider 규약과 여러 provider를 모으는 SessionStore
     Model/ Signals/      세션 모델, 묶음과 ASK·NEW 신호 규칙
-    Navigation/          Ghostty·Orca·폴백 이동
-    System/ Window/      프로세스 환경·부모 조회, 알약 위치 저장·계산
+    Navigation/          Ghostty·Orca·Terminal.app·iTerm2·tmux 이동과 폴백
+    System/ Window/      프로세스 환경·부모·tty 조회, 알약 위치 저장·계산
   AgentFloat/            앱 (NSPanel, SwiftUI 화면, 메뉴바)
 Tests/AgentFloatCoreTests/
 docs/
@@ -94,8 +94,9 @@ docs/
 
 - 데스크탑(Space)을 넘기는 애니메이션 동안에는 알약이 같이 밀려 나간다. 전환이 끝나면 같은 자리에 있다
 - Magnet 같은 창 관리 앱이 알약을 화면 칸에 붙일 수 있다
-- Orca에서 직접 탭을 옮긴 것은 감지하지 못해 `NEW`가 남는다
+- Orca에서 직접 탭을 옮긴 것, tmux 안에서 직접 pane을 옮긴 것은 감지하지 못해 `NEW`가 남는다
 - Ghostty 안의 tmux는 tmux pane까지는 가지만 Ghostty 탭은 고르지 못한다 (Ghostty가 탭의 tty를 알려 주지 않음)
+- tmux 세션의 바깥 Terminal.app·iTerm2 탭을 고르지 못하면(제어 권한 거절 등) pane만 바뀌고 경고음이 난다
 - Claude Code 세션 파일 형식은 공개 규격이 아니라 실측에 기대고 있다. 모르는 상태 값은 회색으로 표시한다
 
 자세한 판단 근거는 [설계 문서](docs/specs/2026-10-16-agent-float-design.md)와 [결정 기록](docs/plans/2026-10-16-agent-float-rulings.md)에 있다.

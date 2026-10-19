@@ -84,3 +84,12 @@ Subagent-driven 구현 중 컨트롤러가 사용자 대신 내린 판단. 각 �
 - Ruling R51: `AppModel.activate` 시작 때 그 세션 pid의 폴백 선택 기록을 비움 — 지난 클릭이 기록 뒤 실패하면 다음 클릭이 옛 앱을 기다리게 됨 — 틀리면: 없음
 - 구현 중 결정: `TmuxCLI.isPaneId`를 Task 1에서 먼저 정의, `FocusProbe`는 `NavigatorRegistry.swift`에 둠, 부모 순회를 `ProcessAncestry.chain`으로 빼 폴백과 tmux가 같이 씀, `display-message`의 명령 실패만 찾지 못함으로 바꿈(취소는 그대로 올림), `activateFirstRegularApp`을 고르기·올리기로 나눔
 - 실측 중 알게 된 것: 이 세션에서 처음 띄운 Terminal은 이 세션의 `CLAUDE_CODE_*` 환경을 물려받아 그 안의 claude가 하위 세션(세션 파일 없음)이 됨 → 시험 스크립트에서 환경을 비워 해결. 사용자가 띄운 터미널에는 해당 없음
+
+### 최종 리뷰 (2026-10-19)
+
+- Ruling R52: Terminal.app·iTerm2 탭을 고르는 tty는 세션에서 부모를 따라 tty가 이어지는 가장 바깥 프로세스의 것 — nvim `:terminal`·screen 아래 세션은 안쪽 pty를 가져 어느 탭과도 맞지 않아 매번 경고음이 남(리뷰 지적, 실측 전 수정). `/dev/ttys<숫자>`가 아닌 값은 폴백으로 보냄 — 틀리면: 탭을 연 셸 위에서 tty를 가진 프로세스가 더 있으면 엉뚱한 tty를 고름(실측 사례 없음)
+- Ruling R53: `TMUX`가 있어도 그 서버 pid가 세션의 조상일 때만 tmux 안으로 봄 — tmux 안에서 CLI로 띄운 IDE처럼 환경변수만 물려받은 세션이 tmux 이동으로 빠져 IDE 대신 엉뚱한 pane으로 감(리뷰 지적, 실측 전 수정) — 틀리면: 서버가 조상 체인 32단계 밖이면 tmux가 아닌 터미널 이동으로 처리됨
+- 알려진 한계 (고치지 않고 남김. 둘 다 제어 권한 거절 같은 드문 조건에서만 생김)
+  - tmux 바깥 Terminal.app·iTerm2 탭 선택이 실패하면 앱만 올리는 폴백으로 내려가지 않고 경고음. pane은 이미 바뀐 상태
+  - Ghostty 확인이 권한 거절로 멈춘 뒤에는, 백그라운드 세션이나 붙은 클라이언트 없는 tmux 세션을 Ghostty 새 탭으로 열어도 확인이 다시 켜지지 않음 (R50은 Ghostty 세션으로 이동했을 때만 재개)
+- iTerm2 `tmux -CC` 제어 모드는 미대응 → 설계 7장 로드맵
