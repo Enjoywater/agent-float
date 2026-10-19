@@ -1,0 +1,7 @@
+{"type":"user","message":{"role":"user","content":"빌드를 돌리고 점검 에이전트도 띄워줘"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_sample_1","name":"Bash","input":{"command":"make build","run_in_background":true}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_sample_1","content":"Command running in background with ID: bgsample01. Output is being written to: /sample/tasks/bgsample01.output"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_sample_2","name":"Agent","input":{"prompt":"점검"}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_sample_2","content":[{"type":"text","text":"Async agent launched successfully.\nagentId: a0123456789abcdef (use SendMessage to continue)"}]}]}}
+{"type":"queue-operation","operation":"enqueue","content":"<task-notification>\n<task-id>a0123456789abcdef</task-id>\n<status>completed</status>\n</task-notification>"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"점검은 끝났고 빌드는 진행 중입니다."},{"type":"tool_use","id":"toolu_sample_3","name":"ScheduleWakeup","input":{"delaySeconds":270,"prompt":"빌드 확인"}}]}}

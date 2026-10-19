@@ -1,0 +1,4 @@
+t":"잘려 나간 줄의 뒷부분"}]}}
+{"type":"user","message":{"role":"user","content":"다음 단계로 진행해줘"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"진행했습니다. 이어서 할까요?"}]}}
+{"type":"system","subtype":"turn_duration"}

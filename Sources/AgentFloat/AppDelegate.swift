@@ -1,0 +1,168 @@
+import AgentFloatCore
+import AppKit
+import ServiceManagement
+import SwiftUI
+
+/// 사람 손 없이 화면과 전환을 확인하려는 디버그 출력. 사용자 기기 설정을 건드리지 않고 실행 중인 실제 값을 남긴다
+enum DebugLog {
+    static let isEnabled = ProcessInfo.processInfo.environment["AGENT_FLOAT_DEBUG"] == "1"
+    private static let launchedAt = Date()
+
+    static func write(_ line: @autoclosure () -> String) {
+        guard isEnabled else { return }
+        let elapsed = String(format: "%8.3f", Date().timeIntervalSince(launchedAt))
+        FileHandle.standardError.write(Data("[agent-float \(elapsed)] \(line())\n".utf8))
+    }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var model: AppModel?
+    private var panelController: PanelController?
+    private var menuBar: MenuBarController?
+    private var debugSignals: [any DispatchSourceSignal] = []
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let environment = ProcessInfo.processInfo.environment
+        Self.applyAppearanceOverride(environment["AGENT_FLOAT_APPEARANCE"])
+
+        let runner = ProcessCommandRunner()
+        let activator = AppActivator()
+        let model = AppModel(
+            store: SessionStore(providers: [Self.makeProvider(environment)]),
+            navigators: Self.makeNavigators(runner: runner, activator: activator),
+            focusProbe: GhosttyFocusProbe(runner: runner),
+            activator: activator
+        )
+        let controller = PanelController(model: model)
+        controller.show()
+        model.start()
+        self.model = model
+        panelController = controller
+
+        menuBar = MenuBarController(onResetPosition: { [weak controller] in controller?.resetPosition() })
+
+        if DebugLog.isEnabled {
+            logLaunchState(panel: controller.panel, host: controller.hostingView)
+            installDebugSignals(controller)
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        panelController?.flushPendingSave()
+    }
+
+    /// 위치 종류마다 담당이 하나뿐이라 등록 순서는 결과에 영향이 없다
+    private static func makeNavigators(runner: ProcessCommandRunner, activator: AppActivator) -> NavigatorRegistry {
+        NavigatorRegistry([
+            GhosttyNavigator(runner: runner),
+            OrcaNavigator(runner: runner, activateOrca: {
+                activator.activate(bundleIdentifier: TerminalBundle.orca)
+            }),
+            AppActivationNavigator(inspector: DarwinProcessInspector(), activateFirstApp: { pids in
+                activator.activateFirstRegularApp(among: pids)
+            }),
+        ])
+    }
+
+    /// 실제 세션을 띄우거나 바꾸지 않고 화면·전환을 확인할 수 있게 입력을 바꿔 끼운다
+    private static func makeProvider(_ environment: [String: String]) -> any AgentProvider {
+        if let raw = environment["AGENT_FLOAT_FAKE_SESSIONS"], let count = Int(raw), count > 0 {
+            return FakeProvider(count: count, startedAt: Date())
+        }
+        if let home = environment["AGENT_FLOAT_CLAUDE_HOME"], !home.isEmpty {
+            return ClaudeCodeProvider(
+                claudeHome: URL(fileURLWithPath: home, isDirectory: true),
+                homeDirectory: NSHomeDirectory(),
+                inspector: DarwinProcessInspector()
+            )
+        }
+        return ClaudeCodeProvider.live()
+    }
+
+    /// 시스템 설정의 화면 모드를 바꾸지 않고 라이트·다크 모양을 각각 확인하려는 디버그 덮어쓰기
+    private static func applyAppearanceOverride(_ value: String?) {
+        switch value {
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        default: break
+        }
+    }
+
+    /// 사람이 마우스를 올리지 않아도 펼친 모습과 전환 순서를 확인할 수 있게 한다 (USR1 펼침, USR2 접힘)
+    private func installDebugSignals(_ controller: PanelController) {
+        let handlers: [(Int32, @MainActor () -> Void)] = [
+            (SIGUSR1, { [weak controller] in controller?.debugExpand() }),
+            (SIGUSR2, { [weak controller] in controller?.debugCollapse() }),
+        ]
+        for (number, handler) in handlers {
+            signal(number, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
+            source.setEventHandler {
+                MainActor.assumeIsolated { handler() }
+            }
+            source.resume()
+            debugSignals.append(source)
+        }
+    }
+
+    /// 모든 데스크탑 고정·비활성 동작(spec 4.8)은 데스크탑을 직접 넘겨 봐야 알 수 있어, 사람 손 없이도 확인되게 실행 중인 실제 값을 남긴다
+    private func logLaunchState(panel: FloatingPanel, host: NSView) {
+        let frame = panel.frame
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        let captureTop = primaryHeight - frame.maxY
+        let policy = switch NSApp.activationPolicy() {
+        case .regular: "regular"
+        case .accessory: "accessory"
+        case .prohibited: "prohibited"
+        @unknown default: "unknown"
+        }
+        DebugLog.write("collectionBehavior=\(Self.names(of: panel.collectionBehavior)) raw=0x\(String(panel.collectionBehavior.rawValue, radix: 16))")
+        DebugLog.write("level=\(panel.level.rawValue) floating=\(NSWindow.Level.floating.rawValue) isFloatingPanel=\(panel.isFloatingPanel)")
+        DebugLog.write("frame=(\(frame.origin.x), \(frame.origin.y), \(frame.width), \(frame.height)) screencaptureRect=\(frame.origin.x),\(captureTop),\(frame.width),\(frame.height)")
+        DebugLog.write("nonactivating=\(panel.styleMask.contains(.nonactivatingPanel)) canBecomeKey=\(panel.canBecomeKey) canBecomeMain=\(panel.canBecomeMain) hidesOnDeactivate=\(panel.hidesOnDeactivate) acceptsFirstMouse=\(host.acceptsFirstMouse(for: nil))")
+        DebugLog.write("activationPolicy=\(policy) loginItemStatus=\(Self.name(of: SMAppService.mainApp.status)) reduceMotion=\(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion) reduceTransparency=\(NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency)")
+        Self.logTrackingAreas(of: host)
+    }
+
+    /// SwiftUI 줄 hover 가 비활성 패널에서도 동작하는지는 추적 영역 옵션으로 판단할 수 있다
+    static func logTrackingAreas(of view: NSView) {
+        for area in view.trackingAreas {
+            let options = area.options
+            let activeAlways = options.contains(.activeAlways)
+            let owner = area.owner.map { String(describing: type(of: $0)) } ?? "nil"
+            DebugLog.write("trackingArea owner=\(owner) activeAlways=\(activeAlways) inVisibleRect=\(options.contains(.inVisibleRect)) rect=\(area.rect)")
+        }
+    }
+
+    private static func names(of behavior: NSWindow.CollectionBehavior) -> [String] {
+        let known: [(NSWindow.CollectionBehavior, String)] = [
+            (.canJoinAllSpaces, "canJoinAllSpaces"),
+            (.moveToActiveSpace, "moveToActiveSpace"),
+            (.managed, "managed"),
+            (.transient, "transient"),
+            (.stationary, "stationary"),
+            (.participatesInCycle, "participatesInCycle"),
+            (.ignoresCycle, "ignoresCycle"),
+            (.fullScreenPrimary, "fullScreenPrimary"),
+            (.fullScreenAuxiliary, "fullScreenAuxiliary"),
+            (.fullScreenNone, "fullScreenNone"),
+            (.fullScreenAllowsTiling, "fullScreenAllowsTiling"),
+            (.fullScreenDisallowsTiling, "fullScreenDisallowsTiling"),
+            (.primary, "primary"),
+            (.auxiliary, "auxiliary"),
+            (.canJoinAllApplications, "canJoinAllApplications"),
+        ]
+        return known.filter { behavior.contains($0.0) }.map(\.1)
+    }
+
+    private static func name(of status: SMAppService.Status) -> String {
+        switch status {
+        case .notRegistered: "notRegistered"
+        case .enabled: "enabled"
+        case .requiresApproval: "requiresApproval"
+        case .notFound: "notFound"
+        @unknown default: "unknown(\(status.rawValue))"
+        }
+    }
+}

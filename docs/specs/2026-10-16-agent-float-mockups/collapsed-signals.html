@@ -1,0 +1,62 @@
+<style>
+  .stage { background: repeating-linear-gradient(45deg,#2a2d33,#2a2d33 12px,#30333a 12px,#30333a 24px); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .ring { position: relative; display: inline-flex; line-height: 0; border-radius: 999px; padding: 1.5px; overflow: hidden; background: rgba(255,255,255,.08); }
+  .ring::before { content: ""; position: absolute; inset: -220%; opacity: 0; }
+  .ring > .pill { position: relative; z-index: 1; display: flex; line-height: 1; gap: 10px; align-items: center; padding: 6px 11px; border-radius: 999px; background: #1c1d21; color: #e8e8ea; font: 12px/1 -apple-system, "SF Pro Text", sans-serif; }
+  .pill > span { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .run { background: #4c9aff; } .wait { background: #ffb020; } .done { background: #4ccf7a; }
+  .blink-w { animation: blinkw 1.2s ease-in-out infinite; }
+  .blink-d { animation: blinkd 1.2s ease-in-out infinite; }
+  @keyframes blinkw { 0%,100% { opacity: 1; } 50% { opacity: .2; box-shadow: 0 0 6px 2px rgba(255,176,32,.5); } }
+  @keyframes blinkd { 0%,100% { opacity: 1; } 50% { opacity: .2; box-shadow: 0 0 6px 2px rgba(76,207,122,.5); } }
+  .tail { font-size: 9.5px; font-weight: 700; letter-spacing: .03em; margin-left: -4px; }
+  .tail.new { color: #4ccf7a; } .tail.ask { color: #ffb020; }
+  .silver::before { opacity: 1; background: conic-gradient(from 0deg, transparent 0 60%, rgba(255,255,255,.55) 80%, #ffffff 87%, transparent 100%); animation: spin 2.2s linear infinite; }
+  @keyframes spin { to { transform: rotate(1turn); } }
+  .sc { font-size: 11px; color: #c9cbd0; margin-top: -6px; }
+</style>
+
+<h2>신호를 몇 겹으로 쓸지</h2>
+<p class="subtitle">세 안 모두 같은 상황: 대기 1 + 진행 2 + 미확인 완료 1. 움직이는 요소 개수를 비교.</p>
+
+<div class="options">
+  <div class="option" data-choice="all" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>테두리 + 깜빡임 + 글자 (현재안)</h3>
+      <p>움직이는 것 3개(테두리, 점 2개). 같은 말을 세 번 함.</p>
+      <div class="stage">
+        <span class="ring silver"><span class="pill"><span><span class="dot wait blink-w"></span>1</span><span class="tail ask">ASK</span><span><span class="dot run"></span>2</span><span><span class="dot done blink-d"></span>1</span><span class="tail new">NEW</span></span></span>
+        <span class="sc">폭 ≈ 290px</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="border-text" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>테두리 + 글자, 점은 고정 (추천)</h3>
+      <p>움직이는 것 1개. 테두리가 시선을 끌고, 글자가 "무엇인지" 확실히 알려줌. 숫자가 깜빡이지 않아 읽기 쉬움.</p>
+      <div class="stage">
+        <span class="ring silver"><span class="pill"><span><span class="dot wait"></span>1</span><span class="tail ask">ASK</span><span><span class="dot run"></span>2</span><span><span class="dot done"></span>1</span><span class="tail new">NEW</span></span></span>
+        <span class="sc">폭 ≈ 290px</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="border-blink" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>테두리 + 깜빡임, 글자 없음</h3>
+      <p>움직이는 것 3개지만 가장 좁음. "무엇인지"는 깜빡이는 점 색으로만 구분 — 흘끗 볼 땐 덜 확실.</p>
+      <div class="stage">
+        <span class="ring silver"><span class="pill"><span><span class="dot wait blink-w"></span>1</span><span><span class="dot run"></span>2</span><span><span class="dot done blink-d"></span>1</span></span></span>
+        <span class="sc">폭 ≈ 180px</span>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  document.querySelectorAll('.stage').forEach(s => { const r = s.querySelector('.ring'); s.querySelector('.sc').textContent = '폭 ≈ ' + Math.round(r.getBoundingClientRect().width) + 'px'; });
+</script>

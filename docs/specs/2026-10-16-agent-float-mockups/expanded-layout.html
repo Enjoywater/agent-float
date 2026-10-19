@@ -1,0 +1,72 @@
+<style>
+  .fw-stage { background: repeating-linear-gradient(45deg,#2a2d33,#2a2d33 12px,#30333a 12px,#30333a 24px); border-radius: 10px; padding: 18px; display: flex; justify-content: flex-end; align-items: flex-start; min-height: 300px; }
+  .fw { background: rgba(28,29,33,.92); color: #e8e8ea; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.45); font: 12px/1.35 -apple-system, "SF Pro Text", "Apple SD Gothic Neo", sans-serif; overflow: hidden; }
+  .fw-row { display: flex; align-items: flex-start; gap: 7px; padding: 5px 9px; cursor: pointer; }
+  .fw-row:hover { background: rgba(255,255,255,.06); }
+  .fw-body { flex: 1; min-width: 0; }
+  .fw-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fw-meta { color: #8b8d93; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fw-time { color: #8b8d93; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; margin-top: 4px; }
+  .run { background: #4c9aff; box-shadow: 0 0 0 3px rgba(76,154,255,.18); }
+  .wait { background: #ffb020; box-shadow: 0 0 0 3px rgba(255,176,32,.22); }
+  .done { background: #4ccf7a; }
+  .stale { background: #8b8d93; }
+  .wait-row { background: rgba(255,176,32,.08); }
+  .grp { display:flex; justify-content:space-between; font-size: 10px; color: #8b8d93; padding: 7px 9px 2px; letter-spacing: .02em; border-top: 1px solid rgba(255,255,255,.05); }
+  .grp:first-child { border-top: 0; }
+  .pill { display: inline-flex; gap: 10px; align-items: center; padding: 6px 11px; border-radius: 999px; }
+  .pill span { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+  .pill .dot { margin-top: 0; }
+  .pill.alert { border-color: rgba(255,176,32,.7); box-shadow: 0 0 0 3px rgba(255,176,32,.25), 0 8px 24px rgba(0,0,0,.45); }
+  .cap { font-size: 11px; color: #bbb; margin: 0 0 6px; text-align: right; }
+  .col { display:flex; flex-direction:column; align-items:flex-end; gap:14px; }
+  .notes li { margin: 3px 0; }
+</style>
+
+<h2>B + C + D 조합안 v3</h2>
+<p class="subtitle">평소엔 D(알약) → 펼치면 C(상태별 묶음) 안에 B(두 줄 카드). 완료도 항상 펼쳐서 표시.</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">접힘 상태 (평소 / 대기 발생 시)</div>
+    <div class="mockup-body">
+      <div class="fw-stage">
+        <div class="col">
+          <div><p class="cap">평소</p><div class="fw pill"><span><span class="dot run"></span>3</span><span><span class="dot done"></span>1</span></div></div>
+          <div><p class="cap">대기 발생 → 주황 테두리 + 맨 앞 표시</p><div class="fw pill alert"><span><span class="dot wait"></span>1</span><span><span class="dot run"></span>3</span><span><span class="dot done"></span>1</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">펼침 상태 (폭 260px)</div>
+    <div class="mockup-body">
+      <div class="fw-stage">
+        <div class="fw" style="width:260px">
+          <div class="grp"><span>내 응답 대기 1</span></div>
+          <div class="fw-row wait-row"><span class="dot wait"></span><div class="fw-body"><div class="fw-title">feat-checkout-retry</div><div class="fw-meta">Orca · sample-app · 질문 답변 대기</div></div><span class="fw-time">3m</span></div>
+
+          <div class="grp"><span>진행 중 3</span></div>
+          <div class="fw-row"><span class="dot run"></span><div class="fw-body"><div class="fw-title">Claude 에이전트 상태 플로팅 위젯</div><div class="fw-meta">Ghostty · ~</div></div><span class="fw-time">12m</span></div>
+          <div class="fw-row"><span class="dot run"></span><div class="fw-body"><div class="fw-title">API 문서 초안 정리</div><div class="fw-meta">Ghostty · ~</div></div><span class="fw-time">41m</span></div>
+          <div class="fw-row"><span class="dot stale"></span><div class="fw-body"><div class="fw-title">빌드 캐시 설정 조사</div><div class="fw-meta">Ghostty · ~ · 50분째 갱신 없음</div></div><span class="fw-time">50m</span></div>
+
+          <div class="grp"><span>완료 1</span></div>
+          <div class="fw-row"><span class="dot done"></span><div class="fw-body"><div class="fw-title">로그 분석 스크립트 개선</div><div class="fw-meta">Ghostty · ~</div></div><span class="fw-time">2m</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:14px">
+  <h3>이 안에서 내가 정한 것</h3>
+  <ul class="notes">
+    <li>경과시간 = 지금 상태로 바뀐 뒤 흐른 시간 (대기 3m = 3분째 나를 기다림)</li>
+    <li>회색 점 = "진행 중"인데 오래 갱신 없음 → 멈췄을 수 있음</li>
+    <li>2행 = 앱 · 폴더(레포) · 대기 사유. 홈(~)에서 띄운 세션은 폴더 정보가 약함</li>
+    <li>완료 그룹도 다른 그룹과 똑같이 항상 펼침 (v2 피드백 반영)</li>
+  </ul>
+</div>

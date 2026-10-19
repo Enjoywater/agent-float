@@ -1,0 +1,5 @@
+{"type":"ai-title","aiTitle":"이전 제목","sessionId":"00000000-0000-4000-8000-000000000001"}
+{"type":"user","message":{"role":"user","content":"작업을 시작해줘"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"시작합니다."}]}}
+{"type":"ai-title","aiTitle":"새 제목","sessionId":"00000000-0000-4000-8000-000000000001"}
+{"type":"system","subtype":"turn_duration"}
