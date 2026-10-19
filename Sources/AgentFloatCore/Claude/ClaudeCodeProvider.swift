@@ -155,12 +155,20 @@ public final class ClaudeCodeProvider: AgentProvider, Sendable {
         touched.processes.insert(processKey)
         let context = terminalContext(for: processKey, state: &state)
         let fallback = TerminalLocator.application(pid: file.pid)
+        // tmux 안에서는 TERM_PROGRAM 이 바깥 터미널 대신 tmux 로 덮이므로 tmux 환경을 먼저 본다
+        if let tmux = Self.tmuxLocator(environment: context.tmux, pane: context.tmuxPane, pid: file.pid) {
+            return (.other("tmux"), tmux)
+        }
         switch context.program {
         case "ghostty":
             return (.ghostty, .ghostty(title: aiTitle, cwd: cwd))
         case "Orca":
             // 탭을 특정할 수 없어도 앱은 Orca 이므로 아이콘은 유지하고 앱만 앞으로 올리는 폴백을 쓴다
             return (.orca, Self.orcaLocator(paneKey: context.paneKey, handle: context.orcaHandle) ?? fallback)
+        case "Apple_Terminal":
+            return (.other("Apple_Terminal"), context.tty.map { .appleTerminal(tty: $0) } ?? fallback)
+        case "iTerm.app":
+            return (.other("iTerm.app"), context.tty.map { .iTerm(tty: $0) } ?? fallback)
         case let program?:
             return (.other(program), fallback)
         case nil:
@@ -174,11 +182,24 @@ public final class ClaudeCodeProvider: AgentProvider, Sendable {
         let context = TerminalContext(
             program: Self.nonEmpty(environment["TERM_PROGRAM"]),
             paneKey: Self.nonEmpty(environment["ORCA_PANE_KEY"]),
-            orcaHandle: Self.nonEmpty(environment["ORCA_TERMINAL_HANDLE"])
+            orcaHandle: Self.nonEmpty(environment["ORCA_TERMINAL_HANDLE"]),
+            tty: inspector.tty(pid: key.pid),
+            tmux: Self.nonEmpty(environment["TMUX"]),
+            tmuxPane: Self.nonEmpty(environment["TMUX_PANE"])
         )
         // 조회 실패와 빈 환경을 구분할 수 없어, 비어 있으면 캐시하지 않고 다음 주기에 다시 읽는다
         if !environment.isEmpty { state.terminals[key] = context }
         return context
+    }
+
+    /// `TMUX` 는 `<소켓 경로>,<서버 pid>,<세션 번호>`. 경로에 쉼표가 들어가도 뒤의 두 값만 떼어 낸다 (tmux 3.6 실측)
+    private static func tmuxLocator(environment tmux: String?, pane: String?, pid: Int32) -> TerminalLocator? {
+        guard let tmux, let pane, TmuxCLI.isPaneId(pane) else { return nil }
+        let parts = tmux.split(separator: ",", omittingEmptySubsequences: false)
+        guard parts.count >= 3 else { return nil }
+        let socket = parts.dropLast(2).joined(separator: ",")
+        guard socket.hasPrefix("/") else { return nil }
+        return .tmux(socket: socket, paneId: pane, pid: pid)
     }
 
     private static func orcaLocator(paneKey: String?, handle: String?) -> TerminalLocator? {
@@ -304,6 +325,9 @@ private struct TerminalContext {
     let program: String?
     let paneKey: String?
     let orcaHandle: String?
+    let tty: String?
+    let tmux: String?
+    let tmuxPane: String?
 }
 
 private struct FileStamp: Equatable {

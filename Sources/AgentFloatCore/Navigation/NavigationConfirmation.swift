@@ -2,6 +2,7 @@ public enum TerminalBundle {
     public static let ghostty = "com.mitchellh.ghostty"
     public static let orca = "com.stablyai.orca"
     public static let appleTerminal = "com.apple.Terminal"
+    public static let iTerm = "com.googlecode.iterm2"
     public static let cursor = "com.todesktop.230313mzl4w4u92"
     public static let vscode = "com.microsoft.VSCode"
 }
@@ -17,6 +18,10 @@ public enum ExpectedFrontmost: Equatable, Sendable {
         switch locator {
         case .ghostty, .background: .bundle(TerminalBundle.ghostty)
         case .orca: .bundle(TerminalBundle.orca)
+        case .appleTerminal: .bundle(TerminalBundle.appleTerminal)
+        case .iTerm: .bundle(TerminalBundle.iTerm)
+        // 붙은 클라이언트가 없으면 Ghostty 새 탭에서 붙이므로, 올린 바깥 앱이 기록되지 않았으면 Ghostty 를 기대한다
+        case .tmux: activatedPid.map(ExpectedFrontmost.process) ?? .bundle(TerminalBundle.ghostty)
         case .application: activatedPid.map(ExpectedFrontmost.process)
         case .none: nil
         }

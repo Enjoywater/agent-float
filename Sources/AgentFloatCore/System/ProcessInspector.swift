@@ -7,6 +7,13 @@ public protocol ProcessInspecting: Sendable {
     func environment(pid: Int32) -> [String: String]
     /// launchd(1) 이하이거나 조회에 실패하면 nil. 터미널 앱을 찾아 올라가는 순회의 종료 조건으로 쓴다
     func parentPid(of pid: Int32) -> Int32?
+    /// 제어 터미널 장치 경로(`/dev/ttys003`). 터미널이 없거나 조회에 실패하면 nil
+    func tty(pid: Int32) -> String?
+}
+
+public extension ProcessInspecting {
+    // tty 로 탭을 고르는 터미널이 아니면 필요 없는 값이라, 구현하지 않은 쪽은 앱만 올리는 폴백으로 내려간다
+    func tty(pid: Int32) -> String? { nil }
 }
 
 public struct DarwinProcessInspector: ProcessInspecting {
@@ -54,6 +61,18 @@ public struct DarwinProcessInspector: ProcessInspecting {
         guard proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, &info, size) == size else { return nil }
         guard info.pbsi_ppid > 1, let parent = Int32(exactly: info.pbsi_ppid) else { return nil }
         return parent
+    }
+
+    public func tty(pid: Int32) -> String? {
+        // 터미널이 없는 프로세스는 NODEV(모든 비트가 1)를 돌려준다
+        guard let info = Self.bsdInfo(pid), info.e_tdev != UInt32.max else { return nil }
+        // devname 은 정적 버퍼를 돌려줘 동시 호출에 안전하지 않으므로 버퍼를 직접 준다
+        var buffer = [CChar](repeating: 0, count: 64)
+        guard devname_r(dev_t(bitPattern: info.e_tdev), S_IFCHR, &buffer, Int32(buffer.count)) != nil else { return nil }
+        let name = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        // 장치를 못 찾으면 이름 대신 "??" 를 채우는 구현이 있다
+        guard !name.isEmpty, name != "??" else { return nil }
+        return "/dev/" + name
     }
 
     private static func bsdInfo(_ pid: Int32) -> proc_bsdinfo? {

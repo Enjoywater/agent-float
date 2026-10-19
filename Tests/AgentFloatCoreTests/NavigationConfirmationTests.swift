@@ -12,6 +12,14 @@ import Testing
         #expect(ExpectedFrontmost.expected(for: .application(pid: 100), activatedPid: 80) == .process(80))
     }
 
+    @Test func ttyTerminalsAndTmuxExpectTheirApp() {
+        #expect(ExpectedFrontmost.expected(for: .appleTerminal(tty: "/dev/ttys004"), activatedPid: nil) == .bundle(TerminalBundle.appleTerminal))
+        #expect(ExpectedFrontmost.expected(for: .iTerm(tty: "/dev/ttys005"), activatedPid: nil) == .bundle(TerminalBundle.iTerm))
+        // 바깥 터미널은 실행해 봐야 알므로 실제로 올린 앱을, 그런 앱이 없으면 분리된 세션을 붙인 Ghostty 를 기대한다
+        #expect(ExpectedFrontmost.expected(for: .tmux(socket: "/s", paneId: "%1", pid: 9), activatedPid: 77) == .process(77))
+        #expect(ExpectedFrontmost.expected(for: .tmux(socket: "/s", paneId: "%1", pid: 9), activatedPid: nil) == .bundle(TerminalBundle.ghostty))
+    }
+
     @Test func fallbackWithoutAChosenAppHasNothingToConfirm() {
         #expect(ExpectedFrontmost.expected(for: .application(pid: 100), activatedPid: nil) == nil)
         #expect(ExpectedFrontmost.expected(for: .none, activatedPid: 80) == nil)

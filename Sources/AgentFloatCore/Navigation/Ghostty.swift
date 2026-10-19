@@ -150,7 +150,7 @@ public struct GhosttyNavigator: TerminalNavigator {
         switch session.locator {
         case .ghostty: true
         case let .background(jobId): Self.isSafeJobId(jobId)
-        case .orca, .application, .none: false
+        case .orca, .appleTerminal, .iTerm, .tmux, .application, .none: false
         }
     }
 
@@ -160,7 +160,7 @@ public struct GhosttyNavigator: TerminalNavigator {
             try await focusTerminal(title: title, cwd: cwd)
         case let .background(jobId) where Self.isSafeJobId(jobId):
             try await openAttachTab(jobId: jobId)
-        case .background, .orca, .application, .none:
+        case .background, .orca, .appleTerminal, .iTerm, .tmux, .application, .none:
             throw NavigationError.terminalNotFound
         }
     }

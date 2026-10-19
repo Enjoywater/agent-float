@@ -90,6 +90,18 @@ import Testing
     }
 
     // Ghostty 는 root 소유 /usr/bin/login 을 거쳐 셸을 띄운다(실측). 여기서 끊기면 폴백이 터미널 앱에 닿지 못한다
+    @Test func ttyOfMissingProcessIsNil() {
+        let inspector = DarwinProcessInspector()
+        #expect(inspector.tty(pid: 0) == nil)
+        #expect(inspector.tty(pid: Int32.max) == nil)
+    }
+
+    /// 테스트 실행기가 터미널에 붙어 있는지는 환경마다 달라, 표준 입력의 터미널 이름과 같은지로 맞는지만 본다
+    @Test func ttyOfCurrentProcessMatchesTtyname() {
+        let expected = ttyname(STDIN_FILENO).map { String(cString: $0) }
+        #expect(DarwinProcessInspector().tty(pid: getpid()) == expected)
+    }
+
     @Test func parentPidReadsProcessesOwnedByOtherUsers() {
         let inspector = DarwinProcessInspector()
         let others = Self.processTable().filter { $0.uid != getuid() && $0.ppid > 1 }

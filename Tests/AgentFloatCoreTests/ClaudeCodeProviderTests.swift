@@ -8,13 +8,14 @@ private final class FakeInspector: ProcessInspecting, Sendable {
     private struct State {
         var alive: Set<Int32>
         var environments: [Int32: [String: String]]
+        var ttys: [Int32: String]
         var environmentCalls = 0
     }
 
     private let state: Mutex<State>
 
-    init(alive: Set<Int32> = [], environments: [Int32: [String: String]] = [:]) {
-        state = Mutex(State(alive: alive, environments: environments))
+    init(alive: Set<Int32> = [], environments: [Int32: [String: String]] = [:], ttys: [Int32: String] = [:]) {
+        state = Mutex(State(alive: alive, environments: environments, ttys: ttys))
     }
 
     var environmentCalls: Int { state.withLock { $0.environmentCalls } }
@@ -35,6 +36,10 @@ private final class FakeInspector: ProcessInspecting, Sendable {
     }
 
     func parentPid(of pid: Int32) -> Int32? { nil }
+
+    func tty(pid: Int32) -> String? {
+        state.withLock { $0.ttys[pid] }
+    }
 }
 
 @Suite final class ClaudeCodeProviderTests {
@@ -215,6 +220,51 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         let found = try session(try provider(inspector).snapshot(now: Self.now), id)
 
         #expect(found.locator == .orca(tabId: "tab-1", leafId: "leaf-1", handle: "term_eee"))
+    }
+
+    // MARK: Terminal.app · iTerm2 · tmux
+
+    private func placedSession(pid: Int32, n: Int, environment: [String: String], tty: String? = nil) throws -> AgentSession {
+        let id = Self.sessionId(n)
+        try writeSession(pid: pid, sessionId: id)
+        try writeTranscript(sessionId: id, title: "터미널 세션")
+        let inspector = FakeInspector(alive: [pid], environments: [pid: environment], ttys: tty.map { [pid: $0] } ?? [:])
+        return try session(try provider(inspector).snapshot(now: Self.now), id)
+    }
+
+    @Test func appleTerminalSessionUsesTty() throws {
+        let found = try placedSession(pid: 4011, n: 11, environment: ["TERM_PROGRAM": "Apple_Terminal"], tty: "/dev/ttys004")
+        #expect(found.terminalApp == .other("Apple_Terminal"))
+        #expect(found.locator == .appleTerminal(tty: "/dev/ttys004"))
+    }
+
+    @Test func iTermSessionUsesTty() throws {
+        let found = try placedSession(pid: 4014, n: 14, environment: ["TERM_PROGRAM": "iTerm.app"], tty: "/dev/ttys005")
+        #expect(found.terminalApp == .other("iTerm.app"))
+        #expect(found.locator == .iTerm(tty: "/dev/ttys005"))
+    }
+
+    @Test func terminalSessionWithoutTtyFallsBack() throws {
+        let found = try placedSession(pid: 4012, n: 12, environment: ["TERM_PROGRAM": "Apple_Terminal"])
+        #expect(found.locator == .application(pid: 4012))
+    }
+
+    @Test func tmuxSessionUsesPaneFromEnvironment() throws {
+        let environment = ["TERM_PROGRAM": "tmux", "TMUX": "/private/tmp/tmux-501/default,4242,0", "TMUX_PANE": "%7"]
+        let found = try placedSession(pid: 4013, n: 13, environment: environment, tty: "/dev/ttys006")
+        #expect(found.terminalApp == .other("tmux"))
+        #expect(found.locator == .tmux(socket: "/private/tmp/tmux-501/default", paneId: "%7", pid: 4013))
+    }
+
+    @Test(arguments: [
+        ["TERM_PROGRAM": "tmux", "TMUX": "", "TMUX_PANE": "%7"],
+        ["TERM_PROGRAM": "tmux", "TMUX": "/private/tmp/tmux-501/default,4242,0", "TMUX_PANE": "7"],
+        ["TERM_PROGRAM": "tmux", "TMUX": "relative/socket,4242,0", "TMUX_PANE": "%7"],
+        ["TERM_PROGRAM": "tmux", "TMUX_PANE": "%7"],
+    ])
+    func tmuxWithMalformedEnvironmentFallsBack(environment: [String: String]) throws {
+        let found = try placedSession(pid: 4015, n: 15, environment: environment)
+        #expect(found.locator == .application(pid: 4015))
     }
 
     @Test func backgroundSessionUsesJobId() throws {
