@@ -50,7 +50,13 @@ make install  # 조립 후 /Applications 에 설치하고 실행 (켜져 있던 
 make clean
 ```
 
-Dock 아이콘 없이 메뉴바 아이콘으로 동작한다. 메뉴: `위치 초기화`, `로그인 시 실행`, `Agent Float 종료`.
+Dock 아이콘 없이 메뉴바 아이콘으로 동작한다. 메뉴: `위치 초기화`, `가장자리 대비`, `로그인 시 실행`, `Agent Float 종료`.
+
+`가장자리 대비`: 알약 유리는 뒤 화면에 맞춰 밝아지거나 어두워져 같은 톤의 배경에서는 윤곽이 흐려진다.
+
+- `윤곽선` (기본값): 가장자리에 반대 톤의 얇은 선을 두른다
+- `뒤 화면과 반대`: 알약을 뒤와 반대 톤으로 칠한다. 단색 배경에서 가장 눈에 띄지만 글자가 많은 흰 화면에서는 대비가 약하다
+- `유리 그대로`: 유리가 고른 대로 둔다
 
 ### 권한
 
@@ -69,6 +75,7 @@ Dock 아이콘 없이 메뉴바 아이콘으로 동작한다. 메뉴: `위치 �
 | `AGENT_FLOAT_FAKE_SESSIONS=<개수>` | 실제 세션 대신 가짜 세션으로 화면 확인 |
 | `AGENT_FLOAT_CLAUDE_HOME=<폴더>` | `~/.claude` 대신 읽을 폴더 |
 | `AGENT_FLOAT_APPEARANCE=light\|dark` | 라이트·다크 모양 고정 |
+| `AGENT_FLOAT_CONTRAST=standard\|outline\|inverse` | 가장자리 대비를 메뉴 선택보다 우선해 고정 (유리 그대로·윤곽선·반대) |
 | `AGENT_FLOAT_REDUCE_MOTION=1` | 동작 줄이기 모드처럼 표시 |
 | `AGENT_FLOAT_SLOW_MOTION=<배수>` | 애니메이션을 느리게 |
 

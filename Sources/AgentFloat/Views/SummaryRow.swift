@@ -6,6 +6,7 @@ struct SummaryRow: View {
     let summary: PillSummary
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.paintedGlassTone) private var paintedTone
 
     var body: some View {
         HStack(spacing: 10) {
@@ -15,14 +16,14 @@ struct SummaryRow: View {
             } else {
                 if summary.waiting > 0 {
                     item(color: Palette.waiting, count: summary.waiting)
-                    if summary.ask { tag("ASK", color: Palette.askText) }
+                    if summary.ask { tag("ASK", color: Palette.askText(on: paintedTone)) }
                 }
                 if summary.running > 0 {
                     item(color: Palette.running, count: summary.running)
                 }
                 if summary.done > 0 {
                     item(color: Palette.done, count: summary.done)
-                    if summary.new { tag("NEW", color: Palette.newText) }
+                    if summary.new { tag("NEW", color: Palette.newText(on: paintedTone)) }
                 }
                 if summary.unknown > 0 {
                     item(color: Palette.gray, count: summary.unknown)

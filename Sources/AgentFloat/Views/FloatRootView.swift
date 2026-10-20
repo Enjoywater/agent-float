@@ -1,4 +1,5 @@
 import AgentFloatCore
+import AppKit
 import SwiftUI
 
 /// 동심 모서리(패널 22 − 여백 6 = 줄 16)를 지키려면 이 값들이 함께 움직여야 해서 한곳에 둔다 (spec 4.10)
@@ -31,6 +32,8 @@ struct FloatRootView: View {
 
     @Namespace private var glass
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    /// 유리가 고른 톤이 들어오기 전 첫 화면은 시스템 설정과 같다고 본다
+    @State private var glassTone: GlassTone = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
 
     var body: some View {
         // 창이 먼저 커지거나 나중에 줄어드는 동안에도 알약이 화면상 제자리에 있도록 고정 모서리에 붙인다
@@ -60,6 +63,7 @@ struct FloatRootView: View {
     /// 접힘 = 캡슐(높이의 절반 반경), 펼침 = 반경 22 둥근 사각형. 요약 줄은 두 상태에서 같은 뷰라 morph 중에 미끄러지지 않는다
     private func surface(expanded: Bool) -> some View {
         let radius = expanded ? Layout.panelCornerRadius : Layout.pillHeight / 2
+        let style = presentation.glassContrast.style(glass: glassTone)
         return VStack(spacing: 0) {
             // 끄는 손잡이는 요약 줄뿐이다. 목록까지 손잡이면 줄 클릭이 끌기로 먹힌다 (spec 4.8)
             SummaryRow(summary: model.summary)
@@ -81,16 +85,33 @@ struct FloatRootView: View {
                 .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: -4)), removal: .opacity))
             }
         }
+        .transformEnvironment(\.colorScheme) { scheme in
+            if let tone = style.contentTone { scheme = tone.colorScheme }
+        }
+        .environment(\.paintedGlassTone, style.contentTone)
+        .modifier(PaintedText(tone: style.contentTone))
         .padding(expanded ? Layout.panelPadding : 0)
         .frame(
             width: expanded ? Layout.panelWidth : presentation.pillWidth,
             height: expanded ? presentation.panelHeight : Layout.pillHeight,
             alignment: .top
         )
+        .background {
+            if let fill = style.fill { RoundedRectangle(cornerRadius: radius).fill(fill.surfaceFill) }
+        }
+        // 위의 톤 덮어쓰기 바깥이어야 유리가 고른 톤 그대로를 읽는다
+        .background(GlassToneProbe { tone in
+            withAnimation(Motion.crossfade) { glassTone = tone }
+        })
         // 유리가 줄어드는 동안 안쪽 글자가 유리 밖으로 삐져나오지 않게 한다
         .clipShape(RoundedRectangle(cornerRadius: radius))
         .overlay {
-            if model.summary.attention { BorderSweep(cornerRadius: radius) }
+            if let outline = style.outline {
+                RoundedRectangle(cornerRadius: radius).strokeBorder(outline.outlineColor, lineWidth: 1)
+            }
+        }
+        .overlay {
+            if model.summary.attention { BorderSweep(cornerRadius: radius, inset: style.sweepInset, tone: style.contentTone) }
         }
         .glassEffect(.regular, in: .rect(cornerRadius: radius))
     }
@@ -99,5 +120,18 @@ struct FloatRootView: View {
         // 끈 뒤 손을 뗀 자리가 줄 위여도 이동하지 않는다 (spec 4.8)
         guard !presentation.isDragging else { return }
         Task { await model.activate(session) }
+    }
+}
+
+/// 모드를 바꿀 때만 톤이 생기거나 없어져, 그때 말고는 뷰 정체성이 바뀌지 않는다
+private struct PaintedText: ViewModifier {
+    let tone: GlassTone?
+
+    func body(content: Content) -> some View {
+        if let tone {
+            content.foregroundStyle(tone.textColor)
+        } else {
+            content
+        }
     }
 }

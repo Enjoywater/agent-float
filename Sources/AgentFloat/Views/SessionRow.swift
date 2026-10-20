@@ -11,6 +11,7 @@ struct SessionRow: View {
 
     @State private var isHovered = false
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.paintedGlassTone) private var paintedTone
 
     private static let home = NSHomeDirectory()
 
@@ -56,7 +57,7 @@ struct SessionRow: View {
                 Text("NEW")
                     .font(.system(size: 9.5, weight: .bold))
                     .tracking(0.3)
-                    .foregroundStyle(Palette.newText)
+                    .foregroundStyle(Palette.newText(on: paintedTone))
                     .padding(.vertical, 1.5)
                     .padding(.horizontal, 6)
                     .background(Palette.done.opacity(colorScheme == .dark ? 0.2 : 0.18), in: Capsule())

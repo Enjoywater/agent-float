@@ -40,7 +40,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.model = model
         panelController = controller
 
-        menuBar = MenuBarController(onResetPosition: { [weak controller] in controller?.resetPosition() })
+        menuBar = MenuBarController(
+            onResetPosition: { [weak controller] in controller?.resetPosition() },
+            contrast: { [weak controller] in controller?.glassContrast ?? .outline },
+            onSelectContrast: { [weak controller] mode in controller?.setGlassContrast(mode) }
+        )
 
         if DebugLog.isEnabled {
             logLaunchState(panel: controller.panel, host: controller.hostingView)

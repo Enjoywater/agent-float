@@ -1,3 +1,4 @@
+import AgentFloatCore
 import AppKit
 import os
 import ServiceManagement
@@ -13,9 +14,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         keyEquivalent: ""
     )
     private let onResetPosition: () -> Void
+    private let contrast: () -> GlassContrast
+    private let onSelectContrast: (GlassContrast) -> Void
+    private var contrastItems: [NSMenuItem] = []
 
-    init(onResetPosition: @escaping () -> Void) {
+    init(
+        onResetPosition: @escaping () -> Void,
+        contrast: @escaping () -> GlassContrast,
+        onSelectContrast: @escaping (GlassContrast) -> Void
+    ) {
         self.onResetPosition = onResetPosition
+        self.contrast = contrast
+        self.onSelectContrast = onSelectContrast
         super.init()
 
         statusItem.button?.image = NSImage(systemSymbolName: "capsule.on.rectangle", accessibilityDescription: "Agent Float")
@@ -23,6 +33,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         menu.addItem(makeItem("위치 초기화", action: #selector(resetPosition)))
+        menu.addItem(makeContrastMenu())
         launchAtLoginItem.target = self
         menu.addItem(launchAtLoginItem)
         menu.addItem(.separator())
@@ -32,6 +43,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     /// 사용자가 시스템 설정에서 로그인 항목을 직접 끄거나 켤 수 있어 열 때마다 실제 상태를 다시 읽는다
     func menuNeedsUpdate(_ menu: NSMenu) {
+        let current = contrast()
+        for item in contrastItems {
+            item.state = item.representedObject as? String == current.rawValue ? .on : .off
+        }
         launchAtLoginItem.state = switch SMAppService.mainApp.status {
         case .enabled: .on
         // 등록은 됐지만 사용자가 시스템 설정에서 막아 둔 상태라 켜짐도 꺼짐도 아니다
@@ -48,6 +63,33 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func resetPosition() {
         onResetPosition()
+    }
+
+    private func makeContrastMenu() -> NSMenuItem {
+        let submenu = NSMenu()
+        contrastItems = GlassContrast.allCases.map { mode in
+            let item = makeItem(Self.title(of: mode), action: #selector(selectContrast(_:)))
+            item.representedObject = mode.rawValue
+            submenu.addItem(item)
+            return item
+        }
+        let parent = NSMenuItem(title: "가장자리 대비", action: nil, keyEquivalent: "")
+        parent.submenu = submenu
+        return parent
+    }
+
+    private static func title(of mode: GlassContrast) -> String {
+        switch mode {
+        // 기본값은 윤곽선이라 "기본"이라고 부르면 헷갈린다
+        case .standard: "유리 그대로"
+        case .outline: "윤곽선"
+        case .inverse: "뒤 화면과 반대"
+        }
+    }
+
+    @objc private func selectContrast(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let mode = GlassContrast(rawValue: raw) else { return }
+        onSelectContrast(mode)
     }
 
     @objc private func toggleLaunchAtLogin() {

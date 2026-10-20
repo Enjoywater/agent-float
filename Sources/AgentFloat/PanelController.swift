@@ -42,6 +42,7 @@ final class PanelPresentation {
     var pillWidth: CGFloat = Layout.pillHeight
     var panelHeight: CGFloat = Layout.panelChromeHeight
     var listHeight: CGFloat = 0
+    var glassContrast = GlassContrast.outline
     /// 화면을 다시 그릴 일이 없는 값이라 관찰하지 않는다
     @ObservationIgnored var isDragging = false
 }
@@ -51,6 +52,7 @@ final class PanelPresentation {
 @MainActor
 final class PanelController: NSObject {
     private static let anchorKey = "panelAnchor"
+    private static let contrastKey = "glassContrast"
 
     let panel: FloatingPanel
     let hostingView: PanelHostingView<FloatRootView>
@@ -84,6 +86,10 @@ final class PanelController: NSObject {
     init(model: AppModel) {
         self.model = model
         let presentation = PanelPresentation()
+        presentation.glassContrast = GlassContrast.resolve(
+            override: ProcessInfo.processInfo.environment["AGENT_FLOAT_CONTRAST"],
+            saved: UserDefaults.standard.string(forKey: Self.contrastKey)
+        )
         self.presentation = presentation
 
         let host = PanelHostingView(rootView: FloatRootView(model: model, presentation: presentation))
@@ -546,6 +552,16 @@ final class PanelController: NSObject {
         defer { isAdjustingFrame = false }
         lastAppliedFrame = frame
         panel.setFrame(frame, display: true, animate: false)
+    }
+
+    var glassContrast: GlassContrast {
+        presentation.glassContrast
+    }
+
+    func setGlassContrast(_ mode: GlassContrast) {
+        presentation.glassContrast = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: Self.contrastKey)
+        DebugLog.write("glass contrast=\(mode.rawValue)")
     }
 
     private func saveAnchor() {
