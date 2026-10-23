@@ -132,3 +132,18 @@ Subagent-driven 구현 중 컨트롤러가 사용자 대신 내린 판단. 각 �
 - Ruling R59: 줄바꿈은 계속 막음 — tmux `send-keys -l`의 줄바꿈은 Enter와 같아 글이 중간에 제출될 수 있음 — 틀리면: 여러 줄 답은 터미널에서
 - Ruling R60: 여러 개 고르기는 Space로 켜고 끔 — Enter도 되지만 직접 쓰기 줄에서는 Enter의 뜻이 달라질 수 있어 한 가지 키로 고정 — 틀리면: 없음
 - Ruling R61: 서명 확인은 `codesign -dvv`의 `Authority=` 줄로 함 — `-dv`는 Authority를 출력하지 않음(실측) — 틀리면: 없음
+
+### 실측 S3 (Ghostty 1.3.1, 2026-10-23)
+
+| # | 항목 | 결과 |
+|---|---|---|
+| ① | 앱 자신의 권한으로 화면 읽기 | `open`으로 띄운 Agent Float(로컬 인증서 서명)는 손쉬운 사용 허용 전 `AXIsProcessTrusted() == false`, 허용 뒤 Ghostty 창의 텍스트 영역(선택된 탭의 화면)을 읽음. 터미널에서 직접 띄우면 그 터미널의 권한으로 판정되어 실측에 쓸 수 없음 |
+| ② | `send key` 이름 | `enter`·`tab`·`space`, 화살표는 `arrowUp`·`arrowDown`·`arrowLeft`·`arrowRight`(카멜 표기). `down`·`arrow_down`·`ArrowDown` 등은 Unknown key name. `input text … to terminal id`도 동작 |
+| ③ | 보이지 않는 창에 입력 | 다른 데스크탑에 있는 창의 터미널에도 `send key`가 들어가 답이 기록됨(transcript로 확인) |
+| ④ | 앱을 올리지 않고 탭 바꾸기 | 실측하지 않음 — 시험 창이 사용자 화면을 가려 사용자가 옮긴 것으로 보여, 탭·데스크탑을 더 바꾸는 시험은 하지 않음 |
+| ⑤ | 분할 탭 | 실측하지 않음 — 터미널이 둘 이상인 탭은 보기만으로 고정 |
+| — | AX 창 목록 | 지금 데스크탑에 보이는 창만 나옴(다른 데스크탑·최소화 창은 없음). 창 식별자(`AXIdentifier`)는 모든 창이 같아 쓸 수 없음. 창 제목은 진행 기호(◐◑✳)가 계속 바뀌고, 한글 제목은 AppleScript 쪽과 정규화가 달라 그대로 비교하면 안 맞음 |
+
+- Ruling R62: Ghostty 세션은 지금 보이는 창의 선택된 탭이고 터미널이 하나일 때만 보냄. 가려진 탭·다른 데스크탑·최소화 창은 보기만(문구를 "보이지 않는 Ghostty 탭이라 터미널 화면을 확인할 수 없어요"로 넓힘). 탭을 몰래 바꿔 읽는 방법(계획 Task 6 Step 6)은 쓰지 않음 — AX가 보이는 창만 읽어 탭을 바꿔도 다른 데스크탑의 창은 못 읽고, 사용자 터미널 상태를 바꾸는 부작용이 큼 — 틀리면: Ghostty 뒤쪽 탭 세션은 패널에서 답할 수 없음
+- Ruling R63: Ghostty 창 짝짓기는 진행 기호를 떼고 NFC로 정규화한 제목이 정확히 하나 같을 때만(`GhosttyMatcher.windowKey`) — 틀리면: 같은 제목 창이 둘이면 보기만
+- Ruling R64: Ghostty도 흐림을 읽지 못해(AX 값은 글자만) 본문 질문은 보기만(R57과 같음) — 틀리면: Ghostty에서 본문 질문은 터미널로

@@ -269,4 +269,29 @@ import Testing
         #expect(!navigator.canNavigate(makeSession(locator: .application(pid: 10))))
         #expect(!navigator.canNavigate(makeSession(locator: .none)))
     }
+
+    // MARK: 보내기용 엄격한 짝짓기 (v1.2 설계 4.1)
+
+    @Test func uniqueMatchRefusesTitleTwins() {
+        let terminals = [terminal("A", "✳ 캐시 만료 정책 정리", "/Users/me/work"), terminal("B", "◐ 캐시 만료 정책 정리", "/Users/me/work")]
+        #expect(GhosttyMatcher.match(title: "캐시 만료 정책 정리", cwd: "/Users/me/work", in: terminals)?.id == "A")
+        #expect(GhosttyMatcher.uniqueMatch(title: "캐시 만료 정책 정리", cwd: "/Users/me/work", in: terminals) == nil)
+    }
+
+    @Test func uniqueMatchUsesCwdToBreakTies() {
+        let terminals = [terminal("A", "✳ 캐시 만료 정책 정리", "/Users/me/other"), terminal("B", "✳ 캐시 만료 정책 정리", "/Users/me/work")]
+        #expect(GhosttyMatcher.uniqueMatch(title: "캐시 만료 정책 정리", cwd: "/Users/me/work", in: terminals)?.id == "B")
+    }
+
+    @Test func uniqueMatchKeepsSingleTitle() {
+        let terminals = [terminal("A", "✳ 캐시 만료 정책 정리", "/Users/me/other"), terminal("B", "✳ 검색 색인 재구성", "/Users/me/work")]
+        #expect(GhosttyMatcher.uniqueMatch(title: "캐시 만료 정책 정리", cwd: "/Users/me/work", in: terminals)?.id == "A")
+        #expect(GhosttyMatcher.uniqueMatch(title: nil, cwd: "/Users/me/work", in: terminals)?.id == "B")
+    }
+
+    @Test func windowKeyIgnoresGlyphAndNormalization() {
+        let decomposed = "캐시".decomposedStringWithCanonicalMapping
+        #expect(GhosttyMatcher.windowKey("◑ \(decomposed) 정리") == GhosttyMatcher.windowKey("✳ 캐시 정리"))
+        #expect(GhosttyMatcher.windowKey("✳ 캐시 정리") != GhosttyMatcher.windowKey("✳ 색인 정리"))
+    }
 }

@@ -56,6 +56,53 @@ public enum GhosttyScripts {
         """
     }
 
+    /// `<창 id>\t<창 제목>\t<탭 선택 여부>\t<탭 안 터미널 수>` 또는 "missing". 화면은 그 탭이 선택돼 있고 나뉘지 않았을 때만 읽을 수 있다
+    public static func terminalPlacement(terminalId: String) -> String {
+        """
+        set sep to character id 9
+        tell application "Ghostty"
+          repeat with w in windows
+            repeat with t in tabs of w
+              repeat with s in terminals of t
+                if (id of s) is "\(escape(terminalId))" then
+                  return (id of w) & sep & (name of w) & sep & ((selected of t) as text) & sep & ((count of terminals of t) as text)
+                end if
+              end repeat
+            end repeat
+          end repeat
+          return "missing"
+        end tell
+        """
+    }
+
+    /// 붙여넣기처럼 들어가므로 글자가 키로 해석되지 않는다 (sdef)
+    public static func inputText(_ text: String, terminalId: String) -> String {
+        onTerminal(terminalId, command: "input text \"\(escape(text))\" to s")
+    }
+
+    public static func sendKey(_ name: String, terminalId: String) -> String {
+        onTerminal(terminalId, command: "send key \"\(escape(name))\" to s")
+    }
+
+    /// 앱을 앞으로 올리지 않고 그 터미널에만 보낸다. 보이지 않는 창의 터미널에도 들어간다(실측)
+    private static func onTerminal(_ terminalId: String, command: String) -> String {
+        """
+        tell application "Ghostty"
+          repeat with w in windows
+            repeat with t in tabs of w
+              repeat with s in terminals of t
+                if (id of s) is "\(escape(terminalId))" then
+                  \(command)
+                  return "ok"
+                end if
+              end repeat
+            end repeat
+          end repeat
+          return "missing"
+        end tell
+        """
+    }
+
     public static func newTab(initialInput: String) -> String {
         """
         tell application "Ghostty"
@@ -107,6 +154,25 @@ public enum GhosttyMatcher {
         // 제목이 없거나 바뀌어 짝이 없을 때의 마지막 수단. 같은 디렉터리의 에이전트 탭이 하나뿐일 때만 확신할 수 있다
         let agentTabs = terminals.filter { $0.cwd == cwd && startsWithClaudeGlyph($0.title) }
         return agentTabs.count == 1 ? agentTabs[0] : nil
+    }
+
+    /// 보내기용. 이동은 가장 그럴듯한 탭으로 가도 되지만, 보내기는 엉뚱한 탭에 키가 들어가면 안 되므로 정확히 하나일 때만 고른다 (v1.2 설계 4.1)
+    public static func uniqueMatch(title: String?, cwd: String, in terminals: [GhosttyTerminal]) -> GhosttyTerminal? {
+        if let title, !title.isEmpty {
+            let candidates = terminals.filter { strippedTitle($0.title) == title }
+            if candidates.count == 1 { return candidates[0] }
+            if candidates.count > 1 {
+                let sameDirectory = candidates.filter { $0.cwd == cwd }
+                return sameDirectory.count == 1 ? sameDirectory[0] : nil
+            }
+        }
+        let agentTabs = terminals.filter { $0.cwd == cwd && startsWithClaudeGlyph($0.title) }
+        return agentTabs.count == 1 ? agentTabs[0] : nil
+    }
+
+    /// 창 제목을 손쉬운 사용 API 쪽 제목과 견줄 열쇠. 진행 기호는 수시로 바뀌고, 한글은 두 API 가 다른 정규화로 줄 수 있다(실측)
+    public static func windowKey(_ title: String) -> String {
+        strippedTitle(title).precomposedStringWithCanonicalMapping.trimmingCharacters(in: .whitespaces)
     }
 
     private static func startsWithClaudeGlyph(_ title: String) -> Bool {
