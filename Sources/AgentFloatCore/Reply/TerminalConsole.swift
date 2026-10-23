@@ -112,3 +112,85 @@ public struct ConsoleScreen: Equatable, Sendable {
         }
     }
 }
+
+/// 답장 화면을 처음부터 "보기만"으로 여는 이유. 쓰고 나서 막히지 않게 쓰기 전에 알려 준다 (v1.2 설계 4.4 G0)
+public enum ReadOnlyReason: Equatable, Sendable {
+    /// 보낼 수 없는 터미널. 값은 화면에 쓸 앱 이름
+    case unsupportedTerminal(String)
+    case hiddenTab
+    case accessibilityNeeded
+    case ambiguousTab
+    case splitTab
+    case previewQuestion
+    case permissionPrompt
+    /// 흐림을 읽지 못해 프롬프트가 비었는지 알 수 없음 (R57)
+    case promptUnverifiable
+}
+
+public enum ConsoleAvailability: Equatable, Sendable {
+    case ready
+    case readOnly(ReadOnlyReason)
+}
+
+/// 터미널 하나에 키를 보내고 화면을 읽는 담당. 위치 정보(`TerminalLocator`) 종류마다 하나다
+public protocol TerminalConsole: Sendable {
+    /// 빈 입력 칸의 흐린 안내 문구를 가려낼 수 있는지. 못 하면 본문 질문에는 답하지 않는다 (R57)
+    var readsFaintText: Bool { get }
+    func handles(_ session: AgentSession) -> Bool
+    func availability(of session: AgentSession) async -> ConsoleAvailability
+    func readScreen(of session: AgentSession) async throws -> ConsoleScreen
+    func send(_ input: ConsoleInput, to session: AgentSession) async throws
+}
+
+extension TerminalConsole {
+    /// 제어 문자는 키로 해석되어 글과 다른 동작을 일으킨다. 화면 쪽 검사와 겹치는 두 번째 방어선이다
+    func requireSafeText(_ input: ConsoleInput) throws {
+        guard case let .text(text) = input else { return }
+        if text.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
+            throw NavigationError.commandFailed("unsafe text")
+        }
+    }
+}
+
+public struct ConsoleRegistry: Sendable {
+    private let consoles: [any TerminalConsole]
+
+    public init(_ consoles: [any TerminalConsole]) {
+        self.consoles = consoles
+    }
+
+    public func console(for session: AgentSession) -> (any TerminalConsole)? {
+        consoles.first { $0.handles(session) }
+    }
+
+    /// 질문 쪽 이유를 먼저 본다. 터미널을 건드리지 않고 정할 수 있고, 터미널이 되더라도 답할 수 없는 질문이기 때문이다
+    public func availability(of session: AgentSession) async -> ConsoleAvailability {
+        switch session.prompt {
+        case .permission?:
+            return .readOnly(.permissionPrompt)
+        case let .choices(_, questions)? where questions.contains(where: \.hasPreview):
+            return .readOnly(.previewQuestion)
+        default:
+            break
+        }
+        guard let console = console(for: session) else {
+            return .readOnly(.unsupportedTerminal(Self.appName(session.terminalApp)))
+        }
+        if case .text? = session.prompt, !console.readsFaintText {
+            return .readOnly(.promptUnverifiable)
+        }
+        return await console.availability(of: session)
+    }
+
+    static func appName(_ app: TerminalApp) -> String {
+        switch app {
+        case .ghostty: "Ghostty"
+        case .orca: "Orca"
+        case .other("Apple_Terminal"): "Terminal"
+        case .other("iTerm.app"): "iTerm2"
+        case let .other(name): name
+        // "이 터미널에는 …" 문장에 그대로 들어간다
+        case .unknown: "이"
+        }
+    }
+}

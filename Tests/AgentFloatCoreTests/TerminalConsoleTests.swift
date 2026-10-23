@@ -1,0 +1,196 @@
+import Foundation
+import Testing
+@testable import AgentFloatCore
+
+private let socket = "/private/tmp/tmux-501/default"
+private let tmuxExe = "/opt/homebrew/bin/tmux"
+private let handle = "term_00000000-0000-4000-8000-000000000002"
+private let choicePrompt = PendingPrompt.choices(id: "toolu_01", questions: [expiryQuestion])
+private let bodyPrompt = PendingPrompt.text(id: "a-2", message: "다음 작업을 진행할까요?")
+
+private func waiting(
+    _ locator: TerminalLocator,
+    app: TerminalApp = .unknown,
+    prompt: PendingPrompt? = choicePrompt
+) -> AgentSession {
+    AgentSession(
+        key: SessionKey(providerId: "claude-code", sessionId: "s1"),
+        agentName: "Claude",
+        title: "캐시 만료 정책 정리",
+        cwd: "/Users/me/work",
+        status: .waiting,
+        waitReason: .question,
+        statusSince: Date(timeIntervalSince1970: 1_800_000_000),
+        isStale: false,
+        lastActivityAt: nil,
+        terminalApp: app,
+        locator: locator,
+        prompt: prompt
+    )
+}
+
+private func fixtureData(_ name: String, _ ext: String) throws -> Data {
+    let url = try #require(Bundle.module.url(forResource: name, withExtension: ext, subdirectory: "Fixtures/screens"))
+    return try Data(contentsOf: url)
+}
+
+/// 판정 결과만 정해 두고 호출 여부를 남긴다
+private struct StubConsole: TerminalConsole {
+    let readsFaintText: Bool
+    let verdict: ConsoleAvailability
+    let calls: CallLog<String>
+
+    func handles(_ session: AgentSession) -> Bool { true }
+    func availability(of session: AgentSession) async -> ConsoleAvailability {
+        calls.append("availability")
+        return verdict
+    }
+    func readScreen(of session: AgentSession) async throws -> ConsoleScreen {
+        ConsoleScreen(lines: [], faint: nil, composerDraft: nil)
+    }
+    func send(_ input: ConsoleInput, to session: AgentSession) async throws {}
+}
+
+@Suite struct TerminalConsoleTests {
+    private let tmuxSession = waiting(.tmux(socket: socket, paneId: "%7", pid: 4242), app: .other("tmux"))
+    private let orcaSession = waiting(.orca(tabId: "t1", leafId: "l1", handle: handle), app: .orca)
+
+    // MARK: tmux
+
+    @Test func tmuxSendsLiteralText() async throws {
+        let runner = FakeCommandRunner { _ in "" }
+        try await TmuxConsole(runner: runner, executable: tmuxExe).send(.text("잠시 대기"), to: tmuxSession)
+        #expect(await runner.calls == [.init(executable: tmuxExe, arguments: ["-S", socket, "send-keys", "-t", "%7", "-l", "--", "잠시 대기"])])
+    }
+
+    @Test func tmuxSendsNamedKeys() async throws {
+        let runner = FakeCommandRunner { _ in "" }
+        let console = TmuxConsole(runner: runner, executable: tmuxExe)
+        for key in ConsoleKey.allCases { try await console.send(.key(key), to: tmuxSession) }
+        let names = await runner.calls.map { $0.arguments.last }
+        #expect(names == ["Enter", "Up", "Down", "Left", "Right", "Tab", "Space"])
+        #expect(await runner.calls.allSatisfy { $0.arguments.prefix(5) == ["-S", socket, "send-keys", "-t", "%7"] })
+    }
+
+    @Test func tmuxReadsPaneWithStyles() async throws {
+        let ansi = String(decoding: try fixtureData("prompt-suggestion", "ansi"), as: UTF8.self)
+        let runner = FakeCommandRunner { _ in ansi }
+        let screen = try await TmuxConsole(runner: runner, executable: tmuxExe).readScreen(of: tmuxSession)
+        #expect(await runner.calls == [.init(executable: tmuxExe, arguments: ["-S", socket, "capture-pane", "-p", "-e", "-t", "%7"])])
+        #expect(ClaudeScreen.interpret(screen) == .prompt(draft: ""))
+    }
+
+    @Test func tmuxRejectsUnsafeLocator() async throws {
+        let runner = FakeCommandRunner { _ in "" }
+        let console = TmuxConsole(runner: runner, executable: tmuxExe)
+        for session in [
+            waiting(.tmux(socket: "/tmp/with space", paneId: "%7", pid: 1), app: .other("tmux")),
+            waiting(.tmux(socket: socket, paneId: "7", pid: 1), app: .other("tmux")),
+        ] {
+            #expect(await console.availability(of: session) == .readOnly(.unsupportedTerminal("tmux")))
+            await #expect(throws: NavigationError.terminalNotFound) { try await console.send(.key(.enter), to: session) }
+        }
+        #expect(await TmuxConsole(runner: runner, executable: nil).availability(of: tmuxSession) == .readOnly(.unsupportedTerminal("tmux")))
+        #expect(await runner.calls.isEmpty)
+    }
+
+    @Test func tmuxRefusesControlCharacters() async throws {
+        let runner = FakeCommandRunner { _ in "" }
+        let console = TmuxConsole(runner: runner, executable: tmuxExe)
+        await #expect(throws: NavigationError.commandFailed("unsafe text")) { try await console.send(.text("a\nb"), to: tmuxSession) }
+        #expect(await runner.calls.isEmpty)
+    }
+
+    // MARK: Orca
+
+    @Test func orcaSendsTextAndEnter() async throws {
+        let runner = FakeCommandRunner { _ in #"{"ok":true,"result":{"send":{"accepted":true}}}"# }
+        let console = OrcaConsole(runner: runner)
+        try await console.send(.text("잠시 대기"), to: orcaSession)
+        try await console.send(.key(.enter), to: orcaSession)
+        #expect(await runner.calls.map(\.arguments) == [
+            ["terminal", "send", "--terminal", handle, "--text", "잠시 대기", "--json"],
+            ["terminal", "send", "--terminal", handle, "--enter", "--json"],
+        ])
+    }
+
+    @Test func orcaSendsArrowsAsSequences() async throws {
+        let runner = FakeCommandRunner { _ in #"{"ok":true,"result":{"send":{"accepted":true}}}"# }
+        let console = OrcaConsole(runner: runner)
+        for key in [ConsoleKey.up, .down, .right, .left, .tab, .space] { try await console.send(.key(key), to: orcaSession) }
+        let texts = await runner.calls.map { $0.arguments[5] }
+        #expect(texts == ["\u{1b}[A", "\u{1b}[B", "\u{1b}[C", "\u{1b}[D", "\t", " "])
+    }
+
+    @Test func orcaRejectedSendFails() async throws {
+        let runner = FakeCommandRunner { _ in #"{"ok":true,"result":{"send":{"accepted":false}}}"# }
+        await #expect(throws: NavigationError.self) { try await OrcaConsole(runner: runner).send(.key(.enter), to: orcaSession) }
+    }
+
+    @Test func orcaReadsScreenAndDraft() async throws {
+        let plain = try fixtureData("orca-read-screen", "json")
+        let drafted = try fixtureData("orca-read-screen-draft", "json")
+        let screen = try OrcaCLI.parseScreen(plain)
+        #expect(screen.faint == nil)
+        #expect(screen.composerDraft == nil)
+        guard case .choiceDialog = ClaudeScreen.interpret(screen) else {
+            Issue.record("질문 창으로 읽혀야 함")
+            return
+        }
+        #expect(try OrcaCLI.parseScreen(drafted).composerDraft == "오르카 입력창 글")
+
+        let runner = FakeCommandRunner { _ in String(decoding: plain, as: UTF8.self) }
+        _ = try await OrcaConsole(runner: runner).readScreen(of: orcaSession)
+        #expect(await runner.calls.map(\.arguments) == [["terminal", "read", "--terminal", handle, "--screen", "--json"]])
+    }
+
+    @Test func orcaWithoutHandleIsReadOnly() async {
+        let runner = FakeCommandRunner { _ in "" }
+        let session = waiting(.orca(tabId: "t1", leafId: "l1", handle: nil), app: .orca)
+        #expect(await OrcaConsole(runner: runner).availability(of: session) == .readOnly(.unsupportedTerminal("Orca")))
+    }
+
+    // MARK: registry
+
+    @Test func registryPrefersPromptReasons() async {
+        let calls = CallLog<String>()
+        let registry = ConsoleRegistry([StubConsole(readsFaintText: true, verdict: .ready, calls: calls)])
+        let permission = waiting(.none, prompt: .permission(id: "toolu_02", tool: "Bash", summary: "swift test"))
+        #expect(await registry.availability(of: permission) == .readOnly(.permissionPrompt))
+        let preview = ChoiceQuestion(text: "어느 배치가 좋을까요?", header: nil, multiSelect: false, options: [
+            ChoiceOption(label: "가", description: nil, hasPreview: true),
+        ])
+        #expect(await registry.availability(of: waiting(.none, prompt: .choices(id: "toolu_03", questions: [preview]))) == .readOnly(.previewQuestion))
+        #expect(calls.entries.isEmpty)
+        #expect(await registry.availability(of: waiting(.none)) == .ready)
+    }
+
+    @Test func bodyQuestionNeedsFaintReading() async {
+        let calls = CallLog<String>()
+        let blind = ConsoleRegistry([StubConsole(readsFaintText: false, verdict: .ready, calls: calls)])
+        #expect(await blind.availability(of: waiting(.none, prompt: bodyPrompt)) == .readOnly(.promptUnverifiable))
+        #expect(await blind.availability(of: waiting(.none, prompt: choicePrompt)) == .ready)
+        let sighted = ConsoleRegistry([StubConsole(readsFaintText: true, verdict: .ready, calls: calls)])
+        #expect(await sighted.availability(of: waiting(.none, prompt: bodyPrompt)) == .ready)
+    }
+
+    @Test func orcaTeamTmuxSessionUsesTmux() {
+        let runner = FakeCommandRunner { _ in "" }
+        let registry = ConsoleRegistry([OrcaConsole(runner: runner), TmuxConsole(runner: runner, executable: tmuxExe)])
+        let session = waiting(.tmux(socket: socket, paneId: "%1", pid: 9), app: .orca)
+        #expect(registry.console(for: session) is TmuxConsole)
+    }
+
+    @Test func unsupportedTerminalNamesApp() async {
+        let runner = FakeCommandRunner { _ in "" }
+        let registry = ConsoleRegistry([OrcaConsole(runner: runner), TmuxConsole(runner: runner, executable: tmuxExe)])
+        #expect(await registry.availability(of: waiting(.appleTerminal(tty: "/dev/ttys004"), app: .other("Apple_Terminal")))
+            == .readOnly(.unsupportedTerminal("Terminal")))
+        #expect(await registry.availability(of: waiting(.iTerm(tty: "/dev/ttys005"), app: .other("iTerm.app")))
+            == .readOnly(.unsupportedTerminal("iTerm2")))
+        #expect(await registry.availability(of: waiting(.application(pid: 4012), app: .other("Cursor")))
+            == .readOnly(.unsupportedTerminal("Cursor")))
+        #expect(await registry.availability(of: waiting(.background(jobId: "job1"), app: .unknown))
+            == .readOnly(.unsupportedTerminal("이")))
+    }
+}

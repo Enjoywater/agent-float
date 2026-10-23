@@ -38,6 +38,50 @@ public enum OrcaCLI {
         return terminals.first { $0.tabId == tabId && $0.leafId == leafId }
     }
 
+    /// `{"ok":true,"result":{"terminal":{"tail":[줄…],"draft":"…"}}}`. `draft` 는 Orca 입력창에 글이 있을 때만 온다 (실측 ⑫)
+    public static func parseScreen(_ json: Data) throws -> ConsoleScreen {
+        guard let envelope = try? JSONDecoder().decode(ScreenEnvelope.self, from: json) else {
+            throw NavigationError.commandFailed("unreadable orca screen")
+        }
+        guard envelope.ok != false, let terminal = envelope.result?.terminal, let lines = terminal.tail else {
+            throw NavigationError.commandFailed("orca screen has no lines")
+        }
+        let draft = terminal.draft.flatMap { $0.isEmpty ? nil : $0 }
+        return ConsoleScreen(lines: lines, faint: nil, composerDraft: draft)
+    }
+
+    static func sendAccepted(_ json: Data) -> Bool {
+        guard let envelope = try? JSONDecoder().decode(SendEnvelope.self, from: json) else { return false }
+        return envelope.ok != false && envelope.result?.send?.accepted == true
+    }
+
+    private struct ScreenEnvelope: Decodable {
+        let ok: Bool?
+        let result: Result?
+
+        struct Result: Decodable {
+            let terminal: Terminal?
+        }
+
+        struct Terminal: Decodable {
+            let tail: [String]?
+            let draft: String?
+        }
+    }
+
+    private struct SendEnvelope: Decodable {
+        let ok: Bool?
+        let result: Result?
+
+        struct Result: Decodable {
+            let send: Send?
+        }
+
+        struct Send: Decodable {
+            let accepted: Bool?
+        }
+    }
+
     private struct Envelope: Decodable {
         let ok: Bool?
         let result: Result?
