@@ -195,4 +195,26 @@ import Testing
         #expect(tracker.summary(of: []).isEmpty)
         #expect(tracker.summary(of: []).attention == false)
     }
+
+
+    // MARK: 보내기 실패 (v1.2 설계 4.7)
+
+    @Test func failedSessionsLeaveStatusCounts() {
+        let tracker = SignalTracker()
+        let sessions = [Self.session("a", .waiting), Self.session("b", .waiting), Self.session("c", .running)]
+        let summary = tracker.summary(of: sessions, failed: [Self.key("a")])
+        #expect(summary.waiting == 1)
+        #expect(summary.running == 1)
+        #expect(summary.failed == 1)
+        #expect(summary.attention)
+    }
+
+    @Test func failureAloneDrawsAttention() {
+        let tracker = SignalTracker()
+        let summary = tracker.summary(of: [Self.session("a", .running)], failed: [Self.key("a")])
+        #expect(summary.running == 0)
+        #expect(summary.failed == 1)
+        #expect(summary.attention)
+        #expect(!summary.isEmpty)
+    }
 }

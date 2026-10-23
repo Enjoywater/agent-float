@@ -4,17 +4,20 @@ import Foundation
 public struct PillSummary: Equatable, Sendable {
     public let waiting: Int, running: Int, done: Int, unknown: Int
     public let ask: Bool, new: Bool
-    public var attention: Bool { ask || new }
-    public var isEmpty: Bool { waiting + running + done + unknown == 0 }
+    /// 보내다 멈췄거나 기록이 달랐던 세션 수. 사용자가 확인할 때까지 남는다 (v1.2 설계 4.7)
+    public let failed: Int
+    public var attention: Bool { ask || new || failed > 0 }
+    public var isEmpty: Bool { waiting + running + done + unknown + failed == 0 }
 
     // 암시적 memberwise init 은 internal 이라 앱 타깃(프리뷰 포함)에서 쓸 수 있게 명시한다
-    public init(waiting: Int, running: Int, done: Int, unknown: Int, ask: Bool, new: Bool) {
+    public init(waiting: Int, running: Int, done: Int, unknown: Int, ask: Bool, new: Bool, failed: Int = 0) {
         self.waiting = waiting
         self.running = running
         self.done = done
         self.unknown = unknown
         self.ask = ask
         self.new = new
+        self.failed = failed
     }
 }
 
@@ -59,7 +62,9 @@ public struct SignalTracker: Sendable {
         unseen.remove(key)
     }
 
-    public func summary(of sessions: [AgentSession]) -> PillSummary {
+    /// 실패 표시가 켜진 세션은 상태 개수에서 빼고 따로 센다. 목록에서도 "확인 필요" 묶음으로만 나오므로 숫자가 맞아야 한다
+    public func summary(of all: [AgentSession], failed: Set<SessionKey> = []) -> PillSummary {
+        let sessions = all.filter { !failed.contains($0.key) }
         let waiting = sessions.count { $0.status == .waiting }
         // unseen 에 남은 키라도 지금 done 이 아니면(예: unknown) 알림으로 보이지 않게 교차시킨다
         let hasNew = sessions.contains { $0.status == .done && unseen.contains($0.key) }
@@ -69,7 +74,8 @@ public struct SignalTracker: Sendable {
             done: sessions.count { $0.status == .done },
             unknown: sessions.count { $0.status == .unknown },
             ask: waiting > 0,
-            new: hasNew
+            new: hasNew,
+            failed: all.count { failed.contains($0.key) }
         )
     }
 }

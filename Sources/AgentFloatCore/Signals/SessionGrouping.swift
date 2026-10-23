@@ -12,12 +12,17 @@ public struct SessionGroup: Equatable, Sendable {
 
 public enum SessionGrouping {
     /// AgentStatus 선언 순서(대기 → 진행 → 완료 → 알 수 없음)대로 묶고, 세션이 없는 상태는 생략한다
-    public static func groups(_ sessions: [AgentSession]) -> [SessionGroup] {
+    public static func groups(_ sessions: [AgentSession], excluding failed: Set<SessionKey> = []) -> [SessionGroup] {
         AgentStatus.allCases.compactMap { status in
-            let members = sessions.filter { $0.status == status }
+            let members = sessions.filter { $0.status == status && !failed.contains($0.key) }
             guard !members.isEmpty else { return nil }
             return SessionGroup(status: status, sessions: members.sorted(by: ordering(for: status)))
         }
+    }
+
+    /// "확인 필요" 묶음. 방금 실패한 세션이 위로 온다
+    public static func failed(_ failed: Set<SessionKey>, among sessions: [AgentSession]) -> [AgentSession] {
+        sessions.filter { failed.contains($0.key) }.sorted(by: ordering(for: .done))
     }
 
     private static func ordering(for status: AgentStatus) -> (AgentSession, AgentSession) -> Bool {

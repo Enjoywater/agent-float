@@ -71,4 +71,18 @@ import Testing
         #expect(Self.ids(tied[0]) == ["x2", "x1"])
         #expect(Self.ids(tied[1]) == ["x4", "x3"])
     }
+
+
+    @Test func failedGroupIsSeparate() {
+        let sessions = [
+            Self.session("w1", .waiting, minutesAgo: 3),
+            Self.session("r1", .running, minutesAgo: 1),
+            Self.session("f1", .done, minutesAgo: 5),
+            Self.session("f2", .running, minutesAgo: 2),
+        ]
+        let failed: Set<SessionKey> = [SessionKey(providerId: "claude", sessionId: "f1"), SessionKey(providerId: "claude", sessionId: "f2")]
+        let groups = SessionGrouping.groups(sessions, excluding: failed)
+        #expect(groups.flatMap(Self.ids) == ["w1", "r1"])
+        #expect(SessionGrouping.failed(failed, among: sessions).map(\.key.sessionId) == ["f2", "f1"])
+    }
 }
