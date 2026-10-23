@@ -26,6 +26,28 @@ private final class ScriptedProvider: AgentProvider, Sendable {
     }
 }
 
+/// 기록된 답을 돌려주고 누가 무엇을 물었는지 남긴다
+private final class AnsweringProvider: AgentProvider, AnswerRecordReading, Sendable {
+    let id: String
+    let watchedDirectories: [URL] = []
+    private let answer: RecordedAnswer?
+    private let calls = Mutex<[String]>([])
+
+    init(id: String, answer: RecordedAnswer?) {
+        self.id = id
+        self.answer = answer
+    }
+
+    var asked: [String] { calls.withLock { $0 } }
+
+    func snapshot(now: Date) throws -> [AgentSession] { [] }
+
+    func recordedAnswer(sessionId: String, promptId: String) -> RecordedAnswer? {
+        calls.withLock { $0.append("\(sessionId)/\(promptId)") }
+        return answer
+    }
+}
+
 @Suite struct SessionStoreTests {
     private static let now = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -114,5 +136,16 @@ private final class ScriptedProvider: AgentProvider, Sendable {
 
         #expect(store.snapshot(now: Self.now).isEmpty)
         #expect(store.watchedDirectories.isEmpty)
+    }
+
+
+    @Test func recordedAnswerIsRoutedByProviderId() {
+        let answering = AnsweringProvider(id: "alpha", answer: .text("응"))
+        let other = ScriptedProvider(id: "beta", outcome: .success([]))
+        let store = SessionStore(providers: [other, answering])
+
+        #expect(store.recordedAnswer(for: SessionKey(providerId: "alpha", sessionId: "a1"), promptId: "p1") == .text("응"))
+        #expect(store.recordedAnswer(for: SessionKey(providerId: "beta", sessionId: "b1"), promptId: "p1") == nil)
+        #expect(answering.asked == ["a1/p1"])
     }
 }

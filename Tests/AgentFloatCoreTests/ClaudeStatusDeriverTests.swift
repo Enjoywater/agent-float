@@ -254,4 +254,44 @@ import Testing
         #expect(derived.status == .waiting)
         #expect(derived.waitReason == .bodyQuestion)
     }
+
+
+    // MARK: 대기 사유 → 질문
+
+    private static let question = ChoiceQuestion(
+        text: "만료 방식을 어떻게 할까요?",
+        header: "만료 방식",
+        multiSelect: false,
+        options: [ChoiceOption(label: "고정 10분 유지", description: nil, hasPreview: false)]
+    )
+
+    @Test func questionReasonUsesOpenQuestion() {
+        var tail = Self.tail()
+        tail.openQuestion = .choices(id: "toolu_01", questions: [Self.question])
+        #expect(ClaudeStatusDeriver.prompt(for: .question, tail: tail) == .choices(id: "toolu_01", questions: [Self.question]))
+    }
+
+    @Test func bodyQuestionUsesLastAssistantText() {
+        var tail = Self.tail(text: "다음 작업을 진행할까요?")
+        tail.lastAssistantId = "a-2"
+        #expect(ClaudeStatusDeriver.prompt(for: .bodyQuestion, tail: tail) == .text(id: "a-2", message: "다음 작업을 진행할까요?"))
+
+        tail.lastAssistantId = nil
+        #expect(ClaudeStatusDeriver.prompt(for: .bodyQuestion, tail: tail) == nil)
+    }
+
+    @Test func permissionUsesOpenToolUse() {
+        var tail = Self.tail()
+        tail.openToolUse = OpenToolUse(id: "toolu_02", name: "Bash", summary: "swift test")
+        #expect(ClaudeStatusDeriver.prompt(for: .permission, tail: tail) == .permission(id: "toolu_02", tool: "Bash", summary: "swift test"))
+    }
+
+    @Test func otherReasonsHaveNoPrompt() {
+        var tail = Self.tail(text: "다음 작업을 진행할까요?")
+        tail.lastAssistantId = "a-2"
+        tail.openToolUse = OpenToolUse(id: "toolu_02", name: "Bash", summary: "swift test")
+        #expect(ClaudeStatusDeriver.prompt(for: .worker, tail: tail) == nil)
+        #expect(ClaudeStatusDeriver.prompt(for: nil, tail: tail) == nil)
+        #expect(ClaudeStatusDeriver.prompt(for: .question, tail: nil) == nil)
+    }
 }

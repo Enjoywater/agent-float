@@ -9,9 +9,27 @@ public struct TranscriptTail: Equatable, Sendable {
     /// 살아 있는 cron 이 모두 만료되는 시각. 만료는 시간이 흐르며 생기므로 꼬리 내용만으로 판정하지 않고 시각으로 남겨 판정 쪽이 `now` 와 비교한다
     public var cronLiveUntil: Date?
     public var modifiedAt: Date
+    /// 아직 답이 기록되지 않은 마지막 질문 창. 질문 입력을 온전히 읽지 못했으면 nil
+    public var openQuestion: PendingPrompt? = nil
+    /// 결과가 기록되지 않은 마지막 도구 호출. 승인 창이 무엇을 묻는지 보여 줄 때 쓴다
+    public var openToolUse: OpenToolUse? = nil
+    /// `lastAssistantText` 가 들어 있던 레코드의 uuid. 본문 질문의 식별자다
+    public var lastAssistantId: String? = nil
 
     public func hasLiveCron(at now: Date) -> Bool {
         cronLiveUntil.map { $0 > now } ?? false
+    }
+}
+
+public struct OpenToolUse: Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let summary: String
+
+    public init(id: String, name: String, summary: String) {
+        self.id = id
+        self.name = name
+        self.summary = summary
     }
 }
 
@@ -30,15 +48,7 @@ public enum TranscriptReader {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
 
-        let size = try handle.seekToEnd()
-        let offset = size > UInt64(tailBytes) ? size - UInt64(tailBytes) : 0
-        try handle.seek(toOffset: offset)
-        let chunk = try handle.readToEnd() ?? Data()
-
-        // 창 시작이 줄 중간일 수 있어 첫 줄은 온전하다고 볼 수 없다
-        var lines = splitLines(chunk)
-        if offset > 0, !lines.isEmpty { lines.removeFirst() }
-
+        let (lines, offset) = try tailLines(of: handle)
         let modifiedAt = try url.resourceValues(forKeys: [.contentModificationDateKey])
             .contentModificationDate ?? .distantPast
         var tail = parse(lines: lines, modifiedAt: modifiedAt, since: since)
@@ -49,6 +59,25 @@ public enum TranscriptReader {
             tail.aiTitle = lastTitle(inHead: head)
         }
         return tail
+    }
+
+    /// 보낸 답이 기록됐는지 보는 용도라 방금 쓰인 꼬리 창만 읽는다
+    public static func recordedAnswer(to promptId: String, url: URL) throws -> RecordedAnswer? {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        return recordedAnswer(to: promptId, lines: try tailLines(of: handle).lines)
+    }
+
+    private static func tailLines(of handle: FileHandle) throws -> (lines: [Substring], offset: UInt64) {
+        let size = try handle.seekToEnd()
+        let offset = size > UInt64(tailBytes) ? size - UInt64(tailBytes) : 0
+        try handle.seek(toOffset: offset)
+        let chunk = try handle.readToEnd() ?? Data()
+
+        // 창 시작이 줄 중간일 수 있어 첫 줄은 온전하다고 볼 수 없다
+        var lines = splitLines(chunk)
+        if offset > 0, !lines.isEmpty { lines.removeFirst() }
+        return (lines, offset)
     }
 
     static func parse(lines: [Substring], modifiedAt: Date, since: Date? = nil) -> TranscriptTail {
@@ -64,8 +93,78 @@ public enum TranscriptReader {
             pendingBackgroundTaskIds: scan.startedTaskIds.subtracting(scan.finishedTaskIds),
             pendingWake: scan.wakeAfterPrompt,
             cronLiveUntil: scan.cronJobs.values.map(\.expiresAt).max(),
-            modifiedAt: modifiedAt
+            modifiedAt: modifiedAt,
+            openQuestion: scan.openTools.last { $0.name == "AskUserQuestion" }.flatMap(question(from:)),
+            openToolUse: scan.openTools.last.map { OpenToolUse(id: $0.id, name: $0.name, summary: summary(of: $0.input)) },
+            lastAssistantId: scan.lastAssistantId
         )
+    }
+
+    /// 질문 창은 `tool_result`(+ `toolUseResult.answers`), 본문 질문은 그 답변 뒤 첫 사용자 입력이 답이다
+    static func recordedAnswer(to promptId: String, lines: [Substring]) -> RecordedAnswer? {
+        var afterPrompt = false
+        for line in lines {
+            guard let record = jsonObject(Data(line.utf8)) else { continue }
+            switch record["type"] as? String {
+            case "assistant":
+                if record["uuid"] as? String == promptId { afterPrompt = true }
+            case "user":
+                let content = (record["message"] as? [String: Any])?["content"]
+                if let blocks = content as? [[String: Any]] {
+                    let answersThis = blocks.contains {
+                        $0["type"] as? String == "tool_result" && $0["tool_use_id"] as? String == promptId
+                    }
+                    if answersThis, let answers = (record["toolUseResult"] as? [String: Any])?["answers"] as? [String: Any] {
+                        return .choices(answers.compactMapValues { $0 as? String })
+                    }
+                } else if afterPrompt, let text = content as? String, record["isMeta"] as? Bool != true,
+                          !injectedPrefixes.contains(where: text.hasPrefix) {
+                    return .text(text)
+                }
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
+    /// 사용자가 쓰지 않았는데 사용자 레코드로 들어오는 글. 답으로 세면 보낸 답과 다르다는 잘못된 경고가 난다
+    private static let injectedPrefixes = ["<task-notification>", "<local-command", "<command-name>", "<system-reminder>"]
+
+    /// 질문 하나라도 읽지 못하면 화면의 질문 창과 짝이 맞지 않으므로 질문 전체를 읽지 못한 것으로 본다
+    private static func question(from tool: Scan.OpenTool) -> PendingPrompt? {
+        guard let entries = tool.input["questions"] as? [[String: Any]], !entries.isEmpty else { return nil }
+        var questions: [ChoiceQuestion] = []
+        for entry in entries {
+            guard let text = entry["question"] as? String, !text.isEmpty,
+                  let rawOptions = entry["options"] as? [[String: Any]], !rawOptions.isEmpty
+            else { return nil }
+            var options: [ChoiceOption] = []
+            for raw in rawOptions {
+                guard let label = raw["label"] as? String, !label.isEmpty else { return nil }
+                let preview = raw["preview"] as? String
+                options.append(ChoiceOption(
+                    label: label,
+                    description: raw["description"] as? String,
+                    hasPreview: preview.map { !$0.isEmpty } ?? false
+                ))
+            }
+            questions.append(ChoiceQuestion(
+                text: text,
+                header: entry["header"] as? String,
+                multiSelect: entry["multiSelect"] as? Bool ?? false,
+                options: options
+            ))
+        }
+        return .choices(id: tool.id, questions: questions)
+    }
+
+    /// 승인 창이 무엇을 실행하려는지 한 줄로 보여 줄 값
+    private static func summary(of input: [String: Any]) -> String {
+        for key in ["command", "file_path", "path", "url"] {
+            if let value = input[key] as? String, !value.isEmpty { return value }
+        }
+        return ""
     }
 
     private static func splitLines(_ data: Data) -> [Substring] {
@@ -121,8 +220,17 @@ public enum TranscriptReader {
     }
 
     private struct Scan {
+        struct OpenTool {
+            let id: String
+            let name: String
+            let input: [String: Any]
+        }
+
         var aiTitle: String?
         var lastAssistantText: String?
+        var lastAssistantId: String?
+        /// 결과가 아직 없는 도구 호출을 호출 순서대로
+        var openTools: [OpenTool] = []
         var promptAfterAssistant = false
         var wakeAfterPrompt = false
         // 하나만 지워도 나머지는 계속 울리므로 하나의 참·거짓이 아니라 id 별로 둔다
@@ -176,6 +284,9 @@ public enum TranscriptReader {
                 case "text":
                     if let text = block["text"] as? String, !text.allSatisfy(\.isWhitespace) { lastText = text }
                 case "tool_use":
+                    if let id = block["id"] as? String, let name = block["name"] as? String {
+                        openTools.append(OpenTool(id: id, name: name, input: block["input"] as? [String: Any] ?? [:]))
+                    }
                     if block["name"] as? String == "CronDelete" {
                         if let id = (block["input"] as? [String: Any])?["id"] as? String { cronJobs[id] = nil }
                     } else if !isBeforeSince(record) {
@@ -187,6 +298,7 @@ public enum TranscriptReader {
             }
             if let lastText {
                 lastAssistantText = lastText
+                lastAssistantId = record["uuid"] as? String
                 promptAfterAssistant = false
             }
         }
@@ -215,6 +327,8 @@ public enum TranscriptReader {
                 }
             } else if let blocks = content as? [[String: Any]] {
                 let results = blocks.filter { $0["type"] as? String == "tool_result" }
+                let answered = Set(results.compactMap { $0["tool_use_id"] as? String })
+                openTools.removeAll { answered.contains($0.id) }
                 let beforeSince = isBeforeSince(record)
                 for result in results {
                     guard let text = TranscriptReader.text(of: result) else { continue }
@@ -229,6 +343,8 @@ public enum TranscriptReader {
             if isPrompt {
                 promptAfterAssistant = true
                 wakeAfterPrompt = false
+                // 사용자가 새로 입력했다면 그 전에 떠 있던 질문·승인 창은 더 이상 답을 기다리지 않는다
+                openTools.removeAll()
             }
         }
 

@@ -886,4 +886,43 @@ private final class FakeInspector: ProcessInspecting, Sendable {
 
         #expect(found.lastActivityAt == transcriptTime)
     }
+
+
+    // MARK: 질문과 기록된 답
+
+    private static let askLine = #"{"type":"assistant","uuid":"a-q","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_01","name":"AskUserQuestion","input":{"questions":[{"question":"만료 방식을 어떻게 할까요?","header":"만료 방식","multiSelect":false,"options":[{"label":"고정 10분 유지"}]}]}}]}}"#
+    private static let askResultLine = #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_01","content":"The user answered"}]},"toolUseResult":{"answers":{"만료 방식을 어떻게 할까요?":"고정 10분 유지"}}}"#
+
+    @Test func waitingSessionCarriesPrompt() throws {
+        let id = Self.sessionId(7)
+        try writeSession(pid: 4071, sessionId: id, status: "waiting", waitingFor: "input needed")
+        try writeTranscriptFile(sessionId: id, text: Self.askLine + "\n", modifiedAt: Self.now.addingTimeInterval(-5))
+        let inspector = FakeInspector(alive: [4071], environments: [4071: ["TERM_PROGRAM": "ghostty"]])
+
+        let found = try session(try provider(inspector).snapshot(now: Self.now), id)
+
+        #expect(found.status == .waiting)
+        #expect(found.prompt?.id == "toolu_01")
+    }
+
+    @Test func runningSessionHasNoPrompt() throws {
+        let id = Self.sessionId(8)
+        try writeSession(pid: 4081, sessionId: id, status: "busy")
+        try writeTranscriptFile(sessionId: id, text: Self.askLine + "\n", modifiedAt: Self.now.addingTimeInterval(-5))
+        let inspector = FakeInspector(alive: [4081], environments: [4081: ["TERM_PROGRAM": "ghostty"]])
+
+        #expect(try session(try provider(inspector).snapshot(now: Self.now), id).prompt == nil)
+    }
+
+    @Test func providerReadsRecordedAnswer() throws {
+        let id = Self.sessionId(9)
+        try writeSession(pid: 4091, sessionId: id, status: "busy")
+        try writeTranscriptFile(
+            sessionId: id, text: Self.askLine + "\n" + Self.askResultLine + "\n", modifiedAt: Self.now.addingTimeInterval(-5)
+        )
+        let reader = provider(FakeInspector(alive: [4091]))
+
+        #expect(reader.recordedAnswer(sessionId: id, promptId: "toolu_01") == .choices(["만료 방식을 어떻게 할까요?": "고정 10분 유지"]))
+        #expect(reader.recordedAnswer(sessionId: Self.sessionId(1), promptId: "toolu_01") == nil)
+    }
 }

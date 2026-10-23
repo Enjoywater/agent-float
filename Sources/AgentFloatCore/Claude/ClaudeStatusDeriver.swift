@@ -45,6 +45,22 @@ public enum ClaudeStatusDeriver {
         return .other(raw)
     }
 
+    /// 대기 사유가 무엇을 기다리는지와 transcript 꼬리가 맞을 때만 질문을 붙인다. 사유와 다른 종류를 보여 주면 엉뚱한 것에 답하게 된다
+    public static func prompt(for reason: WaitReason?, tail: TranscriptTail?) -> PendingPrompt? {
+        guard let tail else { return nil }
+        switch reason {
+        case .question?:
+            return tail.openQuestion
+        case .bodyQuestion?:
+            guard let id = tail.lastAssistantId, let text = tail.lastAssistantText else { return nil }
+            return .text(id: id, message: text)
+        case .permission?:
+            return tail.openToolUse.map { .permission(id: $0.id, tool: $0.name, summary: $0.summary) }
+        case .worker?, .sandbox?, .dialog?, .other?, nil:
+            return nil
+        }
+    }
+
     // 대기를 놓치는 쪽이 최악이라 질문 판정을 자동 재개(백그라운드 작업·예약)보다 먼저 본다
     private static func deriveIdle(tail: TranscriptTail?, now: Date, backgroundShellRunning: Bool) -> DerivedStatus {
         if let tail, asksUser(tail) {

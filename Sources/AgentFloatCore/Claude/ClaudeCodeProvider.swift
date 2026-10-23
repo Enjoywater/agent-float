@@ -3,7 +3,7 @@ import Synchronization
 
 /// 세션 파일이 아는 것(상태·pid)과 모르는 것(제목·터미널 위치)을 transcript 와 프로세스 환경으로 채운다.
 /// 폴링마다 불리므로 transcript 판독과 환경변수 조회(호출당 약 1MiB 할당)는 바뀔 때만 다시 한다
-public final class ClaudeCodeProvider: AgentProvider, Sendable {
+public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Sendable {
     public let id = "claude-code"
 
     public var watchedDirectories: [URL] { [sessionsDirectory] }
@@ -57,6 +57,16 @@ public final class ClaudeCodeProvider: AgentProvider, Sendable {
             state.prune(keeping: touched)
             return sessions
         }
+    }
+
+    /// 보낸 답이 기록됐는지 확인할 때만 불린다. 위치는 snapshot 이 찾아 둔 경로를 쓰고, 없으면 다시 찾는다
+    public func recordedAnswer(sessionId: String, promptId: String) -> RecordedAnswer? {
+        let location = caches.withLock { state -> TranscriptLocation? in
+            var projects = ProjectDirectories(root: projectsDirectory)
+            return locateTranscript(sessionId: sessionId, state: &state, projects: &projects)
+        }
+        guard let location else { return nil }
+        return try? TranscriptReader.recordedAnswer(to: promptId, url: URL(fileURLWithPath: location.path))
     }
 
     // MARK: 세션 파일
@@ -117,7 +127,8 @@ public final class ClaudeCodeProvider: AgentProvider, Sendable {
             isStale: derived.isStale,
             lastActivityAt: tail?.modifiedAt,
             terminalApp: placement.app,
-            locator: placement.locator
+            locator: placement.locator,
+            prompt: derived.status == .waiting ? ClaudeStatusDeriver.prompt(for: derived.waitReason, tail: tail) : nil
         )
     }
 

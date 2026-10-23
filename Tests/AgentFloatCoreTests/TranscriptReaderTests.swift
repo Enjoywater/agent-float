@@ -394,6 +394,108 @@ import Testing
         #expect(tail.userPromptAfterLastAssistant == false)
     }
 
+    // MARK: 열린 질문과 기록된 답
+
+    private static let askLine = #"{"type":"assistant","uuid":"a-q","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_01","name":"AskUserQuestion","input":{"questions":[{"question":"만료 방식을 어떻게 할까요?","header":"만료 방식","multiSelect":false,"options":[{"label":"읽은 때부터 다시 세기 (Recommended)","description":"읽을 때마다 만료가 10분 늘어남"},{"label":"고정 10분 유지"}]}]}}]}}"#
+    private static let askResultLine = #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_01","content":"The user answered"}]},"toolUseResult":{"answers":{"만료 방식을 어떻게 할까요?":"고정 10분 유지"}}}"#
+    private static let bashLine = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_02","name":"Bash","input":{"command":"swift test","description":"테스트 실행"}}]}}"#
+
+    private static let expectedQuestion = ChoiceQuestion(
+        text: "만료 방식을 어떻게 할까요?",
+        header: "만료 방식",
+        multiSelect: false,
+        options: [
+            ChoiceOption(label: "읽은 때부터 다시 세기 (Recommended)", description: "읽을 때마다 만료가 10분 늘어남", hasPreview: false),
+            ChoiceOption(label: "고정 10분 유지", description: nil, hasPreview: false),
+        ]
+    )
+
+    @Test func openAskQuestionIsParsed() {
+        let tail = parse([Self.askLine])
+        #expect(tail.openQuestion == .choices(id: "toolu_01", questions: [Self.expectedQuestion]))
+        #expect(tail.openToolUse == OpenToolUse(id: "toolu_01", name: "AskUserQuestion", summary: ""))
+    }
+
+    @Test func answeredAskQuestionIsNotOpen() {
+        let tail = parse([Self.askLine, Self.askResultLine])
+        #expect(tail.openQuestion == nil)
+        #expect(tail.openToolUse == nil)
+    }
+
+    @Test func newPromptClosesOpenToolUses() {
+        let tail = parse([Self.askLine, #"{"type":"user","message":{"role":"user","content":"다른 걸 먼저 하자"}}"#])
+        #expect(tail.openQuestion == nil)
+        #expect(tail.openToolUse == nil)
+    }
+
+    @Test func openBashToolSummarizesCommand() {
+        let tail = parse([Self.bashLine])
+        #expect(tail.openToolUse == OpenToolUse(id: "toolu_02", name: "Bash", summary: "swift test"))
+        #expect(tail.openQuestion == nil)
+    }
+
+    @Test func lastAssistantIdFollowsLastText() {
+        let tail = parse([
+            #"{"type":"assistant","uuid":"a-1","message":{"role":"assistant","content":[{"type":"text","text":"먼저 정리했습니다."}]}}"#,
+            #"{"type":"assistant","uuid":"a-2","message":{"role":"assistant","content":[{"type":"text","text":"다음 작업을 진행할까요?"}]}}"#,
+            #"{"type":"assistant","uuid":"a-3","message":{"role":"assistant","content":[{"type":"thinking","thinking":""}]}}"#,
+        ])
+        #expect(tail.lastAssistantId == "a-2")
+        #expect(tail.lastAssistantText == "다음 작업을 진행할까요?")
+    }
+
+    @Test func optionWithPreviewIsMarked() {
+        let tail = parse([
+            #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_03","name":"AskUserQuestion","input":{"questions":[{"question":"어느 배치가 좋을까요?","header":"배치","multiSelect":false,"options":[{"label":"가","preview":"┌─┐"},{"label":"나"}]}]}}]}}"#,
+        ])
+        guard case let .choices(_, questions)? = tail.openQuestion else {
+            Issue.record("질문을 읽지 못함")
+            return
+        }
+        #expect(questions[0].options[0].hasPreview)
+        #expect(!questions[0].options[1].hasPreview)
+        #expect(questions[0].hasPreview)
+    }
+
+    @Test func malformedQuestionInputIsNotAQuestion() {
+        let tail = parse([
+            #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_04","name":"AskUserQuestion","input":{"questions":[]}}]}}"#,
+        ])
+        #expect(tail.openQuestion == nil)
+    }
+
+    @Test func recordedChoiceAnswerIsRead() throws {
+        let url = try writeTemp([Self.askLine, Self.askResultLine].joined(separator: "\n") + "\n")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        #expect(try TranscriptReader.recordedAnswer(to: "toolu_01", url: url) == .choices(["만료 방식을 어떻게 할까요?": "고정 10분 유지"]))
+        #expect(try TranscriptReader.recordedAnswer(to: "toolu_99", url: url) == nil)
+    }
+
+    @Test func recordedTextAnswerIsFirstPromptAfterAssistant() throws {
+        let url = try writeTemp([
+            #"{"type":"assistant","uuid":"a-2","message":{"role":"assistant","content":[{"type":"text","text":"다음 작업을 진행할까요?"}]}}"#,
+            #"{"type":"user","message":{"role":"user","content":"응, 진행해 줘"}}"#,
+            #"{"type":"user","message":{"role":"user","content":"하나 더"}}"#,
+        ].joined(separator: "\n") + "\n")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        #expect(try TranscriptReader.recordedAnswer(to: "a-2", url: url) == .text("응, 진행해 줘"))
+        #expect(try TranscriptReader.recordedAnswer(to: "a-9", url: url) == nil)
+    }
+
+    @Test func metaAndToolResultsAreNotTextAnswers() throws {
+        let url = try writeTemp([
+            #"{"type":"assistant","uuid":"a-2","message":{"role":"assistant","content":[{"type":"text","text":"다음 작업을 진행할까요?"}]}}"#,
+            #"{"type":"user","isMeta":true,"message":{"role":"user","content":"스킬 본문 주입"}}"#,
+            #"{"type":"user","message":{"role":"user","content":"<task-notification>\n<task-id>zzz</task-id>\n<status>completed</status>\n</task-notification>"}}"#,
+            #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_x","content":"ok"}]}}"#,
+        ].joined(separator: "\n") + "\n")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        #expect(try TranscriptReader.recordedAnswer(to: "a-2", url: url) == nil)
+    }
+
     @Test func modifiedAtComesFromTheFile() throws {
         let url = try writeTemp(aiTitleFront)
         defer { try? FileManager.default.removeItem(at: url) }

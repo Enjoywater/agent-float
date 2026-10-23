@@ -56,6 +56,7 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     public let lastActivityAt: Date?
     public let terminalApp: TerminalApp
     public let locator: TerminalLocator
+    public let prompt: PendingPrompt?
 
     public init(
         key: SessionKey,
@@ -68,7 +69,8 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
         isStale: Bool,
         lastActivityAt: Date?,
         terminalApp: TerminalApp,
-        locator: TerminalLocator
+        locator: TerminalLocator,
+        prompt: PendingPrompt? = nil
     ) {
         self.key = key
         self.agentName = agentName
@@ -81,5 +83,6 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
         self.lastActivityAt = lastActivityAt
         self.terminalApp = terminalApp
         self.locator = locator
+        self.prompt = prompt
     }
 }

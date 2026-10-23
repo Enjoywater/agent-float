@@ -15,6 +15,17 @@ public final class SessionStore: Sendable {
         providers.flatMap(\.watchedDirectories)
     }
 
+    /// 세션을 만든 provider 에게만 묻는다. 다른 에이전트의 기록에서 같은 id 를 찾으면 엉뚱한 답을 맞다고 볼 수 있다
+    public func recordedAnswer(for key: SessionKey, promptId: String) -> RecordedAnswer? {
+        for provider in providers where provider.id == key.providerId {
+            if let reader = provider as? any AnswerRecordReading,
+               let answer = reader.recordedAnswer(sessionId: key.sessionId, promptId: promptId) {
+                return answer
+            }
+        }
+        return nil
+    }
+
     /// 정렬은 하지 않는다. 화면 순서는 표시 계층이 정한다
     public func snapshot(now: Date) -> [AgentSession] {
         var merged: [AgentSession] = []
