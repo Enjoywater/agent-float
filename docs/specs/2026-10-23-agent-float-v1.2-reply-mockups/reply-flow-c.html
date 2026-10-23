@@ -1,0 +1,427 @@
+<style>
+  .frames { display: grid; grid-template-columns: repeat(auto-fill, minmax(372px, 1fr)); gap: 18px; }
+  .fr h4 { font-size: .86rem; font-weight: 600; margin: 0 0 6px; }
+  .fr .cap { font-size: .78rem; color: var(--text-secondary); margin: 7px 2px 0; line-height: 1.5; }
+  .fr .cap b { color: var(--text-primary); font-weight: 600; }
+  .wall { position: relative; border-radius: 14px; padding: 16px; min-height: 120px; overflow: hidden; display: flex; justify-content: flex-end; align-items: flex-start;
+    font-family: -apple-system, "SF Pro Text", system-ui, "Apple SD Gothic Neo", sans-serif; -webkit-font-smoothing: antialiased; }
+  .wall.dark { color: #f5f5f7; background: radial-gradient(120% 80% at 10% 0%, #3a2a6b 0%, transparent 55%), radial-gradient(90% 70% at 100% 25%, #0f3d6e 0%, transparent 60%), radial-gradient(80% 80% at 40% 100%, #5a1f4f 0%, transparent 60%), #0d0f1a; }
+  .wall.light { color: #1d1d1f; background: radial-gradient(120% 80% at 10% 0%, #ffd6c2 0%, transparent 55%), radial-gradient(90% 70% at 100% 20%, #b9d4ff 0%, transparent 60%), radial-gradient(80% 80% at 40% 100%, #f3c6ff 0%, transparent 60%), #eef1f7; }
+
+  .dark { --lab: #f5f5f7; --sec: rgba(235,235,245,.62); --ter: rgba(235,235,245,.38); --fill: rgba(255,255,255,.07); --fill2: rgba(255,255,255,.11); --well: rgba(0,0,0,.24); --hair: rgba(255,255,255,.16);
+    --blue: #0A84FF; --blueT: #64B5FF; --orange: #FF9F0A; --orangeT: #FFB340; --green: #30D158; --red: #FF453A; --redT: #FF6961; }
+  .light { --lab: #1d1d1f; --sec: rgba(60,60,67,.66); --ter: rgba(60,60,67,.42); --fill: rgba(0,0,0,.045); --fill2: rgba(0,0,0,.075); --well: rgba(255,255,255,.62); --hair: rgba(0,0,0,.12);
+    --blue: #007AFF; --blueT: #0062CC; --orange: #FF9500; --orangeT: #C93400; --green: #34C759; --red: #FF3B30; --redT: #D70015; }
+
+  .glass { position: relative; color: var(--lab); -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); border-radius: 22px; padding: 6px; }
+  .dark .glass { background: rgba(30,30,34,.55); box-shadow: inset 0 .5px 0 rgba(255,255,255,.32), inset 0 0 0 .5px rgba(255,255,255,.14), 0 12px 32px rgba(0,0,0,.45); }
+  .light .glass { background: rgba(255,255,255,.42); box-shadow: inset 0 .5px 0 rgba(255,255,255,.95), inset 0 0 0 .5px rgba(255,255,255,.5), 0 12px 32px rgba(30,40,80,.16), 0 1px 3px rgba(0,0,0,.08); }
+  .w280 { width: 280px; } .w320 { width: 320px; }
+
+  .phead { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 10px; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .phead .it { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
+  .d-run { background: var(--blue); } .d-wait { background: var(--orange); } .d-done { background: var(--green); }
+  .tag { font-size: 10px; font-weight: 700; letter-spacing: .03em; margin-left: -4px; color: var(--orangeT); }
+  .sec { font-size: 11px; font-weight: 600; padding: 8px 10px 3px; color: var(--sec); }
+  .row { display: flex; align-items: flex-start; gap: 9px; padding: 7px 10px; border-radius: 16px; }
+  .row > .dot { margin-top: 5px; }
+  .row.wt { background: color-mix(in srgb, var(--orange) 14%, transparent); }
+  .bd { flex: 1; min-width: 0; }
+  .t { font-size: 13px; font-weight: 500; line-height: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s { font-size: 11px; line-height: 14px; display: flex; align-items: center; gap: 5px; margin-top: 2px; white-space: nowrap; overflow: hidden; color: var(--sec); }
+  .s .draft { color: var(--blueT); font-weight: 600; }
+  .time { font-size: 11px; font-variant-numeric: tabular-nums; margin-top: 2px; color: var(--ter); flex: none; }
+  .appi { width: 12px; height: 12px; border-radius: 3.5px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 7.5px; font-weight: 800; color: #fff; }
+  .appi.gh { background: linear-gradient(160deg,#3a3d4a,#15161c); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.3); }
+  .appi.oc { background: linear-gradient(160deg,#ff7a45,#e0452a); }
+  .appi.cu { background: linear-gradient(160deg,#4b4b4b,#111); }
+
+  .nav { display: flex; align-items: center; gap: 6px; padding: 6px 10px 0 4px; }
+  .back { width: 24px; height: 24px; border-radius: 12px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--blue); background: var(--fill); }
+  .back svg { width: 8px; height: 13px; }
+  .nav .t { font-weight: 600; flex: 1; }
+  .meta { padding: 1px 10px 0 34px; }
+
+  .ct { padding: 12px 10px 0; }
+  .qline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 9px; font-size: 10.5px; font-weight: 650; color: var(--orangeT); background: color-mix(in srgb, var(--orange) 20%, transparent); }
+  .step { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ter); }
+  .bars { display: inline-flex; gap: 3px; } .bars i { width: 14px; height: 3px; border-radius: 2px; background: var(--fill2); } .bars i.on { background: var(--orange); }
+  .q { font-size: 13px; line-height: 18.5px; margin-top: 8px; color: var(--lab); }
+  .opts { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .opt { display: grid; grid-template-columns: 18px 1fr; column-gap: 9px; padding: 9px 10px; border-radius: 12px; background: var(--fill); }
+  .opt .lb { font-size: 13px; font-weight: 500; line-height: 18px; display: flex; align-items: center; gap: 6px; }
+  .opt .ds { font-size: 11.5px; line-height: 15.5px; color: var(--sec); margin-top: 2px; }
+  .kc { width: 18px; height: 18px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--sec); background: var(--fill2); box-shadow: inset 0 0 0 .5px var(--hair); }
+  .opt.on { background: color-mix(in srgb, var(--blue) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 85%, transparent); }
+  .radio { width: 18px; height: 18px; border-radius: 9px; background: var(--blue); display: inline-flex; align-items: center; justify-content: center; }
+  .radio svg { width: 9px; height: 9px; }
+  .rec { font-size: 9.5px; font-weight: 700; padding: 1.5px 6px; border-radius: 999px; color: var(--blueT); background: color-mix(in srgb, var(--blue) 18%, transparent); }
+  .ro .opt { grid-template-columns: 1fr; opacity: .7; }
+  .field { min-height: 36px; padding: 9px 10px; border-radius: 12px; font-size: 13px; line-height: 18px; background: var(--well); box-shadow: inset 0 0 0 .5px var(--hair); color: var(--ter); margin-top: 6px; }
+  .field.typed { color: var(--lab); }
+  .field.focus { box-shadow: inset 0 0 0 .5px var(--hair), 0 0 0 3px color-mix(in srgb, var(--blue) 45%, transparent); }
+  .caret { display: inline-block; width: 1.5px; height: 15px; background: var(--blue); vertical-align: -2px; margin-left: 1px; animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .ft { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px 10px; }
+  .lnk { font-size: 12px; font-weight: 500; color: var(--sec); }
+  .lnk.dis { opacity: .4; }
+  .btn { height: 28px; padding: 0 14px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #fff; background: var(--blue); }
+  .btn .k { font-size: 11px; opacity: .72; font-weight: 500; }
+  .btn.dis { opacity: .35; }
+  .btn.gray { background: var(--fill2); color: var(--lab); }
+  .spin { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.35); border-top-color: #fff; animation: sp .8s linear infinite; }
+  .spin.b { border-color: color-mix(in srgb, var(--blue) 30%, transparent); border-top-color: var(--blue); }
+  @keyframes sp { to { transform: rotate(360deg); } }
+
+  .strip { display: flex; gap: 9px; align-items: flex-start; padding: 10px; border-radius: 12px; margin: 12px 10px 0; }
+  .strip .ic { width: 16px; height: 16px; border-radius: 8px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 800; color: #fff; margin-top: 1px; }
+  .strip .tt { font-size: 12.5px; font-weight: 600; line-height: 17px; }
+  .strip .sb { font-size: 11.5px; line-height: 15.5px; color: var(--sec); margin-top: 2px; }
+  .strip.warn { background: color-mix(in srgb, var(--orange) 15%, transparent); } .strip.warn .ic { background: var(--orange); }
+  .strip.err { background: color-mix(in srgb, var(--red) 16%, transparent); } .strip.err .ic { background: var(--red); }
+  .strip.ok { background: color-mix(in srgb, var(--green) 16%, transparent); } .strip.ok .ic { background: var(--green); }
+  .strip.info { background: var(--fill); } .strip.info .ic { background: var(--ter); }
+
+  .steps { margin: 12px 10px 0; padding: 10px; border-radius: 12px; background: var(--fill); display: flex; flex-direction: column; gap: 7px; }
+  .st { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 16px; }
+  .st .m { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .st.done { color: var(--sec); } .st.wait { color: var(--ter); }
+  .chk { width: 14px; height: 14px; border-radius: 7px; background: var(--green); display: inline-flex; align-items: center; justify-content: center; }
+  .chk svg { width: 8px; height: 8px; }
+  .ring { width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ter); }
+  .dim { opacity: .45; pointer-events: none; }
+
+  .msg { position: relative; margin-top: 6px; padding: 10px; border-radius: 12px; background: var(--fill); font-size: 12.5px; line-height: 18px; max-height: 182px; overflow: hidden; }
+  .msg::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 34px; border-radius: 12px 12px 0 0; background: linear-gradient(var(--fadeTop), transparent); }
+  .dark .msg { --fadeTop: rgba(40,40,46,.95); } .light .msg { --fadeTop: rgba(240,240,244,.95); }
+  .msg code { font-family: "SF Mono", ui-monospace, monospace; font-size: 11.5px; padding: 0 3px; border-radius: 4px; background: var(--fill2); }
+  .lbl { font-size: 11px; font-weight: 600; color: var(--sec); }
+  .more { font-size: 11px; color: var(--blueT); font-weight: 500; }
+
+  .rv { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .rvi { padding: 9px 10px; border-radius: 12px; background: var(--fill); }
+  .rvi .top { display: flex; justify-content: space-between; align-items: center; }
+  .rvi .a { font-size: 13px; line-height: 18px; margin-top: 5px; }
+  .rvi .a .fx { color: var(--sec); font-size: 11.5px; }
+  .edit { font-size: 11px; color: var(--blueT); font-weight: 500; }
+  .h { font-size: 13px; font-weight: 600; }
+  .cmd { margin-top: 8px; padding: 9px 10px; border-radius: 12px; background: var(--well); box-shadow: inset 0 0 0 .5px var(--hair); font-family: "SF Mono", ui-monospace, monospace; font-size: 11.5px; line-height: 16px; }
+
+  /* A안 간격 표시 */
+  .rl { position: relative; }
+  .gap { position: relative; background: repeating-linear-gradient(45deg, rgba(255,55,95,.22) 0 3px, rgba(255,55,95,.1) 3px 6px); }
+  .gap b { position: absolute; right: -24px; top: 50%; transform: translateY(-50%); font-size: 9px; font-weight: 700; color: #ff375f; font-family: -apple-system, sans-serif; }
+  .guide { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed #ff375f; pointer-events: none; }
+  .gl { position: absolute; top: -13px; font-size: 9px; font-weight: 700; color: #ff375f; transform: translateX(-50%); white-space: nowrap; }
+  .opened { padding: 7px 10px 0; border-radius: 16px; background: color-mix(in srgb, var(--orange) 11%, transparent); }
+  .opened .hd { display: flex; gap: 9px; align-items: flex-start; }
+  .opened .hd > .dot { margin-top: 5px; }
+  .ans { margin-left: 16px; }
+  .ans .ft { padding: 0; }
+  .spec { margin-top: 14px; font-size: .8rem; line-height: 1.6; }
+  .spec table { border-collapse: collapse; width: 100%; }
+  .spec td, .spec th { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .spec th { font-weight: 600; color: var(--text-secondary); font-size: .74rem; }
+</style>
+
+<h2>답장 화면 (기본값 C) — 전체 흐름</h2>
+<p class="subtitle">패널은 다크 기준, 마지막에 라이트 1장. 목록 폭 280 · 답장 폭 320 · 패널 반경 22 / 여백 6 / 안쪽 요소 반경 12 · 4pt 단위 간격. 글자는 지금 앱과 같은 13 / 11 체계.</p>
+
+<div class="frames">
+
+  <!-- 0. 목록 -->
+  <div class="fr">
+    <h4>0. 목록 — 대기 줄을 누르면 답장 화면</h4>
+    <div class="wall dark">
+      <div class="glass w280">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="sec">내 응답 대기 2</div>
+        <div class="row wt"><span class="dot d-wait"></span><div class="bd"><div class="t">캐시 만료 정책 정리</div><div class="s"><span class="appi oc">O</span>notes-web · 질문 답변 대기</div></div><div class="time">3m</div></div>
+        <div class="row wt"><span class="dot d-wait"></span><div class="bd"><div class="t">동기화 재시도 계획</div><div class="s"><span class="appi gh">G</span>feat-sync-retry · <span class="draft">작성 중</span></div></div><div class="time">12m</div></div>
+        <div class="sec">진행 중 3</div>
+        <div class="row"><span class="dot d-run"></span><div class="bd"><div class="t">검색 색인 재구성</div><div class="s"><span class="appi oc">O</span>feat-search-index</div></div><div class="time">1m</div></div>
+        <div class="row"><span class="dot d-run"></span><div class="bd"><div class="t">날짜 표시 형식 수정</div><div class="s"><span class="appi oc">O</span>fix-date-format</div></div><div class="time">5m</div></div>
+      </div>
+    </div>
+    <p class="cap">대기 줄 클릭 = 답장 화면, <b>⌘+클릭</b> = 지금처럼 바로 이동. 다른 상태의 줄은 지금과 같음. 쓰다 만 답이 있으면 2행 사유 자리에 <b>작성 중</b>(파랑).</p>
+  </div>
+
+  <!-- 1. 질문 창 선택 -->
+  <div class="fr">
+    <h4>1. 질문 창 — 선택지 고름</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">캐시 만료 정책 정리</div><div class="time" style="margin:0">3m</div></div>
+        <div class="s meta"><span class="appi oc">O</span>notes-web · 질문 답변 대기</div>
+        <div class="ct">
+          <div class="qline"><span class="chip">만료 방식</span></div>
+          <div class="q">만료 시간을 지금처럼 고정 10분으로 둘지, 마지막으로 읽은 때부터 다시 세는 방식으로 바꿀지 정해야 합니다. 바꾼 코드는 커밋하지 않고 대기 중입니다. 어느 쪽으로 할까요?</div>
+          <div class="opts">
+            <div class="opt on"><span class="radio"><svg viewBox="0 0 9 9"><path d="M1.5 4.8 3.6 6.8 7.6 2.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><div class="lb">읽은 때부터 다시 세기 <span class="rec">추천</span></div><div class="ds">읽을 때마다 만료가 10분 늘어남, 자주 쓰는 항목이 오래 남음</div></div></div>
+            <div class="opt"><span class="kc">2</span><div><div class="lb">고정 10분 유지</div><div class="ds">방금 바꾼 코드를 되돌림</div></div></div>
+            <div class="opt"><span class="kc">3</span><div><div class="lb">둘 다 지원 (설정으로 선택)</div><div class="ds">설정 항목이 하나 늘어남</div></div></div>
+          </div>
+          <div class="field">직접 입력</div>
+        </div>
+        <div class="ft"><span class="lnk">터미널에서 열기</span><span class="btn">보내기 <span class="k">⏎</span></span></div>
+      </div>
+    </div>
+    <p class="cap">숫자 키 = 선택만(보내지 않음). <b>(Recommended)</b>는 <b>추천</b> 배지로 바꿔 보여 주되, 보낸 뒤 확인은 원래 문구로 비교. 직접 입력 칸에는 번호를 붙이지 않음 — 실제 키 순서는 실측으로 정함.</p>
+  </div>
+
+  <!-- 2. 직접 입력 -->
+  <div class="fr">
+    <h4>2. 질문 창 — 직접 입력</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">캐시 만료 정책 정리</div><div class="time" style="margin:0">3m</div></div>
+        <div class="s meta"><span class="appi oc">O</span>notes-web · 질문 답변 대기</div>
+        <div class="ct">
+          <div class="qline"><span class="chip">만료 방식</span></div>
+          <div class="q">… 바꾼 코드는 커밋하지 않고 대기 중입니다. 어느 쪽으로 할까요?</div>
+          <div class="opts">
+            <div class="opt"><span class="kc">1</span><div><div class="lb">읽은 때부터 다시 세기 <span class="rec">추천</span></div></div></div>
+            <div class="opt"><span class="kc">2</span><div><div class="lb">고정 10분 유지</div></div></div>
+            <div class="opt"><span class="kc">3</span><div><div class="lb">둘 다 지원 (설정으로 선택)</div></div></div>
+          </div>
+          <div class="field typed focus">잠시 대기. 사용량 그래프 보고 다시 알려줄게<span class="caret"></span></div>
+        </div>
+        <div class="ft"><span class="lnk">터미널에서 열기</span><span class="btn">보내기 <span class="k">⏎</span></span></div>
+      </div>
+    </div>
+    <p class="cap">입력을 시작하면 선택이 풀리고 선택지 설명이 접혀 칸이 위로 올라오지 않음. 칸은 5줄까지 늘고 그 뒤 스크롤. 입력 칸에 있는 동안 숫자는 글자.</p>
+  </div>
+
+  <!-- 3. 여러 질문 -->
+  <div class="fr">
+    <h4>3. 질문 여러 개 — 한 번에 하나씩</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">검색 색인 배포 계획</div><div class="time" style="margin:0">8m</div></div>
+        <div class="s meta"><span class="appi oc">O</span>feat-search-index · 질문 답변 대기</div>
+        <div class="ct">
+          <div class="qline"><span class="chip">배포 순서</span><span class="step">1 / 2 <span class="bars"><i class="on"></i><i></i></span></span></div>
+          <div class="q">서버와 앱 중 어느 쪽을 먼저 내보낼까요?</div>
+          <div class="opts">
+            <div class="opt on"><span class="radio"><svg viewBox="0 0 9 9"><path d="M1.5 4.8 3.6 6.8 7.6 2.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><div class="lb">서버 먼저 <span class="rec">추천</span></div><div class="ds">구 앱도 새 응답을 무시하므로 안전</div></div></div>
+            <div class="opt"><span class="kc">2</span><div><div class="lb">동시에</div><div class="ds">심사 시점에 따라 어긋날 수 있음</div></div></div>
+          </div>
+          <div class="field">직접 입력</div>
+        </div>
+        <div class="ft"><span class="lnk">터미널에서 열기</span><span class="btn">다음 <span class="k">⏎</span></span></div>
+      </div>
+    </div>
+    <p class="cap">머리표 오른쪽에 <b>1 / 2</b>와 진행 막대. 마지막 질문 다음에 확인 화면(4)으로. 이전 질문은 ‹ 대신 확인 화면의 <b>수정</b>으로 돌아감.</p>
+  </div>
+
+  <!-- 4. 답 확인 -->
+  <div class="fr">
+    <h4>4. 질문 여러 개 — 보내기 전 답 확인</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">검색 색인 배포 계획</div><div class="time" style="margin:0">8m</div></div>
+        <div class="s meta"><span class="appi oc">O</span>feat-search-index · 질문 답변 대기</div>
+        <div class="ct">
+          <div class="qline"><span class="h">이렇게 보낼게요</span><span class="step">2 / 2 <span class="bars"><i class="on"></i><i class="on"></i></span></span></div>
+          <div class="rv">
+            <div class="rvi"><div class="top"><span class="chip">배포 순서</span><span class="edit">수정</span></div><div class="a">서버 먼저</div></div>
+            <div class="rvi"><div class="top"><span class="chip">색인 주기</span><span class="edit">수정</span></div><div class="a">매일 새벽 한 번이면 충분해 <span class="fx">· 직접 입력</span></div></div>
+          </div>
+        </div>
+        <div class="ft"><span class="lnk">터미널에서 열기</span><span class="btn">보내기 <span class="k">⏎</span></span></div>
+      </div>
+    </div>
+    <p class="cap">질문이 하나뿐이면 이 화면 없이 바로 보냄(선택 상태가 곧 확인). 여러 개면 키를 여러 번 보내야 하므로 마지막에 한 번 모아 보여 줌.</p>
+  </div>
+
+  <!-- 5. 본문 질문 -->
+  <div class="fr">
+    <h4>5. 본문 질문 — 직접 써서 답함</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">동기화 재시도 계획</div><div class="time" style="margin:0">12m</div></div>
+        <div class="s meta"><span class="appi gh">G</span>feat-sync-retry · 질문(본문)</div>
+        <div class="ct">
+          <div class="qline"><span class="lbl">마지막 답변</span><span class="more">전체 보기</span></div>
+          <div class="msg">재시도 간격을 1초 → 2초 → 4초로 늘리고, 세 번 실패하면 동기화 실패 안내를 띄우도록 바꿨습니다. 테스트 12개 모두 통과합니다.<br><br>남은 것은 <code>SyncRetryPolicy</code>를 서버 설정값으로 뺄지 여부입니다. 지금은 앱에 고정값으로 두었습니다.<br><br>다음 작업(서버 설정값으로 분리)을 진행할까요?</div>
+          <div class="field typed focus">응, 진행해 줘. 기본값은 지금 값 그대로<span class="caret"></span></div>
+        </div>
+        <div class="ft"><span class="lnk">터미널에서 열기</span><span class="btn">보내기 <span class="k">⏎</span></span></div>
+      </div>
+    </div>
+    <p class="cap">마지막 답변의 <b>끝부분</b>을 보여 줌(질문이 끝에 있으므로). 위쪽은 흐려지며 잘리고, <b>전체 보기</b>로 펼침. 화면을 열면 입력 칸에 바로 커서.</p>
+  </div>
+
+  <!-- 6. 보내는 중 -->
+  <div class="fr">
+    <h4>6. 보내는 중 — 확인 단계가 보임</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back" style="opacity:.4"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">캐시 만료 정책 정리</div><div class="time" style="margin:0">3m</div></div>
+        <div class="s meta"><span class="appi oc">O</span>notes-web · 질문 답변 대기</div>
+        <div class="ct dim">
+          <div class="qline"><span class="chip">만료 방식</span></div>
+          <div class="opts" style="margin-top:8px">
+            <div class="opt on"><span class="radio"><svg viewBox="0 0 9 9"><path d="M1.5 4.8 3.6 6.8 7.6 2.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><div class="lb">읽은 때부터 다시 세기 <span class="rec">추천</span></div></div></div>
+          </div>
+        </div>
+        <div class="steps">
+          <div class="st done"><span class="m"><span class="chk"><svg viewBox="0 0 8 8"><path d="M1.3 4.2 3.1 6 6.7 2" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>같은 질문을 기다리는지 확인</div>
+          <div class="st done"><span class="m"><span class="chk"><svg viewBox="0 0 8 8"><path d="M1.3 4.2 3.1 6 6.7 2" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>터미널 화면 확인</div>
+          <div class="st"><span class="m"><span class="spin b"></span></span>입력하는 중</div>
+          <div class="st wait"><span class="m"><span class="ring"></span></span>기록된 답 확인</div>
+        </div>
+        <div class="ft"><span class="lnk dis">터미널에서 열기</span><span class="btn dis"><span class="spin"></span>보내는 중</span></div>
+      </div>
+    </div>
+    <p class="cap">네 단계가 차례로 체크됨(보통 1초 안팎). 그동안 내용은 흐리게 잠기고 되돌아가기·이동 불가 — 키를 반쯤 보낸 채 떠나지 않게.</p>
+  </div>
+
+  <!-- 7. 보냄 -->
+  <div class="fr">
+    <h4>7. 보냄 — 확인 후 목록으로</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>1<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>4</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">캐시 만료 정책 정리</div><div class="time" style="margin:0">0m</div></div>
+        <div class="s meta"><span class="appi oc">O</span>notes-web · 진행 중</div>
+        <div class="strip ok"><span class="ic"><svg viewBox="0 0 8 8" width="8" height="8"><path d="M1.3 4.2 3.1 6 6.7 2" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><div class="tt">보냈어요</div><div class="sb">"읽은 때부터 다시 세기"이 그대로 기록된 것까지 확인했어요</div></div></div>
+        <div class="ft"><span></span><span class="btn gray">목록으로 <span class="k">⏎</span></span></div>
+      </div>
+    </div>
+    <p class="cap">1.2초 뒤 저절로 목록으로. 요약 줄 숫자가 ASK 2→1, 진행 3→4로 굴러감. 키보드 포커스는 열기 전 앱으로 돌려줌.</p>
+  </div>
+
+  <!-- 8. 보내지 않음 -->
+  <div class="fr">
+    <h4>8. 보내지 않음 — 확인에서 걸림</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">동기화 재시도 계획</div><div class="time" style="margin:0">12m</div></div>
+        <div class="s meta"><span class="appi gh">G</span>feat-sync-retry · 질문(본문)</div>
+        <div class="strip warn"><span class="ic">!</span><div><div class="tt">터미널 입력 칸에 쓰던 글이 있어요</div><div class="sb">섞여 들어갈 수 있어 아무것도 보내지 않았어요. 쓴 답은 남겨 둘게요.</div></div></div>
+        <div class="ct" style="padding-top:8px"><div class="field typed">응, 진행해 줘. 기본값은 지금 값 그대로</div></div>
+        <div class="ft"><span class="lnk">다시 확인</span><span class="btn">터미널에서 열기 <span class="k">⏎</span></span></div>
+      </div>
+    </div>
+    <p class="cap">다른 이유도 같은 모양, 문구만 다름 — <b>이미 답함</b>: "터미널에서 이미 답했어요"(1.2초 뒤 목록) · <b>질문 바뀜</b>: "질문이 바뀌었어요. 새 질문을 확인해 주세요"(새 질문으로 바꾸고 선택 초기화) · <b>화면 못 읽음</b>: "터미널 화면을 확인할 수 없어 보내지 않았어요".</p>
+  </div>
+
+  <!-- 9. 실패 -->
+  <div class="fr">
+    <h4>9. 실패 — 보내다 멈춤 / 기록이 다름</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">캐시 만료 정책 정리</div><div class="time" style="margin:0">3m</div></div>
+        <div class="s meta"><span class="appi oc">O</span>notes-web · 질문 답변 대기</div>
+        <div class="strip err"><span class="ic">!</span><div><div class="tt">보내다 멈췄어요</div><div class="sb">질문 창이 예상과 달라 입력을 멈췄어요. 일부 키가 들어갔을 수 있으니 터미널에서 확인해 주세요.</div></div></div>
+        <div class="ft"><span class="lnk">닫기</span><span class="btn">터미널에서 열기 <span class="k">⏎</span></span></div>
+      </div>
+    </div>
+    <p class="cap"><b>기록이 다름</b>: "기록된 답이 보낸 답과 달라요" + 보낸 답 / 기록된 답 두 줄. 실패는 저절로 닫지 않음. 이 경우에만 알약 테두리 빛을 다시 켬.</p>
+  </div>
+
+  <!-- 10. 읽기 전용 -->
+  <div class="fr">
+    <h4>10. 보기만 — 가려진 Ghostty 탭</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">로그 수집기 점검</div><div class="time" style="margin:0">6m</div></div>
+        <div class="s meta"><span class="appi gh">G</span>~ · 질문 답변 대기</div>
+        <div class="strip info"><span class="ic">i</span><div><div class="tt">여기서는 답할 수 없어요</div><div class="sb">Ghostty 창 뒤쪽 탭이라 터미널 화면을 확인할 수 없어요.</div></div></div>
+        <div class="ct ro">
+          <div class="qline"><span class="chip">수집 주기</span></div>
+          <div class="q">로그를 몇 분마다 모을까요?</div>
+          <div class="opts">
+            <div class="opt"><div><div class="lb">5분 <span class="rec">추천</span></div></div></div>
+            <div class="opt"><div><div class="lb">15분</div></div></div>
+          </div>
+        </div>
+        <div class="ft"><span></span><span class="btn">터미널에서 열기 <span class="k">⏎</span></span></div>
+      </div>
+    </div>
+    <p class="cap">쓰기 전에 미리 알려 줌(쓰고 나서 막히지 않게). 선택지는 번호·칸 없이 흐리게. 같은 모양 — <b>Cursor·VS Code</b>: "Cursor 터미널에는 여기서 보낼 수 없어요" · <b>승인 대기</b>: 명령을 고정폭 상자로 보여 주고 "승인은 터미널에서 해 주세요".</p>
+  </div>
+
+  <!-- 11. A안 간격 -->
+  <div class="fr">
+    <h4>11. A안(설정) — 줄 안에서 펼침 간격</h4>
+    <div class="wall dark">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="sec">내 응답 대기 2</div>
+        <div class="opened rl">
+          <div class="guide" style="left:26px"><span class="gl" style="top:58px; left:-14px">26</span></div>
+          <div class="hd"><span class="dot d-wait"></span><div class="bd"><div class="t">캐시 만료 정책 정리</div><div class="s"><span class="appi oc">O</span>notes-web · 질문 답변 대기</div></div><div class="time">3m</div></div>
+          <div class="ans">
+            <div class="gap" style="height:10px"><b>10</b></div>
+            <div class="qline"><span class="chip">만료 방식</span></div>
+            <div class="gap" style="height:6px"><b>6</b></div>
+            <div class="q" style="margin:0; font-size:12.5px; line-height:18px">… 바꾼 코드는 커밋하지 않고 대기 중입니다. 어느 쪽으로 할까요?</div>
+            <div class="gap" style="height:10px"><b>10</b></div>
+            <div class="opts" style="margin:0">
+              <div class="opt on"><span class="radio"><svg viewBox="0 0 9 9"><path d="M1.5 4.8 3.6 6.8 7.6 2.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><div class="lb">읽은 때부터 다시 세기 <span class="rec">추천</span></div></div></div>
+              <div class="opt"><span class="kc">2</span><div><div class="lb">고정 10분 유지</div></div></div>
+            </div>
+            <div class="gap" style="height:6px"><b>6</b></div>
+            <div class="field" style="margin:0">직접 입력</div>
+            <div class="gap" style="height:12px"><b>12</b></div>
+            <div class="ft"><span class="lnk">터미널에서 열기</span><span class="btn">보내기 <span class="k">⏎</span></span></div>
+            <div class="gap" style="height:10px"><b>10</b></div>
+          </div>
+        </div>
+        <div class="row wt" style="margin-top:2px; opacity:.55"><span class="dot d-wait"></span><div class="bd"><div class="t">동기화 재시도 계획</div><div class="s"><span class="appi gh">G</span>feat-sync-retry · 질문(본문)</div></div><div class="time">12m</div></div>
+      </div>
+    </div>
+    <p class="cap">빗금 = 간격(pt). 머리 줄은 접힌 줄과 <b>픽셀 단위로 같은 자리</b>, 답장 내용은 점이 아니라 <b>제목 첫 글자(26)</b>에 맞춤. 한 번에 한 줄만 열림, 나머지는 55%로 물러남.</p>
+  </div>
+
+  <!-- 12. 라이트 -->
+  <div class="fr">
+    <h4>12. 라이트 — 1번 화면</h4>
+    <div class="wall light">
+      <div class="glass w320">
+        <div class="phead"><span class="it"><span class="dot d-wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot d-run"></span>3</span><span class="it"><span class="dot d-done"></span>1</span></div>
+        <div class="nav"><span class="back"><svg viewBox="0 0 8 13"><path d="M6.5 1.5 1.5 6.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="t">캐시 만료 정책 정리</div><div class="time" style="margin:0">3m</div></div>
+        <div class="s meta"><span class="appi oc">O</span>notes-web · 질문 답변 대기</div>
+        <div class="ct">
+          <div class="qline"><span class="chip">만료 방식</span></div>
+          <div class="q">… 바꾼 코드는 커밋하지 않고 대기 중입니다. 어느 쪽으로 할까요?</div>
+          <div class="opts">
+            <div class="opt on"><span class="radio"><svg viewBox="0 0 9 9"><path d="M1.5 4.8 3.6 6.8 7.6 2.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><div class="lb">읽은 때부터 다시 세기 <span class="rec">추천</span></div><div class="ds">읽을 때마다 만료가 10분 늘어남</div></div></div>
+            <div class="opt"><span class="kc">2</span><div><div class="lb">고정 10분 유지</div><div class="ds">방금 바꾼 코드를 되돌림</div></div></div>
+          </div>
+          <div class="field">직접 입력</div>
+        </div>
+        <div class="ft"><span class="lnk">터미널에서 열기</span><span class="btn">보내기 <span class="k">⏎</span></span></div>
+      </div>
+    </div>
+    <p class="cap">주황 글자는 라이트에서 더 진한 톤(지금 ASK와 같은 보정). 색은 상태·선택·주요 버튼에만.</p>
+  </div>
+
+</div>
+
+<div class="spec">
+  <h3>간격·크기 기준</h3>
+  <table>
+    <tr><th>요소</th><th>값</th><th>이유</th></tr>
+    <tr><td>패널 폭</td><td>목록 280 → 답장 320</td><td>한글 질문이 한 줄 22자 안팎으로 읽힘. 유리가 늘어나는 전환으로 바뀜</td></tr>
+    <tr><td>반경</td><td>패널 22 · 줄 16 · 선택지·입력 칸·안내 띠 12 · 버튼 14(캡슐) · 번호 키 5</td><td>바깥에서 안으로 갈수록 작게, 안쪽 요소는 12 하나로 통일</td></tr>
+    <tr><td>세로 간격</td><td>머리→질문 12 · 머리표→본문 8 · 본문→선택지 12 · 선택지 사이 6 · 마지막 선택지→입력 칸 6 · 내용→버튼 줄 12 · 아래 여백 10</td><td>묶음 안은 6, 묶음 사이는 12. 구분선 없이 간격으로만 묶음</td></tr>
+    <tr><td>글자</td><td>질문 13 / 줄 18.5 · 선택지 13 Medium · 설명 11.5 secondary · 사유·시간 11 · 배지 9.5~10.5 Bold</td><td>지금 줄의 13 / 11 체계 유지</td></tr>
+    <tr><td>키</td><td>숫자 = 선택 · ⏎ = 보내기(질문 여러 개면 다음) · esc = 목록(쓴 답 유지) · ⌘+클릭 = 바로 이동</td><td>숫자는 보내지 않음 — 한 번 누름에 바로 보내지는 일을 막음</td></tr>
+    <tr><td>움직임</td><td>답장 화면은 옆에서 12pt 밀려 들어오며 나타남(스프링 0.28초) · 동작 줄이기면 교차 페이드</td><td>"‹ 목록"과 방향이 맞음, 2초 이내</td></tr>
+  </table>
+</div>

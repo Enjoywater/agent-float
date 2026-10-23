@@ -1,0 +1,152 @@
+<style>
+  .lay { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  @media (max-width: 1100px) { .lay { grid-template-columns: 1fr; } }
+  .lay .card-image { aspect-ratio: auto; display: block; padding: 0; }
+  .wall { position: relative; padding: 18px 14px; min-height: 600px; overflow: hidden; font-family: -apple-system, "SF Pro Text", system-ui, "Apple SD Gothic Neo", sans-serif; -webkit-font-smoothing: antialiased; color: #f5f5f7;
+    background: radial-gradient(120% 80% at 10% 0%, #3a2a6b 0%, transparent 55%), radial-gradient(90% 70% at 100% 25%, #0f3d6e 0%, transparent 60%), radial-gradient(80% 80% at 40% 100%, #5a1f4f 0%, transparent 60%), #0d0f1a; }
+  .fakewin { position: absolute; left: 12px; top: 90px; width: 55%; height: 360px; border-radius: 12px; padding: 14px; background: rgba(40,42,54,.8); }
+  .fakewin i { display: block; height: 8px; border-radius: 4px; margin: 9px 0; background: #3b3f52; }
+  .fakewin i.c1 { width: 70%; background: #7aa7ff; } .fakewin i.c2 { width: 45%; background: #ff9f6b; } .fakewin i.c3 { width: 85%; } .fakewin i.c4 { width: 55%; }
+  .stage { position: relative; z-index: 1; display: flex; justify-content: flex-end; align-items: flex-start; gap: 8px; }
+  .glass { position: relative; -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); background: rgba(30,30,34,.55); box-shadow: inset 0 .5px 0 rgba(255,255,255,.32), inset 0 0 0 .5px rgba(255,255,255,.14), 0 12px 32px rgba(0,0,0,.45); }
+  .panel { width: 286px; border-radius: 22px; padding: 6px; flex: none; }
+  .panel.narrow { width: 236px; }
+  .phead { display: flex; align-items: center; gap: 10px; padding: 7px 10px 6px; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .phead .it { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
+  .run { background: #0A84FF; } .wait { background: #FF9F0A; } .done { background: #30D158; }
+  .tag { font-size: 10px; font-weight: 700; letter-spacing: .03em; margin-left: -4px; color: #FF9F0A; }
+  .sec { font-size: 11px; font-weight: 600; padding: 8px 10px 3px; color: rgba(235,235,245,.55); }
+  .row { display: flex; align-items: flex-start; gap: 9px; padding: 7px 10px; border-radius: 16px; }
+  .row .dot { margin-top: 5px; }
+  .row.waitrow { background: rgba(255,159,10,.14); }
+  .row.sel { background: rgba(255,159,10,.26); box-shadow: inset 0 0 0 1px rgba(255,159,10,.55); }
+  .bd { flex: 1; min-width: 0; }
+  .t { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s { font-size: 11px; display: flex; align-items: center; gap: 5px; margin-top: 2px; white-space: nowrap; overflow: hidden; color: rgba(235,235,245,.6); }
+  .time { font-size: 11px; font-variant-numeric: tabular-nums; margin-top: 2px; color: rgba(235,235,245,.4); }
+  .appi { width: 12px; height: 12px; border-radius: 3.5px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 7.5px; font-weight: 800; color: #fff; }
+  .appi.gh { background: linear-gradient(160deg,#3a3d4a,#15161c); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.3); } .appi.oc { background: linear-gradient(160deg,#ff7a45,#e0452a); }
+
+  .reply { margin-top: 7px; }
+  .qhead { display: inline-block; font-size: 10px; font-weight: 700; padding: 1.5px 7px; border-radius: 999px; background: rgba(255,159,10,.22); color: #FFB340; }
+  .qtext { font-size: 12px; line-height: 1.45; margin: 6px 0 8px; color: rgba(245,245,247,.92); white-space: normal; }
+  .opt { display: flex; gap: 7px; align-items: flex-start; padding: 6px 8px; border-radius: 11px; background: rgba(255,255,255,.06); margin-top: 4px; }
+  .opt .n { font-size: 10.5px; font-weight: 700; color: rgba(235,235,245,.5); width: 10px; flex: none; margin-top: 1px; }
+  .opt .l { font-size: 12px; font-weight: 600; }
+  .opt .d { font-size: 10.5px; color: rgba(235,235,245,.55); margin-top: 1px; line-height: 1.35; white-space: normal; }
+  .opt.on { background: rgba(10,132,255,.28); box-shadow: inset 0 0 0 1px rgba(10,132,255,.8); }
+  .field { margin-top: 4px; padding: 6px 9px; border-radius: 11px; font-size: 12px; color: rgba(235,235,245,.38); background: rgba(0,0,0,.25); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.18); }
+  .acts { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; }
+  .ghost { font-size: 11.5px; color: rgba(235,235,245,.65); }
+  .send { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 999px; background: #0A84FF; color: #fff; }
+  .card2 { width: 300px; border-radius: 22px; padding: 12px 12px 11px; flex: none; }
+  .back { font-size: 12px; color: #0A84FF; font-weight: 500; padding: 6px 8px 2px; }
+  .dtitle { padding: 2px 10px 0; }
+  .dim { opacity: .45; }
+  .card-body ul { margin: 6px 0 0 16px; padding: 0; font-size: .82rem; color: var(--text-secondary); }
+</style>
+
+<h2>답장 화면을 어디에 띄울까요?</h2>
+<p class="subtitle">대기 줄을 누르면 질문 내용과 답하는 칸이 나타납니다. 예시는 실제 transcript에 있던 질문 창입니다. 마음에 드는 배치를 눌러 고르세요.</p>
+
+<div class="lay">
+
+  <div class="card" data-choice="inline" onclick="toggleSelect(this)">
+    <div class="card-image"><div class="wall">
+      <div class="fakewin"><i class="c1"></i><i class="c3"></i><i class="c4"></i><i class="c2"></i><i class="c3"></i></div>
+      <div class="stage">
+        <div class="glass panel">
+          <div class="phead"><span class="it"><span class="dot wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot run"></span>3</span><span class="it"><span class="dot done"></span>1</span></div>
+          <div class="sec">내 응답 대기 2</div>
+          <div class="row waitrow" style="flex-direction:column; gap:0">
+            <div style="display:flex; gap:9px; width:100%">
+              <span class="dot wait" style="margin-top:5px"></span>
+              <div class="bd"><div class="t">캐시 만료 정책 정리</div><div class="s"><span class="appi oc">O</span>notes-web · 질문 답변 대기</div></div>
+              <div class="time">3m</div>
+            </div>
+            <div class="reply" style="width:100%">
+              <span class="qhead">만료 방식</span>
+              <div class="qtext">만료 시간을 고정 10분으로 둘지, 마지막으로 읽은 때부터 다시 세는 방식으로 바꿀지 정해야 합니다. 어느 쪽으로 할까요?</div>
+              <div class="opt on"><span class="n">1</span><div><div class="l">읽은 때부터 다시 세기 (Recommended)</div><div class="d">읽을 때마다 만료가 10분 늘어남</div></div></div>
+              <div class="opt"><span class="n">2</span><div><div class="l">고정 10분 유지</div><div class="d">방금 바꾼 코드를 되돌림</div></div></div>
+              <div class="opt"><span class="n">3</span><div><div class="l">둘 다 지원 (설정으로 선택)</div></div></div>
+              <div class="field">직접 입력…</div>
+              <div class="acts"><span class="ghost">터미널로 이동</span><span class="send">보내기</span></div>
+            </div>
+          </div>
+          <div class="row waitrow"><span class="dot wait"></span><div class="bd"><div class="t">동기화 재시도 계획</div><div class="s"><span class="appi gh">G</span>feat-sync-retry · 질문(본문)</div></div><div class="time">12m</div></div>
+          <div class="sec">진행 중 3</div>
+          <div class="row"><span class="dot run"></span><div class="bd"><div class="t">검색 색인 재구성</div><div class="s"><span class="appi oc">O</span>feat-search-index</div></div><div class="time">1m</div></div>
+          <div class="row"><span class="dot run"></span><div class="bd"><div class="t">날짜 표시 형식 수정</div><div class="s"><span class="appi oc">O</span>fix-date-format</div></div><div class="time">5m</div></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="card-body">
+      <h3>A. 줄 안에서 펼침</h3>
+      <p>누른 대기 줄이 그 자리에서 길어집니다.</p>
+      <ul><li>다른 세션이 계속 보임</li><li>질문이 길면 패널이 길어지고 아래 줄이 밀려남</li></ul>
+    </div>
+  </div>
+
+  <div class="card" data-choice="side" onclick="toggleSelect(this)">
+    <div class="card-image"><div class="wall">
+      <div class="fakewin"><i class="c1"></i><i class="c3"></i><i class="c4"></i><i class="c2"></i><i class="c3"></i></div>
+      <div class="stage" style="zoom:.86">
+        <div class="glass card2">
+          <span class="qhead">만료 방식</span>
+          <div class="qtext">만료 시간을 고정 10분으로 둘지, 마지막으로 읽은 때부터 다시 세는 방식으로 바꿀지 정해야 합니다. 어느 쪽으로 할까요?</div>
+          <div class="opt on"><span class="n">1</span><div><div class="l">읽은 때부터 다시 세기 (Recommended)</div><div class="d">읽을 때마다 만료가 10분 늘어남</div></div></div>
+          <div class="opt"><span class="n">2</span><div><div class="l">고정 10분 유지</div><div class="d">방금 바꾼 코드를 되돌림</div></div></div>
+          <div class="opt"><span class="n">3</span><div><div class="l">둘 다 지원 (설정으로 선택)</div></div></div>
+          <div class="field">직접 입력…</div>
+          <div class="acts"><span class="ghost">터미널로 이동</span><span class="send">보내기</span></div>
+        </div>
+        <div class="glass panel narrow">
+          <div class="phead"><span class="it"><span class="dot wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot run"></span>3</span><span class="it"><span class="dot done"></span>1</span></div>
+          <div class="sec">내 응답 대기 2</div>
+          <div class="row sel"><span class="dot wait"></span><div class="bd"><div class="t">캐시 만료 정책 정리</div><div class="s"><span class="appi oc">O</span>notes-web · 질문</div></div><div class="time">3m</div></div>
+          <div class="row waitrow"><span class="dot wait"></span><div class="bd"><div class="t">동기화 재시도 계획</div><div class="s"><span class="appi gh">G</span>feat-sync-retry · 본문</div></div><div class="time">12m</div></div>
+          <div class="sec">진행 중 3</div>
+          <div class="row"><span class="dot run"></span><div class="bd"><div class="t">검색 색인 재구성</div><div class="s"><span class="appi oc">O</span>feat-search-index</div></div><div class="time">1m</div></div>
+          <div class="row"><span class="dot run"></span><div class="bd"><div class="t">날짜 표시 형식 수정</div><div class="s"><span class="appi oc">O</span>fix-date-format</div></div><div class="time">5m</div></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="card-body">
+      <h3>B. 옆에 답장 카드</h3>
+      <p>목록은 그대로 두고, 패널 옆에 유리 카드가 하나 더 뜹니다.</p>
+      <ul><li>목록과 질문을 같이 봄, 다른 대기 줄로 바로 바꿔 탈 수 있음</li><li>화면을 가장 넓게 차지함. 패널이 화면 가장자리에 있으면 반대쪽으로 뜸</li></ul>
+    </div>
+  </div>
+
+  <div class="card" data-choice="drill" onclick="toggleSelect(this)">
+    <div class="card-image"><div class="wall">
+      <div class="fakewin"><i class="c1"></i><i class="c3"></i><i class="c4"></i><i class="c2"></i><i class="c3"></i></div>
+      <div class="stage">
+        <div class="glass panel">
+          <div class="phead"><span class="it"><span class="dot wait"></span>2<span class="tag">ASK</span></span><span class="it"><span class="dot run"></span>3</span><span class="it"><span class="dot done"></span>1</span></div>
+          <div class="back">‹ 목록</div>
+          <div class="dtitle"><div class="t">캐시 만료 정책 정리</div><div class="s"><span class="appi oc">O</span>notes-web · 질문 답변 대기 · 3m</div></div>
+          <div style="padding: 8px 10px 6px">
+            <span class="qhead">만료 방식</span>
+            <div class="qtext">만료 시간을 고정 10분으로 둘지, 마지막으로 읽은 때부터 다시 세는 방식으로 바꿀지 정해야 합니다. 어느 쪽으로 할까요?</div>
+            <div class="opt on"><span class="n">1</span><div><div class="l">읽은 때부터 다시 세기 (Recommended)</div><div class="d">읽을 때마다 만료가 10분 늘어남</div></div></div>
+            <div class="opt"><span class="n">2</span><div><div class="l">고정 10분 유지</div><div class="d">방금 바꾼 코드를 되돌림</div></div></div>
+            <div class="opt"><span class="n">3</span><div><div class="l">둘 다 지원 (설정으로 선택)</div></div></div>
+            <div class="field">직접 입력…</div>
+            <div class="acts"><span class="ghost">터미널로 이동</span><span class="send">보내기</span></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="card-body">
+      <h3>C. 패널이 답장 화면으로 바뀜</h3>
+      <p>패널 내용이 그 세션 하나로 바뀌고, "‹ 목록"으로 돌아갑니다.</p>
+      <ul><li>질문에 집중, 패널 크기가 크게 변하지 않음</li><li>답하는 동안 다른 세션 목록은 안 보임 (맨 위 요약 줄만 보임)</li></ul>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:18px">세 안 모두 공통: 대기 줄을 누르면 지금처럼 바로 이동하지 않고 답장 화면이 열리며, 이동은 "터미널로 이동"으로 합니다. 답장 화면이 열려 있는 동안에는 마우스가 벗어나도 패널이 접히지 않습니다.</p>
