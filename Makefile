@@ -15,9 +15,10 @@ test:
 
 bundle: build
 	rm -rf "$(APP)"
-	mkdir -p "$(APP)/Contents/MacOS"
+	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
 	cp "$$(swift build -c release --show-bin-path)/AgentFloat" "$(APP)/Contents/MacOS/AgentFloat"
 	cp Resources/Info.plist "$(APP)/Contents/Info.plist"
+	cp Resources/AppIcon.icns Resources/MenuBarIcon.png Resources/MenuBarIcon@2x.png "$(APP)/Contents/Resources/"
 	@if security find-identity -v -p codesigning | grep -F -q '"$(SIGN_IDENTITY)"'; then \
 		echo codesign --force --sign "$(SIGN_IDENTITY)" "$(APP)"; \
 		codesign --force --sign "$(SIGN_IDENTITY)" "$(APP)"; \

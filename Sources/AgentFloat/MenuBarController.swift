@@ -35,7 +35,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         self.onSelectPlacement = onSelectPlacement
         super.init()
 
-        statusItem.button?.image = NSImage(systemSymbolName: "capsule.on.rectangle", accessibilityDescription: "Agent Float")
+        statusItem.button?.image = Self.statusIcon()
 
         let menu = NSMenu()
         menu.delegate = self
@@ -65,6 +65,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         case .requiresApproval: .mixed
         default: .off
         }
+    }
+
+    /// 색이 있는 아이콘이라 템플릿으로 두지 않는다(템플릿은 단색으로 칠해짐). 앱 묶음 밖에서 실행하면 리소스가 없어 기호로 대신한다
+    private static func statusIcon() -> NSImage? {
+        guard let icon = Bundle.main.image(forResource: "MenuBarIcon") else {
+            return NSImage(systemSymbolName: "capsule.on.rectangle", accessibilityDescription: "Agent Float")
+        }
+        icon.size = NSSize(width: 18, height: 18)
+        icon.accessibilityDescription = "Agent Float"
+        return icon
     }
 
     private func makeItem(_ title: String, action: Selector, keyEquivalent: String = "") -> NSMenuItem {

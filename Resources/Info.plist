@@ -8,6 +8,8 @@
 	<string>Agent Float</string>
 	<key>CFBundleExecutable</key>
 	<string>AgentFloat</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.enjoywater.agent-float</string>
 	<key>CFBundleInfoDictionaryVersion</key>
