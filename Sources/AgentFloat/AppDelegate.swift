@@ -47,7 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar = MenuBarController(
             onResetPosition: { [weak controller] in controller?.resetPosition() },
             contrast: { [weak controller] in controller?.glassContrast ?? .outline },
-            onSelectContrast: { [weak controller] mode in controller?.setGlassContrast(mode) }
+            onSelectContrast: { [weak controller] mode in controller?.setGlassContrast(mode) },
+            placement: { [weak controller] in controller?.replyPlacement ?? .panel },
+            onSelectPlacement: { [weak controller] placement in controller?.setReplyPlacement(placement) }
         )
 
         if DebugLog.isEnabled {

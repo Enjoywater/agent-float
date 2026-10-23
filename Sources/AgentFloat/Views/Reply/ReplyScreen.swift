@@ -133,6 +133,8 @@ struct ReplyFooter: View {
     let center: ReplyCenter
     let session: AgentSession
     let actions: ReplyActions
+    /// 줄 안 배치는 바깥 상자가 좌우 여백을 정한다
+    var insetsHorizontally = true
 
     var body: some View {
         HStack(spacing: 8) {
@@ -148,7 +150,7 @@ struct ReplyFooter: View {
             PrimaryButton(model: primary, action: actions.primary)
         }
         .padding(.top, ReplyLayout.contentToFooter)
-        .padding(.horizontal, ReplyLayout.contentInset)
+        .padding(.horizontal, insetsHorizontally ? ReplyLayout.contentInset : 0)
         .padding(.bottom, ReplyLayout.bottomPadding)
     }
 

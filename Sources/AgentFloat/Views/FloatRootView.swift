@@ -124,7 +124,9 @@ struct FloatRootView: View {
                 listHeight: presentation.listHeight,
                 canNavigate: canTap,
                 onActivate: activate,
-                note: note
+                note: note,
+                inline: presentation.replyPlacement == .inline && replies.openKey != nil
+                    ? InlineReply(center: replies, actions: presentation.replyActions) : nil
             )
             .transition(reduced ? .opacity : .asymmetric(
                 insertion: .opacity.combined(with: .offset(x: -ReplyLayout.slideOffset)),

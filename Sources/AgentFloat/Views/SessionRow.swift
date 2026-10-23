@@ -14,6 +14,8 @@ struct SessionRow: View {
     let now: Date
     let onActivate: () -> Void
     var note: RowNote? = nil
+    /// 줄 안 배치에서 펼친 줄은 바깥 상자가 배경을 깔므로 겹쳐 칠하지 않는다
+    var showsBackground = true
 
     @State private var isHovered = false
     @Environment(\.colorScheme) private var colorScheme
@@ -42,9 +44,11 @@ struct SessionRow: View {
         .padding(.horizontal, 10)
         .background {
             // 대기 줄에 hover 하면 주황을 덮지 않고 겹쳐야 무엇을 가리키는지 계속 보인다
-            ZStack {
-                RoundedRectangle(cornerRadius: Layout.rowCornerRadius).fill(statusTint)
-                RoundedRectangle(cornerRadius: Layout.rowCornerRadius).fill(hoverTint)
+            if showsBackground {
+                ZStack {
+                    RoundedRectangle(cornerRadius: Layout.rowCornerRadius).fill(statusTint)
+                    RoundedRectangle(cornerRadius: Layout.rowCornerRadius).fill(hoverTint)
+                }
             }
         }
         .opacity(isSeenDone ? 0.62 : 1)

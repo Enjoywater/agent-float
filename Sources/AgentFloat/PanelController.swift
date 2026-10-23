@@ -46,6 +46,7 @@ final class PanelPresentation {
     /// 목록 280, 답장 화면 320 (v1.2 설계 4.8)
     var panelWidth: CGFloat = Layout.panelWidth
     var content = PanelContent.list
+    var replyPlacement = ReplyPlacement.panel
     /// 화면을 다시 그릴 일이 없는 값이라 관찰하지 않는다
     @ObservationIgnored var isDragging = false
     @ObservationIgnored var openReply: ((AgentSession) -> Void)?
@@ -62,6 +63,7 @@ enum PanelContent {
 final class PanelController: NSObject {
     private static let anchorKey = "panelAnchor"
     private static let contrastKey = "glassContrast"
+    private static let placementKey = "replyPlacement"
 
     let panel: FloatingPanel
     let hostingView: PanelHostingView<FloatRootView>
@@ -108,6 +110,10 @@ final class PanelController: NSObject {
         presentation.glassContrast = GlassContrast.resolve(
             override: ProcessInfo.processInfo.environment["AGENT_FLOAT_CONTRAST"],
             saved: UserDefaults.standard.string(forKey: Self.contrastKey)
+        )
+        presentation.replyPlacement = ReplyPlacement.resolve(
+            override: ProcessInfo.processInfo.environment["AGENT_FLOAT_REPLY_PLACEMENT"],
+            saved: UserDefaults.standard.string(forKey: Self.placementKey)
         )
         self.presentation = presentation
 
@@ -376,7 +382,7 @@ final class PanelController: NSObject {
 
     private func collapse() {
         guard phase == .expanded else { return }
-        if presentation.content == .reply {
+        if replies.openKey != nil || presentation.content == .reply {
             // 쓴 답은 남기고 다음 펼침은 목록으로 연다 (설계 4.7 접힘)
             replies.close()
             presentation.content = .list
@@ -452,7 +458,7 @@ final class PanelController: NSObject {
             replies.sync(with: model.sessions)
             if model.sessions.isEmpty {
                 collapse()
-            } else if presentation.content == .reply {
+            } else if replies.openKey != nil {
                 adjustReplyLayout()
             } else {
                 adjustExpandedHeight()
@@ -568,7 +574,7 @@ final class PanelController: NSObject {
             contentHeight: { [weak self] height in self?.replyContentRendered(height) }
         )
         replies.onChange = { [weak self] in self?.adjustReplyLayout() }
-        replies.onAutoClose = { [weak self] in self?.showList(restoreFocus: true) }
+        replies.onAutoClose = { [weak self] in self?.afterReplyClosed(restoreFocus: true) }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let consumed = MainActor.assumeIsolated { self?.handleKey(event) ?? false }
             return consumed ? nil : event
@@ -577,7 +583,7 @@ final class PanelController: NSObject {
 
     /// 답장 화면은 마우스가 벗어나도 접지 않는다. 다른 앱을 눌러 키 입력을 잃었을 때만 접는다(보내는 중에는 그것도 막는다)
     private var holdsReplyOpen: Bool {
-        guard presentation.content == .reply else { return false }
+        guard replies.openKey != nil else { return false }
         if case .sending = replies.phase { return true }
         return panel.isKeyWindow || debugHoldsReply
     }
@@ -589,13 +595,20 @@ final class PanelController: NSObject {
             didRequestAccessibility = true
             AXGhosttyScreenReader.requestTrust()
         }
-        if presentation.content == .list { previousApp = NSWorkspace.shared.frontmostApplication }
+        if replies.openKey == nil { previousApp = NSWorkspace.shared.frontmostApplication }
         replies.open(session)
         guard replies.openKey == session.key else { return }
-        // 폭을 먼저 넓혀야 답장 내용이 처음부터 최종 폭으로 그려진다. 반대면 좁은 폭으로 한 번 그려져 높이가 튄다(실측)
-        resizeExpanded(width: ReplyLayout.width, contentHeight: measureReply())
-        withAnimation(isReduced ? Motion.crossfade : Motion.spring) {
-            presentation.content = .reply
+        switch presentation.replyPlacement {
+        case .panel:
+            // 폭을 먼저 넓혀야 답장 내용이 처음부터 최종 폭으로 그려진다. 반대면 좁은 폭으로 한 번 그려져 높이가 튄다(실측)
+            resizeExpanded(width: ReplyLayout.width, contentHeight: measureReply())
+            withAnimation(isReduced ? Motion.crossfade : Motion.spring) {
+                presentation.content = .reply
+            }
+        case .inline, .card:
+            withAnimation(isReduced ? Motion.crossfade : Motion.spring) {
+                resizeExpanded(width: ReplyLayout.width, contentHeight: measureListContent())
+            }
         }
         // 사용자가 그 줄을 눌러 답하려는 뜻을 밝혔으므로 이때만 키 입력을 받는다. 앱 자체는 활성화하지 않는다
         panel.acceptsKeyInput = true
@@ -611,19 +624,32 @@ final class PanelController: NSObject {
     }
 
     private func closeReply(restoreFocus: Bool) {
-        guard presentation.content == .reply else { return }
+        guard replies.openKey != nil else { return }
         replies.close()
-        showList(restoreFocus: restoreFocus)
+        afterReplyClosed(restoreFocus: restoreFocus)
     }
 
-    private func showList(restoreFocus: Bool) {
-        guard presentation.content == .reply else { return }
+    /// 답장 상태는 이미 닫힌 뒤다. 배치에 상관없이 목록 폭·높이와 키 입력을 되돌린다
+    private func afterReplyClosed(restoreFocus: Bool) {
         withAnimation(isReduced ? Motion.crossfade : Motion.spring) {
             presentation.content = .list
         }
-        let contentHeight = Self.measureList(listMeasurer, groups: model.groups, failed: model.failedSessions, unseen: model.unseen)
-        resizeExpanded(width: Layout.panelWidth, contentHeight: contentHeight)
+        resizeExpanded(width: Layout.panelWidth, contentHeight: measureListContent())
         releaseKeyInput(restoreFocus: restoreFocus)
+    }
+
+    /// 줄 안 배치는 목록 안에서 열려 있으므로 그 내용까지 함께 잰다
+    private func measureListContent() -> CGFloat {
+        let inline = inlineReply
+        return Self.measureList(
+            listMeasurer, groups: model.groups, failed: model.failedSessions, unseen: model.unseen,
+            inline: inline, width: (inline == nil ? Layout.panelWidth : ReplyLayout.width) - Layout.panelPadding * 2
+        )
+    }
+
+    private var inlineReply: InlineReply? {
+        guard presentation.replyPlacement == .inline, replies.openKey != nil else { return nil }
+        return InlineReply(center: replies, actions: presentation.replyActions)
     }
 
     /// 키 창을 내려놓고 답장 화면을 열기 전 앱이 다시 키 입력을 받게 한다
@@ -638,8 +664,14 @@ final class PanelController: NSObject {
     }
 
     private func adjustReplyLayout() {
-        guard phase == .expanded, presentation.content == .reply else { return }
-        resizeExpanded(width: ReplyLayout.width, contentHeight: measureReply())
+        guard phase == .expanded, replies.openKey != nil else { return }
+        switch presentation.replyPlacement {
+        case .panel:
+            guard presentation.content == .reply else { return }
+            resizeExpanded(width: ReplyLayout.width, contentHeight: measureReply())
+        case .inline, .card:
+            resizeExpanded(width: ReplyLayout.width, contentHeight: measureListContent())
+        }
     }
 
     /// 고정 모서리를 둔 채 폭과 높이를 바꾼다. 커질 때는 창을 먼저 키우고, 작아질 때는 유리가 줄어든 뒤 창을 맞춘다
@@ -686,7 +718,7 @@ final class PanelController: NSObject {
     /// ⏎·esc·숫자·Tab 을 텍스트 칸보다 먼저 본다. 한글 조합 중인지는 필드 편집기(`NSTextView`)에 묻는다 (설계 4.7 키 표).
     /// 이 키를 여기서 처리했으면 true — 텍스트 칸에 줄바꿈 등이 들어가지 않게 이벤트를 삼킨다
     private func handleKey(_ event: NSEvent) -> Bool {
-        guard presentation.content == .reply, panel.isKeyWindow else { return false }
+        guard replies.openKey != nil, panel.isKeyWindow else { return false }
         let fieldEditor = panel.firstResponder as? NSTextView
         let fieldFocused = fieldEditor != nil
         let marked = fieldEditor?.hasMarkedText() ?? false
@@ -768,7 +800,7 @@ final class PanelController: NSObject {
 
     @objc private func panelDidResignKey(_ notification: Notification) {
         DebugLog.write("panel resigned key content=\(presentation.content)")
-        guard presentation.content == .reply else { return }
+        guard replies.openKey != nil else { return }
         syncHover()
     }
 
@@ -867,6 +899,18 @@ final class PanelController: NSObject {
         presentation.glassContrast
     }
 
+    var replyPlacement: ReplyPlacement {
+        presentation.replyPlacement
+    }
+
+    /// 열린 답장 화면은 닫고(쓴 답은 남음) 다음 열기부터 새 배치로 연다
+    func setReplyPlacement(_ placement: ReplyPlacement) {
+        closeReply(restoreFocus: false)
+        presentation.replyPlacement = placement
+        UserDefaults.standard.set(placement.rawValue, forKey: Self.placementKey)
+        DebugLog.write("reply placement=\(placement.rawValue)")
+    }
+
     func setGlassContrast(_ mode: GlassContrast) {
         presentation.glassContrast = mode
         UserDefaults.standard.set(mode.rawValue, forKey: Self.contrastKey)
@@ -928,9 +972,10 @@ final class PanelController: NSObject {
     }
 
     private static func measureList(
-        _ measurer: NSHostingView<ListMeasure>, groups: [SessionGroup], failed: [AgentSession], unseen: Set<SessionKey>
+        _ measurer: NSHostingView<ListMeasure>, groups: [SessionGroup], failed: [AgentSession], unseen: Set<SessionKey>,
+        inline: InlineReply? = nil, width: CGFloat = Layout.listWidth
     ) -> CGFloat {
-        measurer.rootView = ListMeasure(groups: groups, failed: failed, unseen: unseen)
+        measurer.rootView = ListMeasure(groups: groups, failed: failed, unseen: unseen, inline: inline, width: width)
         return ceil(measurer.fittingSize.height)
     }
 
@@ -984,10 +1029,12 @@ struct ListMeasure: View {
     let groups: [SessionGroup]
     var failed: [AgentSession] = []
     let unseen: Set<SessionKey>
+    var inline: InlineReply? = nil
+    var width: CGFloat = Layout.listWidth
 
     var body: some View {
-        SessionListContent(groups: groups, failed: failed, unseen: unseen, now: .now, canNavigate: { _ in false }, onActivate: { _ in })
-            .frame(width: Layout.listWidth)
+        SessionListContent(groups: groups, failed: failed, unseen: unseen, now: .now, canNavigate: { _ in false }, onActivate: { _ in }, inline: inline)
+            .frame(width: width)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

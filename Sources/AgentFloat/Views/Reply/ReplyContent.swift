@@ -2,10 +2,23 @@ import AgentFloatCore
 import SwiftUI
 
 /// 답장 화면에서 띠·질문·선택지·입력 칸을 그리는 부분. 세 배치(패널 전환·줄 안·옆 카드)가 같이 쓴다 (설계 4.5)
+/// 패널 전환(C)과 줄 안(A)은 간격과 질문 글자 크기가 다르다 (설계 4.8)
+enum ReplyContentStyle {
+    case panel, inline
+
+    var stripToContent: CGFloat { self == .panel ? ReplyLayout.navToContent : 10 }
+    var chipToQuestion: CGFloat { self == .panel ? ReplyLayout.chipToQuestion : 6 }
+    var questionToOptions: CGFloat { self == .panel ? ReplyLayout.questionToOptions : 10 }
+    var questionSize: CGFloat { self == .panel ? 13 : 12.5 }
+    /// 글자 크기에 더해 줄 높이 18.5(패널)·18(줄 안)이 되는 간격. 두 배치 모두 3 이다
+    var questionLineSpacing: CGFloat { 3 }
+}
+
 struct ReplyContent: View {
     let center: ReplyCenter
     let session: AgentSession
     let actions: ReplyActions
+    var style = ReplyContentStyle.panel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -14,12 +27,12 @@ struct ReplyContent: View {
             }
             if showsEditor, let prompt = session.prompt, let editor = center.editor {
                 editorContent(prompt: prompt, editor: editor)
-                    .padding(.top, topStrip == nil ? 0 : ReplyLayout.navToContent)
+                    .padding(.top, topStrip == nil ? 0 : style.stripToContent)
                     .opacity(isSending ? 0.45 : 1)
                     .allowsHitTesting(!isSending && readOnly == nil)
             }
             if case let .sending(stage) = center.phase {
-                DeliverySteps(current: stage).padding(.top, ReplyLayout.navToContent)
+                DeliverySteps(current: stage).padding(.top, style.stripToContent)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -141,10 +154,10 @@ struct ReplyContent: View {
                 if editor.questions.count > 1 { StepIndicator(step: editor.step, count: editor.questions.count) }
             }
             Text(question.text)
-                .font(.system(size: 13))
-                .lineSpacing(3)
+                .font(.system(size: style.questionSize))
+                .lineSpacing(style.questionLineSpacing)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, ReplyLayout.chipToQuestion)
+                .padding(.top, style.chipToQuestion)
             VStack(spacing: ReplyLayout.optionGap) {
                 ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
                     OptionRow(
@@ -159,7 +172,7 @@ struct ReplyContent: View {
                     )
                 }
             }
-            .padding(.top, ReplyLayout.questionToOptions)
+            .padding(.top, style.questionToOptions)
             if readOnly == nil, editor.acceptsOtherText {
                 ReplyField(
                     placeholder: ReplyCopy.otherPlaceholder,

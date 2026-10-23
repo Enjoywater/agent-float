@@ -10,12 +10,13 @@ struct ExpandedPanelView: View {
     let canNavigate: (AgentSession) -> Bool
     let onActivate: (AgentSession) -> Void
     var note: (AgentSession) -> RowNote? = { _ in nil }
+    var inline: InlineReply? = nil
 
     var body: some View {
         // 경과 시간은 분 단위라 갱신 주기와 상관없이 따로 시계를 둔다. 펼친 동안에만 돌아 접힌 상태의 유휴 CPU에는 영향이 없다
         TimelineView(.periodic(from: .now, by: Motion.labelTick)) { context in
             ScrollView(.vertical) {
-                SessionListContent(groups: groups, failed: failed, unseen: unseen, now: context.date, canNavigate: canNavigate, onActivate: onActivate, note: note)
+                SessionListContent(groups: groups, failed: failed, unseen: unseen, now: context.date, canNavigate: canNavigate, onActivate: onActivate, note: note, inline: inline)
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(height: listHeight)
@@ -32,6 +33,7 @@ struct SessionListContent: View {
     let canNavigate: (AgentSession) -> Bool
     let onActivate: (AgentSession) -> Void
     var note: (AgentSession) -> RowNote? = { _ in nil }
+    var inline: InlineReply? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -66,14 +68,20 @@ struct SessionListContent: View {
     private func rows(_ sessions: [AgentSession]) -> some View {
         VStack(alignment: .leading, spacing: Layout.rowGap) {
             ForEach(sessions) { session in
-                SessionRow(
-                    session: session,
-                    isUnseen: unseen.contains(session.key),
-                    canNavigate: canNavigate(session),
-                    now: now,
-                    onActivate: { onActivate(session) },
-                    note: note(session)
-                )
+                if let inline, inline.center.openKey == session.key {
+                    InlineReplyRow(session: session, inline: inline, now: now, onHeaderTap: inline.actions.back)
+                } else {
+                    SessionRow(
+                        session: session,
+                        isUnseen: unseen.contains(session.key),
+                        canNavigate: canNavigate(session),
+                        now: now,
+                        onActivate: { onActivate(session) },
+                        note: note(session)
+                    )
+                    // 한 줄이 열려 있으면 나머지는 물러나 시선이 그 줄에 머물게 한다 (설계 4.5 A)
+                    .opacity(inline?.center.openKey == nil ? 1 : 0.55)
+                }
             }
         }
     }

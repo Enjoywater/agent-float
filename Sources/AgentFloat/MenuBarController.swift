@@ -16,16 +16,23 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let onResetPosition: () -> Void
     private let contrast: () -> GlassContrast
     private let onSelectContrast: (GlassContrast) -> Void
+    private let placement: () -> ReplyPlacement
+    private let onSelectPlacement: (ReplyPlacement) -> Void
     private var contrastItems: [NSMenuItem] = []
+    private var placementItems: [NSMenuItem] = []
 
     init(
         onResetPosition: @escaping () -> Void,
         contrast: @escaping () -> GlassContrast,
-        onSelectContrast: @escaping (GlassContrast) -> Void
+        onSelectContrast: @escaping (GlassContrast) -> Void,
+        placement: @escaping () -> ReplyPlacement,
+        onSelectPlacement: @escaping (ReplyPlacement) -> Void
     ) {
         self.onResetPosition = onResetPosition
         self.contrast = contrast
         self.onSelectContrast = onSelectContrast
+        self.placement = placement
+        self.onSelectPlacement = onSelectPlacement
         super.init()
 
         statusItem.button?.image = NSImage(systemSymbolName: "capsule.on.rectangle", accessibilityDescription: "Agent Float")
@@ -34,6 +41,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.delegate = self
         menu.addItem(makeItem("위치 초기화", action: #selector(resetPosition)))
         menu.addItem(makeContrastMenu())
+        menu.addItem(makePlacementMenu())
         launchAtLoginItem.target = self
         menu.addItem(launchAtLoginItem)
         menu.addItem(.separator())
@@ -46,6 +54,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let current = contrast()
         for item in contrastItems {
             item.state = item.representedObject as? String == current.rawValue ? .on : .off
+        }
+        let currentPlacement = placement()
+        for item in placementItems {
+            item.state = item.representedObject as? String == currentPlacement.rawValue ? .on : .off
         }
         launchAtLoginItem.state = switch SMAppService.mainApp.status {
         case .enabled: .on
@@ -85,6 +97,33 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         case .outline: "윤곽선"
         case .inverse: "뒤 화면과 반대"
         }
+    }
+
+    /// 답장 화면을 어디에 띄울지 (v1.2 설계 4.5)
+    private func makePlacementMenu() -> NSMenuItem {
+        let submenu = NSMenu()
+        placementItems = ReplyPlacement.allCases.map { placement in
+            let item = makeItem(Self.title(of: placement), action: #selector(selectPlacement(_:)))
+            item.representedObject = placement.rawValue
+            submenu.addItem(item)
+            return item
+        }
+        let parent = NSMenuItem(title: "답장 화면", action: nil, keyEquivalent: "")
+        parent.submenu = submenu
+        return parent
+    }
+
+    private static func title(of placement: ReplyPlacement) -> String {
+        switch placement {
+        case .panel: "패널 전환"
+        case .inline: "줄 안에서 펼침"
+        case .card: "옆에 카드"
+        }
+    }
+
+    @objc private func selectPlacement(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let placement = ReplyPlacement(rawValue: raw) else { return }
+        onSelectPlacement(placement)
     }
 
     @objc private func selectContrast(_ sender: NSMenuItem) {
