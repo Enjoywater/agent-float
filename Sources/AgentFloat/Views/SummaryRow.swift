@@ -14,6 +14,11 @@ struct SummaryRow: View {
                 // 숨기면 앱이 꺼졌는지 헷갈리므로 흐리게라도 남긴다 (spec 4.5)
                 item(color: Palette.gray, count: 0).opacity(0.5)
             } else {
+                // 보내다 멈춘 세션은 무엇보다 먼저 확인해야 해서 맨 앞에 둔다 (v1.2 설계 4.7)
+                if summary.failed > 0 {
+                    item(color: Palette.failed, count: summary.failed)
+                    tag("FAIL", color: Palette.failText(on: paintedTone))
+                }
                 if summary.waiting > 0 {
                     item(color: Palette.waiting, count: summary.waiting)
                     if summary.ask { tag("ASK", color: Palette.askText(on: paintedTone)) }

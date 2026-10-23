@@ -13,6 +13,10 @@ enum Palette {
     private static let askLight = NSColor(srgbRed: 0xC9 / 255, green: 0x34 / 255, blue: 0, alpha: 1)
     private static let newLight = NSColor(srgbRed: 0x24 / 255, green: 0x8A / 255, blue: 0x3D / 255, alpha: 1)
     static let askText = Color(nsColor: dynamic(light: askLight, dark: .systemOrange))
+    static let failed = Color(nsColor: .systemRed)
+    // 라이트 모드의 systemRed 글자도 유리 위에서 옅어 같은 계열의 진한 톤을 쓴다
+    private static let failLight = NSColor(srgbRed: 0xD7 / 255, green: 0, blue: 0x15 / 255, alpha: 1)
+    static let failText = Color(nsColor: dynamic(light: failLight, dark: .systemRed))
     static let newText = Color(nsColor: dynamic(light: newLight, dark: .systemGreen))
 
     /// 알약을 뒤와 반대 톤으로 칠하면 동적 색이 SwiftUI 의 톤이 아니라 유리가 고른 톤으로 풀려 면과 같은 톤이 된다(실측).
@@ -22,6 +26,14 @@ enum Palette {
         case nil: askText
         case .light?: Color(nsColor: askLight)
         case .dark?: Color(nsColor: fixed(.systemOrange, in: .darkAqua))
+        }
+    }
+
+    static func failText(on painted: GlassTone?) -> Color {
+        switch painted {
+        case nil: failText
+        case .light?: Color(nsColor: failLight)
+        case .dark?: Color(nsColor: fixed(.systemRed, in: .darkAqua))
         }
     }
 

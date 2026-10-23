@@ -95,6 +95,7 @@ final class PanelController: NSObject {
     private var resizeGeneration = 0
     /// 화면만 찍는 디버그 실행에서 키 입력 없이도 답장 화면을 열어 둔다
     private var debugHoldsReply = false
+    private var didRequestAccessibility = false
 
     private enum Phase {
         case collapsed, expanded, collapsing
@@ -198,7 +199,9 @@ final class PanelController: NSObject {
     private func debugOpenReply() {
         let environment = ProcessInfo.processInfo.environment
         guard let raw = environment["AGENT_FLOAT_OPEN_REPLY"], let index = Int(raw) else { return }
-        let candidates = model.groups.flatMap(\.sessions).filter { $0.status == .waiting && $0.prompt != nil }
+        var candidates = model.groups.flatMap(\.sessions).filter { $0.status == .waiting && $0.prompt != nil }
+        // `_SESSION=<sessionId>` 로 실측용 시험 세션만 고른다. 사용자의 실제 세션은 열지 않기 위함이다
+        if let target = environment["AGENT_FLOAT_OPEN_REPLY_SESSION"] { candidates = candidates.filter { $0.key.sessionId == target } }
         guard candidates.indices.contains(index) else { return }
         DebugLog.write("debug focus before=\(Self.focusedApplicationPid()) front=\(NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0)")
         openReply(candidates[index])
@@ -532,7 +535,7 @@ final class PanelController: NSObject {
     /// 목록 높이를 펼치기 전에 재야 창과 유리가 한 번에 목표 높이에 닿는다 (출렁임 없음, spec 4.8)
     private func expandedLayout(pill: CGRect) -> ExpandedLayout {
         let visible = Self.visibleFrame(for: pill)
-        let contentHeight = Self.measureList(listMeasurer, groups: model.groups, unseen: model.unseen)
+        let contentHeight = Self.measureList(listMeasurer, groups: model.groups, failed: model.failedSessions, unseen: model.unseen)
         // 세션이 많아도 화면 밖으로 넘치지 않게 하고 나머지는 스크롤로 본다 (Review Focus 2)
         let maxPanelHeight = floor(visible.height * Layout.maxHeightRatio)
         let panelHeight = min(Layout.panelChromeHeight + contentHeight, maxPanelHeight)
@@ -581,6 +584,11 @@ final class PanelController: NSObject {
 
     private func openReply(_ session: AgentSession) {
         guard phase == .expanded else { return }
+        // 처음 Ghostty 세션을 열 때 한 번만 권한 창을 띄운다. 거절했다면 화면은 "보기만"과 "설정 열기"로 안내한다 (설계 4.9)
+        if case .ghostty = session.locator, !didRequestAccessibility, !AXIsProcessTrusted() {
+            didRequestAccessibility = true
+            AXGhosttyScreenReader.requestTrust()
+        }
         if presentation.content == .list { previousApp = NSWorkspace.shared.frontmostApplication }
         replies.open(session)
         guard replies.openKey == session.key else { return }
@@ -613,7 +621,7 @@ final class PanelController: NSObject {
         withAnimation(isReduced ? Motion.crossfade : Motion.spring) {
             presentation.content = .list
         }
-        let contentHeight = Self.measureList(listMeasurer, groups: model.groups, unseen: model.unseen)
+        let contentHeight = Self.measureList(listMeasurer, groups: model.groups, failed: model.failedSessions, unseen: model.unseen)
         resizeExpanded(width: Layout.panelWidth, contentHeight: contentHeight)
         releaseKeyInput(restoreFocus: restoreFocus)
     }
@@ -919,8 +927,10 @@ final class PanelController: NSObject {
         return CGSize(width: ceil(measurer.fittingSize.width), height: Layout.pillHeight)
     }
 
-    private static func measureList(_ measurer: NSHostingView<ListMeasure>, groups: [SessionGroup], unseen: Set<SessionKey>) -> CGFloat {
-        measurer.rootView = ListMeasure(groups: groups, unseen: unseen)
+    private static func measureList(
+        _ measurer: NSHostingView<ListMeasure>, groups: [SessionGroup], failed: [AgentSession], unseen: Set<SessionKey>
+    ) -> CGFloat {
+        measurer.rootView = ListMeasure(groups: groups, failed: failed, unseen: unseen)
         return ceil(measurer.fittingSize.height)
     }
 
@@ -972,10 +982,11 @@ struct PillMeasure: View {
 
 struct ListMeasure: View {
     let groups: [SessionGroup]
+    var failed: [AgentSession] = []
     let unseen: Set<SessionKey>
 
     var body: some View {
-        SessionListContent(groups: groups, unseen: unseen, now: .now, canNavigate: { _ in false }, onActivate: { _ in })
+        SessionListContent(groups: groups, failed: failed, unseen: unseen, now: .now, canNavigate: { _ in false }, onActivate: { _ in })
             .frame(width: Layout.listWidth)
             .fixedSize(horizontal: false, vertical: true)
     }

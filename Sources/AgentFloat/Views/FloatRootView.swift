@@ -119,6 +119,7 @@ struct FloatRootView: View {
         case .list:
             ExpandedPanelView(
                 groups: model.groups,
+                failed: model.failedSessions,
                 unseen: model.unseen,
                 listHeight: presentation.listHeight,
                 canNavigate: canTap,

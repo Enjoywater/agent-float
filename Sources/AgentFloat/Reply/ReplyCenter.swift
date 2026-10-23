@@ -92,6 +92,7 @@ final class ReplyCenter {
         Task { [weak self] in
             let verdict = await backend.availability(session)
             guard let self, self.openKey == session.key else { return }
+            if self.availability[session.key] != verdict { DebugLog.write("reply availability session=\(session.key.sessionId) \(verdict)") }
             self.availability[session.key] = verdict
             self.onChange?()
         }
@@ -135,8 +136,9 @@ final class ReplyCenter {
     // MARK: 보내기
 
     func send() {
+        // 가능 여부는 비동기로 판정되어 아직 모를 수 있다. 보기만으로 확정된 경우만 막고, 나머지는 전달기의 G2 가 다시 확인한다
         guard phase == .editing, let session = openSession, let prompt = session.prompt, let draft = editor?.draft,
-              availability[session.key] == .ready else { return }
+              availability[session.key].map({ $0 == .ready }) ?? true else { return }
         phase = .sending(.sameQuestion)
         onChange?()
         let backend = backend
@@ -157,6 +159,7 @@ final class ReplyCenter {
     }
 
     private func finish(_ outcome: DeliveryOutcome, session: AgentSession, prompt: PendingPrompt) {
+        DebugLog.write("reply outcome session=\(session.key.sessionId) outcome=\(outcome)")
         switch outcome {
         case .delivered, .notSent(.alreadyAnswered), .notSent(.sessionEnded):
             editors[prompt.id] = nil
