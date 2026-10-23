@@ -28,13 +28,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let runner = ProcessCommandRunner()
         let activator = AppActivator()
+        let store = SessionStore(providers: [Self.makeProvider(environment)])
         let model = AppModel(
-            store: SessionStore(providers: [Self.makeProvider(environment)]),
+            store: store,
             navigators: Self.makeNavigators(runner: runner, activator: activator),
             focusProbes: [GhosttyFocusProbe(runner: runner), AppleTerminalFocusProbe(runner: runner), ITermFocusProbe(runner: runner)],
             activator: activator
         )
-        let controller = PanelController(model: model)
+        let isFake = environment["AGENT_FLOAT_FAKE_SESSIONS"].flatMap(Int.init).map { $0 > 0 } ?? false
+        let replies = ReplyCenter(backend: isFake ? FakeReplyBackend.make(environment) : Self.makeReplyBackend(runner: runner, store: store))
+        replies.onFailuresChange = { [weak model] keys in model?.setFailures(keys) }
+        let controller = PanelController(model: model, replies: replies)
         controller.show()
         model.start()
         self.model = model
@@ -54,6 +58,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         panelController?.flushPendingSave()
+    }
+
+    /// 보내기는 tmux·Orca·Ghostty 만 담당한다. 그 밖의 터미널은 보기만 (v1.2 설계 4.1)
+    private static func makeReplyBackend(runner: ProcessCommandRunner, store: SessionStore) -> ReplyBackend {
+        let consoles = ConsoleRegistry([
+            TmuxConsole(runner: runner, executable: TmuxCLI.resolveExecutable()),
+            OrcaConsole(runner: runner),
+            GhosttyConsole(runner: runner, screenReader: AXGhosttyScreenReader()),
+        ])
+        let delivery = ReplyDelivery(
+            currentSessions: { store.snapshot(now: Date()) },
+            consoles: consoles,
+            answers: { key, promptId in store.recordedAnswer(for: key, promptId: promptId) }
+        )
+        return ReplyBackend(
+            availability: { session in await consoles.availability(of: session) },
+            deliver: { draft, prompt, session, onStage in
+                await delivery.deliver(draft, prompt: prompt, session: session, onStage: onStage)
+            }
+        )
     }
 
     /// 위치 종류마다 담당이 하나뿐이라 등록 순서는 결과에 영향이 없다

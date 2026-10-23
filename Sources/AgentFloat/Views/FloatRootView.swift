@@ -11,6 +11,7 @@ enum Layout {
     static let panelPadding: CGFloat = 6
     static let panelCornerRadius: CGFloat = 22
     static let rowCornerRadius: CGFloat = 16
+    static let rowGap: CGFloat = 4
     static let borderWidth: CGFloat = 1.5
     static let maxHeightRatio: CGFloat = 0.7
 
@@ -28,6 +29,7 @@ extension View {
 
 struct FloatRootView: View {
     let model: AppModel
+    let replies: ReplyCenter
     let presentation: PanelPresentation
 
     @Namespace private var glass
@@ -75,14 +77,7 @@ struct FloatRootView: View {
                 .contentShape(Rectangle())
                 .gesture(WindowDragGesture())
             if expanded, presentation.isListVisible {
-                ExpandedPanelView(
-                    groups: model.groups,
-                    unseen: model.unseen,
-                    listHeight: presentation.listHeight,
-                    canNavigate: model.canNavigate,
-                    onActivate: activate
-                )
-                .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: -4)), removal: .opacity))
+                expandedContent
             }
         }
         .transformEnvironment(\.colorScheme) { scheme in
@@ -92,7 +87,7 @@ struct FloatRootView: View {
         .modifier(PaintedText(tone: style.contentTone))
         .padding(expanded ? Layout.panelPadding : 0)
         .frame(
-            width: expanded ? Layout.panelWidth : presentation.pillWidth,
+            width: expanded ? presentation.panelWidth : presentation.pillWidth,
             height: expanded ? presentation.panelHeight : Layout.pillHeight,
             alignment: .top
         )
@@ -116,9 +111,59 @@ struct FloatRootView: View {
         .glassEffect(.regular, in: .rect(cornerRadius: radius))
     }
 
+    /// 목록과 답장 화면은 옆으로 밀려 바뀐다. "‹ 목록"과 방향이 맞게 답장은 오른쪽에서, 목록은 왼쪽에서 들어온다 (설계 4.8 움직임)
+    @ViewBuilder
+    private var expandedContent: some View {
+        let reduced = Motion.isReduced(systemReduceMotion)
+        switch presentation.content {
+        case .list:
+            ExpandedPanelView(
+                groups: model.groups,
+                unseen: model.unseen,
+                listHeight: presentation.listHeight,
+                canNavigate: canTap,
+                onActivate: activate,
+                note: note
+            )
+            .transition(reduced ? .opacity : .asymmetric(
+                insertion: .opacity.combined(with: .offset(x: -ReplyLayout.slideOffset)),
+                removal: .opacity
+            ))
+        case .reply:
+            if let session = replies.openSession {
+                ReplyScreen(center: replies, session: session, actions: presentation.replyActions, height: presentation.listHeight)
+                    .transition(reduced ? .opacity : .asymmetric(
+                        insertion: .opacity.combined(with: .offset(x: ReplyLayout.slideOffset)),
+                        removal: .opacity.combined(with: .offset(x: ReplyLayout.slideOffset))
+                    ))
+            }
+        }
+    }
+
+    /// 질문을 읽은 대기 줄은 이동할 곳이 없어도(보기만) 답장 화면이 열리므로 눌리는 줄로 보여야 한다
+    private func canTap(_ session: AgentSession) -> Bool {
+        model.canNavigate(session) || Self.opensReply(session)
+    }
+
+    private func note(_ session: AgentSession) -> RowNote? {
+        if model.failedKeys.contains(session.key) { return .failed }
+        return replies.hasDraft(for: session) ? .drafting : nil
+    }
+
+    private static func opensReply(_ session: AgentSession) -> Bool {
+        session.status == .waiting && session.prompt != nil
+    }
+
     private func activate(_ session: AgentSession) {
         // 끈 뒤 손을 뗀 자리가 줄 위여도 이동하지 않는다 (spec 4.8)
         guard !presentation.isDragging else { return }
+        // ⌘+클릭은 v1 처럼 바로 이동한다. 실패 표시는 그 세션을 직접 본 것이므로 끈다 (설계 4.7)
+        let commandHeld = NSEvent.modifierFlags.contains(.command)
+        if !commandHeld, Self.opensReply(session) || model.failedKeys.contains(session.key) {
+            presentation.openReply?(session)
+            return
+        }
+        replies.acknowledgeFailure(session.key)
         Task { await model.activate(session) }
     }
 }

@@ -45,10 +45,66 @@ struct FakeProvider: AgentProvider {
                 isStale: status == .running && index % 3 == 2,
                 lastActivityAt: startedAt.addingTimeInterval(-Double(index) * 420 - 840),
                 terminalApp: index % 2 == 0 ? .ghostty : .orca,
-                locator: .none
+                locator: .none,
+                prompt: status == .waiting ? Self.prompt(for: index) : nil
             )
         }
     }
+
+    /// 답장 화면 시안(v1.2 `reply-flow-c.html`)과 같은 가상 질문. 대기 세션은 0, 4, 8, 12, 16… 번째다
+    private static func prompt(for index: Int) -> PendingPrompt? {
+        switch index {
+        case 0:
+            .choices(id: "fake-q-\(index)", questions: [expiryQuestion])
+        case 4:
+            .permission(id: "fake-p-\(index)", tool: "Bash", summary: "swift test --parallel")
+        case 8:
+            .text(id: "fake-t-\(index)", message: bodyMessage)
+        case 16:
+            .choices(id: "fake-q-\(index)", questions: [deployQuestion, cadenceQuestion])
+        default:
+            nil
+        }
+    }
+
+    private static let expiryQuestion = ChoiceQuestion(
+        text: "만료 시간을 지금처럼 고정 10분으로 둘지, 마지막으로 읽은 때부터 다시 세는 방식으로 바꿀지 정해야 합니다. 바꾼 코드는 커밋하지 않고 대기 중입니다. 어느 쪽으로 할까요?",
+        header: "만료 방식",
+        multiSelect: false,
+        options: [
+            ChoiceOption(label: "읽은 때부터 다시 세기 (Recommended)", description: "읽을 때마다 만료가 10분 늘어남, 자주 쓰는 항목이 오래 남음", hasPreview: false),
+            ChoiceOption(label: "고정 10분 유지", description: "방금 바꾼 코드를 되돌림", hasPreview: false),
+            ChoiceOption(label: "둘 다 지원 (설정으로 선택)", description: "설정 항목이 하나 늘어남", hasPreview: false),
+        ]
+    )
+
+    private static let deployQuestion = ChoiceQuestion(
+        text: "서버와 앱 중 어느 쪽을 먼저 내보낼까요?",
+        header: "배포 순서",
+        multiSelect: false,
+        options: [
+            ChoiceOption(label: "서버 먼저 (Recommended)", description: "구 앱도 새 응답을 무시하므로 안전", hasPreview: false),
+            ChoiceOption(label: "동시에", description: "심사 시점에 따라 어긋날 수 있음", hasPreview: false),
+        ]
+    )
+
+    private static let cadenceQuestion = ChoiceQuestion(
+        text: "색인을 얼마나 자주 다시 만들까요?",
+        header: "색인 주기",
+        multiSelect: false,
+        options: [
+            ChoiceOption(label: "매일", description: nil, hasPreview: false),
+            ChoiceOption(label: "매주", description: nil, hasPreview: false),
+        ]
+    )
+
+    private static let bodyMessage = """
+    재시도 간격을 1초 → 2초 → 4초로 늘리고, 세 번 실패하면 동기화 실패 안내를 띄우도록 바꿨습니다. 테스트 12개 모두 통과합니다.
+
+    남은 것은 `SyncRetryPolicy`를 서버 설정값으로 뺄지 여부입니다. 지금은 앱에 고정값으로 두었습니다.
+
+    다음 작업(서버 설정값으로 분리)을 진행할까요?
+    """
 
     private func status(of index: Int, now: Date) -> AgentStatus {
         if index == 2, now.timeIntervalSince(startedAt) < Self.finishAfter {

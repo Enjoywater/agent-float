@@ -24,8 +24,10 @@ final class FloatingPanel: NSPanel {
         hidesOnDeactivate = false
     }
 
-    /// 키 창이 되면 사용자가 타이핑하던 앱이 키 입력을 잃는다
-    override var canBecomeKey: Bool { false }
+    /// 답장 화면이 열린 동안만 켠다. 그 밖에 키 창이 되면 사용자가 타이핑하던 앱이 키 입력을 잃는다 (v1.2 설계 4.7 예외)
+    var acceptsKeyInput = false
+
+    override var canBecomeKey: Bool { acceptsKeyInput }
     override var canBecomeMain: Bool { false }
 }
 

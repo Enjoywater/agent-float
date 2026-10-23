@@ -8,6 +8,9 @@ final class AppModel {
     private(set) var groups: [SessionGroup] = []
     private(set) var summary = AppModel.emptySummary
     private(set) var unseen: Set<SessionKey> = []
+    /// 보내기 실패 표시가 켜진 세션. 상태 묶음에서 빠져 "확인 필요" 묶음에만 나온다 (v1.2 설계 4.7)
+    private(set) var failedKeys: Set<SessionKey> = []
+    private(set) var failedSessions: [AgentSession] = []
     var isExpanded = false
 
     /// 창 크기는 SwiftUI 바깥(`PanelController`)이 정하므로, 표시 내용이 바뀐 순간을 따로 알려준다
@@ -155,8 +158,7 @@ final class AppModel {
         tracker.ingest(fresh)
         sessions = fresh
 
-        let freshGroups = SessionGrouping.groups(fresh)
-        if freshGroups != groups { groups = freshGroups }
+        regroup()
         publishSignals()
 
         DebugLog.write("refresh sessions=\(fresh.count) summary=w\(summary.waiting)/r\(summary.running)/d\(summary.done)/u\(summary.unknown) ask=\(summary.ask) new=\(summary.new)")
@@ -173,8 +175,23 @@ final class AppModel {
         onChange?()
     }
 
+    func setFailures(_ keys: Set<SessionKey>) {
+        guard keys != failedKeys else { return }
+        failedKeys = keys
+        regroup()
+        publishSignals()
+        onChange?()
+    }
+
+    private func regroup() {
+        let freshGroups = SessionGrouping.groups(sessions, excluding: failedKeys)
+        if freshGroups != groups { groups = freshGroups }
+        let freshFailed = SessionGrouping.failed(failedKeys, among: sessions)
+        if freshFailed != failedSessions { failedSessions = freshFailed }
+    }
+
     private func publishSignals() {
-        let freshSummary = tracker.summary(of: sessions)
+        let freshSummary = tracker.summary(of: sessions, failed: failedKeys)
         if freshSummary != summary { summary = freshSummary }
         if tracker.unseen != unseen { unseen = tracker.unseen }
         updateFocusWatch()

@@ -8,12 +8,13 @@ struct ExpandedPanelView: View {
     let listHeight: CGFloat
     let canNavigate: (AgentSession) -> Bool
     let onActivate: (AgentSession) -> Void
+    var note: (AgentSession) -> RowNote? = { _ in nil }
 
     var body: some View {
         // 경과 시간은 분 단위라 갱신 주기와 상관없이 따로 시계를 둔다. 펼친 동안에만 돌아 접힌 상태의 유휴 CPU에는 영향이 없다
         TimelineView(.periodic(from: .now, by: Motion.labelTick)) { context in
             ScrollView(.vertical) {
-                SessionListContent(groups: groups, unseen: unseen, now: context.date, canNavigate: canNavigate, onActivate: onActivate)
+                SessionListContent(groups: groups, unseen: unseen, now: context.date, canNavigate: canNavigate, onActivate: onActivate, note: note)
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(height: listHeight)
@@ -28,6 +29,7 @@ struct SessionListContent: View {
     let now: Date
     let canNavigate: (AgentSession) -> Bool
     let onActivate: (AgentSession) -> Void
+    var note: (AgentSession) -> RowNote? = { _ in nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -41,14 +43,18 @@ struct SessionListContent: View {
                 .padding(.top, 8)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 3)
-                ForEach(group.sessions) { session in
-                    SessionRow(
-                        session: session,
-                        isUnseen: unseen.contains(session.key),
-                        canNavigate: canNavigate(session),
-                        now: now,
-                        onActivate: { onActivate(session) }
-                    )
+                // 배경이 깔린 줄(대기·hover)끼리 맞붙어 한 덩어리로 보이지 않게 띄운다
+                VStack(alignment: .leading, spacing: Layout.rowGap) {
+                    ForEach(group.sessions) { session in
+                        SessionRow(
+                            session: session,
+                            isUnseen: unseen.contains(session.key),
+                            canNavigate: canNavigate(session),
+                            now: now,
+                            onActivate: { onActivate(session) },
+                            note: note(session)
+                        )
+                    }
                 }
             }
         }
