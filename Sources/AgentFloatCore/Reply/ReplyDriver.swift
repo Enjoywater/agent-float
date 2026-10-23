@@ -92,6 +92,76 @@ public enum ReplyDriver {
         }
     }
 
+    /// 보낸 입력 하나가 만들어야 할 변화만 일어났는지. 그 밖의 변화는 사용자가 터미널에서 함께 손댄 것으로 보고 멈춘다 (Review Focus 1)
+    public static func isExpected(after input: ConsoleInput, from old: ScreenState, to new: ScreenState) -> Bool {
+        switch old {
+        case let .choiceDialog(before):
+            return dialogTransition(after: input, from: before, to: new)
+        case .review:
+            guard input == .key(.enter), case .prompt = new else { return false }
+            return true
+        case let .prompt(draft):
+            guard case let .prompt(after) = new else { return false }
+            switch input {
+            case let .text(text):
+                return ClaudeScreen.sameText(after, draft + text)
+            case .key(.enter):
+                return after.isEmpty
+            case .key:
+                return false
+            }
+        case .unrecognized:
+            return false
+        }
+    }
+
+    /// 붙여 넣은 글이 아직 다 그려지지 않은 중간 화면. 이것을 결과로 보면 멀쩡한 입력을 멈추게 된다
+    public static func isPartial(after input: ConsoleInput, state: ScreenState) -> Bool {
+        guard case let .text(text) = input else { return false }
+        let shown: String
+        switch state {
+        case let .choiceDialog(dialog): shown = dialog.otherDraft
+        case let .prompt(draft): shown = draft
+        case .review, .unrecognized: return false
+        }
+        let typed = text.filter { !$0.isWhitespace }
+        let visible = shown.filter { !$0.isWhitespace }
+        return !visible.isEmpty && visible.count < typed.count && typed.hasPrefix(visible)
+    }
+
+    private static func dialogTransition(after input: ConsoleInput, from before: ChoiceDialog, to new: ScreenState) -> Bool {
+        if input == .key(.enter) {
+            // 고르기·제출 뒤에는 다음 질문, 확인 화면, 또는 질문 창이 닫힌 프롬프트만 나와야 한다
+            switch new {
+            case let .choiceDialog(after): return !sameQuestion(before, after)
+            case .review, .prompt: return true
+            case .unrecognized: return false
+            }
+        }
+        guard case let .choiceDialog(after) = new, sameQuestion(before, after),
+              let from = before.focusedIndex, let to = after.focusedIndex else { return false }
+        let checksBefore = before.rows.map(\.isChecked)
+        let checksAfter = after.rows.map(\.isChecked)
+        switch input {
+        case .key(.down), .key(.up):
+            let delta = input == .key(.down) ? 1 : -1
+            return to == from + delta && checksBefore == checksAfter && before.otherDraft == after.otherDraft
+        case .key(.space):
+            let flipped = zip(checksBefore, checksAfter).enumerated().filter { $1.0 != $1.1 }.map(\.offset)
+            return to == from && flipped == [from] && before.otherDraft == after.otherDraft
+        case let .text(text):
+            return to == from && checksBefore == checksAfter && before.otherDraft.isEmpty
+                && ClaudeScreen.sameText(after.otherDraft, text)
+        case .key:
+            return false
+        }
+    }
+
+    private static func sameQuestion(_ lhs: ChoiceDialog, _ rhs: ChoiceDialog) -> Bool {
+        ClaudeScreen.normalized(lhs.questionText) == ClaudeScreen.normalized(rhs.questionText)
+            && lhs.rows.filter { $0.kind == .option }.map(\.label) == rhs.rows.filter { $0.kind == .option }.map(\.label)
+    }
+
     // MARK: 질문 창
 
     private static func choiceMove(

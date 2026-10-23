@@ -195,7 +195,7 @@ public enum ClaudeScreen {
         return pieces.filter { !$0.isEmpty }.joined(separator: " ")
     }
 
-    private static func normalized(_ text: String) -> String {
+    static func normalized(_ text: String) -> String {
         text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 }
