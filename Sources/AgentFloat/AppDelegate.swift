@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panelController: PanelController?
     private var menuBar: MenuBarController?
     private var debugSignals: [any DispatchSourceSignal] = []
+    private static let presenceKey = "iconPresence"
+    private var iconPresence = IconPresence.resolve(saved: UserDefaults.standard.string(forKey: presenceKey))
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = ProcessInfo.processInfo.environment
@@ -49,8 +51,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             contrast: { [weak controller] in controller?.glassContrast ?? .outline },
             onSelectContrast: { [weak controller] mode in controller?.setGlassContrast(mode) },
             placement: { [weak controller] in controller?.replyPlacement ?? .panel },
-            onSelectPlacement: { [weak controller] placement in controller?.setReplyPlacement(placement) }
+            onSelectPlacement: { [weak controller] placement in controller?.setReplyPlacement(placement) },
+            presence: { [weak self] in self?.iconPresence ?? .menuBar },
+            onSelectPresence: { [weak self] presence in self?.setIconPresence(presence) }
         )
+        applyIconPresence()
 
         if DebugLog.isEnabled {
             logLaunchState(panel: controller.panel, host: controller.hostingView)
@@ -60,6 +65,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         panelController?.flushPendingSave()
+    }
+
+    /// Dock 아이콘 우클릭 메뉴. 메뉴바 아이콘을 숨긴 동안에는 설정으로 가는 유일한 길이다
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        menuBar?.dockMenu()
+    }
+
+    private func setIconPresence(_ presence: IconPresence) {
+        iconPresence = presence
+        UserDefaults.standard.set(presence.rawValue, forKey: Self.presenceKey)
+        applyIconPresence()
+    }
+
+    /// 실행은 Info.plist 의 LSUIElement 로 Dock 없이 시작하고, 고른 값에 따라 여기서 바꾼다
+    private func applyIconPresence() {
+        menuBar?.setStatusItemVisible(iconPresence.showsMenuBarIcon)
+        let policy: NSApplication.ActivationPolicy = iconPresence.showsDockIcon ? .regular : .accessory
+        guard NSApp.activationPolicy() != policy else { return }
+        NSApp.setActivationPolicy(policy)
+        DebugLog.write("icon presence=\(iconPresence.rawValue) policy=\(policy == .regular ? "regular" : "accessory")")
     }
 
     /// 보내기는 tmux·Orca·Ghostty 만 담당한다. 그 밖의 터미널은 보기만 (v1.2 설계 4.1)
