@@ -116,7 +116,9 @@ Sources/
     Navigation/          Ghostty·Orca·Terminal.app·iTerm2·tmux 이동과 폴백
     System/ Window/      프로세스 환경·부모·tty 조회, 알약 위치 저장·계산
   AgentFloat/            앱 (NSPanel, SwiftUI 화면, 메뉴바)
-Tests/AgentFloatCoreTests/
+Tests/
+  AgentFloatCoreTests/   Core 단위 테스트와 화면 fixture
+  AgentFloatTests/       답장 화면 상태(ReplyCenter) 테스트
 docs/
   specs/                 설계 문서와 화면 시안
   plans/                 구현 계획과 결정 기록(rulings)
