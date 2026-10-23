@@ -2,6 +2,8 @@ APP := build/Agent Float.app
 INSTALL_DIR ?= /Applications
 INSTALLED := $(INSTALL_DIR)/Agent Float.app
 BUNDLE_ID := dev.enjoywater.agent-float
+# 같은 인증서로 서명해야 다시 빌드해도 손쉬운 사용·자동화 권한이 유지된다 (scripts/create-signing-identity.sh)
+SIGN_IDENTITY ?= Agent Float Local Signing
 
 .PHONY: build test clean bundle run install
 
@@ -16,7 +18,13 @@ bundle: build
 	mkdir -p "$(APP)/Contents/MacOS"
 	cp "$$(swift build -c release --show-bin-path)/AgentFloat" "$(APP)/Contents/MacOS/AgentFloat"
 	cp Resources/Info.plist "$(APP)/Contents/Info.plist"
-	codesign --force --sign - "$(APP)"
+	@if security find-identity -v -p codesigning | grep -F -q '"$(SIGN_IDENTITY)"'; then \
+		echo codesign --force --sign "$(SIGN_IDENTITY)" "$(APP)"; \
+		codesign --force --sign "$(SIGN_IDENTITY)" "$(APP)"; \
+	else \
+		echo "경고: $(SIGN_IDENTITY) 인증서가 없어 ad-hoc 서명합니다. 다시 빌드하면 손쉬운 사용·자동화 권한이 풀립니다 (scripts/create-signing-identity.sh)" >&2; \
+		codesign --force --sign - "$(APP)"; \
+	fi
 
 run: bundle
 	open "$(APP)"

@@ -233,12 +233,13 @@ v1 설계 4.10(Liquid Glass 문법)과 지금 코드의 `Layout`(패널 280 · �
 |---|---|---|
 | 세션 간 메시지 통로(`messagingSocketPath`)는 내 답으로 쓸 수 없음 | ✅ 확인 | 2.1.309 실행 파일: 받는 쪽에 `<cross-session-message from=…>`로 감싸 넣음, 받는 쪽 설정에 따라 보류·거절·만료 문구 존재. 세션 파일에 `messagingSocketPath`·`.key` 존재 |
 | 질문 창 `tool_use` 입력 형식과 답 기록 형식 | ✅ 확인 | 실제 transcript 2건: 입력 `{questions:[{question, header, multiSelect, options:[{label, description}]}]}`, 결과 `tool_result` 문구 `The user answered: "<질문>"="<답>"` + `toolUseResult.answers` |
-| 질문 창이 떠 있는 동안 `tool_use`가 이미 transcript에 있음 | ❓ 추정 | 실물 기록에서 `tool_use`가 답보다 수 분 먼저 기록됨. 창이 뜬 순간에 이미 있는지는 S1에서 확인 |
+| 질문 창이 떠 있는 동안 `tool_use`가 이미 transcript에 있음 | ✅ 확인 | S1(2026-10-23): 창이 떠 있는 동안 `AskUserQuestion` `tool_use` 레코드가 있고 세션 파일은 `waiting` / `input needed` |
 | 실제 답 방식 | ✅ 확인 | 최근 transcript 600개 중 질문 창 답 115: 선택지 83 · 직접 씀 32, 질문 여러 개 27회 |
-| 질문 창 키 동작 | 일부 확인 | 실행 파일: 화살표·Tab 이동, Enter 선택, "Type something."(`__other__`)·"Chat about this"(`__chat__`) 항목, 질문 여러 개는 탭 + "Ready to submit your answers?" 확인. 미리보기 배치에서는 숫자 키가 **이동만** 하고 Enter로 고름. 기본 배치의 숫자 키 동작은 S1 |
+| 질문 창 키 동작 | ✅ 확인 | S1(2026-10-23): 화살표로 포커스 이동, Enter로 고름, `Type something.` 줄은 포커스하면 바로 글자를 받음, 여러 개 고르기는 Space·Enter로 켜고 끔 + `Submit` 줄, 질문 여러 개는 Enter로 다음 질문, 끝에 확인 화면(기본 포커스 Submit). 표와 판정 규칙은 rulings "v1.2 답장" |
+| 빈 프롬프트 판정 | ⚠️ 제한 | S1: 빈 프롬프트에도 흐린 안내·제안 문구가 보임 → 흐림을 읽을 수 있는 tmux에서만 본문 질문 답장, Orca·Ghostty는 보기만 (R57) |
 | Ghostty로 키 보내기 | ✅ 사전 확인 | 1.3.1 sdef: `input text <글> to <terminal>`(붙여넣기처럼), `send key "enter" [modifiers] to <terminal>`. 실행은 S3 |
 | Ghostty 화면 읽기 | ✅ 확인 (일부) | 손쉬운 사용 API: 창마다 텍스트 영역 1개, 값 = 선택된 탭의 화면 글자. 실측은 손쉬운 사용 권한을 가진 Ghostty 안에서 한 것 → Agent Float 자신의 권한으로는 S3. 탭의 선택 여부는 sdef `tab.selected`로 앎 |
-| Orca로 키 보내기·화면 읽기 | ✅ 사전 확인 | 1.4.237 `terminal send --text --enter`(에이전트 프롬프트는 제출 관찰 가능), `terminal read --screen`(그려진 화면, `draft` = Orca 입력창 글). Enter 외 키는 S2 |
+| Orca로 키 보내기·화면 읽기 | ✅ 확인 | S2(2026-10-23, 1.4.237): `--text`는 글자 그대로, `--enter`는 CR, 화살표는 ESC 시퀀스 글자로 들어감. `read --screen --json`은 줄 목록과 Orca 입력창 `draft`, 스타일 정보 없음 |
 | tmux로 키 보내기·화면 읽기 | ✅ 알려진 기능 | 3.6a `send-keys`, `capture-pane`. 실측은 S1에서 같이 |
 | 세션 분포 | ✅ 확인 | 2026-10-23: Ghostty 3, Orca 5(2개는 Orca 팀 tmux 안) |
 
