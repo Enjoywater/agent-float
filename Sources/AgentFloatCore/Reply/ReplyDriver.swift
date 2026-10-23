@@ -19,11 +19,15 @@ public struct ReplyProgress: Equatable, Sendable {
     public var typedText: Bool
     /// 답 전체를 제출하는 Enter 를 눌렀는지. 이 뒤에 질문 창이 사라져야 정상적으로 끝난 것이다
     public var pressedSubmit: Bool
+    /// 지금 질문을 고르고 다음 질문으로 넘기는 Enter 를 눌렀는지. 다음 화면은 이 질문이 아니라 그 뒤 질문에서 찾는다 —
+    /// 앞부분과 선택지가 같은 두 질문이면 뒤 질문 화면이 앞 질문과 맞아 보여 앞 질문의 답을 넣게 된다
+    public var pressedNext: Bool
 
-    public init(question: Int = 0, typedText: Bool = false, pressedSubmit: Bool = false) {
+    public init(question: Int = 0, typedText: Bool = false, pressedSubmit: Bool = false, pressedNext: Bool = false) {
         self.question = question
         self.typedText = typedText
         self.pressedSubmit = pressedSubmit
+        self.pressedNext = pressedNext
     }
 }
 
@@ -98,8 +102,12 @@ public enum ReplyDriver {
         case let .choiceDialog(before):
             return dialogTransition(after: input, from: before, to: new)
         case .review:
-            guard input == .key(.enter), case .prompt = new else { return false }
-            return true
+            // 제출하자마자 Claude 가 다음 질문 창을 띄울 수 있다. 이 뒤로는 키를 보내지 않고 기록(G4)이 결과를 가린다
+            guard input == .key(.enter) else { return false }
+            switch new {
+            case .prompt, .choiceDialog: return true
+            case .review, .unrecognized: return false
+            }
         case let .prompt(draft):
             guard case let .prompt(after) = new else { return false }
             switch input {
@@ -179,6 +187,8 @@ public enum ReplyDriver {
         case .unrecognized:
             return .stuck("알 수 없는 화면")
         case let .choiceDialog(dialog):
+            // 제출한 뒤에 뜬 질문 창은 Claude 가 새로 물은 것이다. 거기에는 아무 키도 보내지 않고 기록(G4)으로 넘긴다
+            if progress.pressedSubmit { return .finished }
             return dialogMove(dialog, questions: questions, answers: answers, progress: &progress)
         }
     }
@@ -186,10 +196,12 @@ public enum ReplyDriver {
     private static func dialogMove(
         _ dialog: ChoiceDialog, questions: [ChoiceQuestion], answers: [ChoiceAnswer], progress: inout ReplyProgress
     ) -> ReplyMove {
-        guard let index = questions.firstIndex(where: { ClaudeScreen.matches(dialog, question: $0) }) else {
+        let start = progress.question + (progress.pressedNext ? 1 : 0)
+        guard start < questions.count,
+              let index = questions[start...].indices.first(where: { ClaudeScreen.matches(dialog, question: questions[$0]) }) else {
             return .stuck("다른 질문 창이 떠 있음")
         }
-        guard index >= progress.question else { return .stuck("앞 질문으로 돌아감") }
+        progress.pressedNext = false
         if index != progress.question {
             progress.question = index
             progress.typedText = false
@@ -205,8 +217,7 @@ public enum ReplyDriver {
             guard !question.multiSelect, optionRows.indices.contains(choice) else { return .stuck("고를 수 없는 선택지") }
             let target = optionRows[choice]
             if focus != target { return step(from: focus, to: target) }
-            if submitsNow { progress.pressedSubmit = true }
-            return .send(.key(.enter))
+            return pressEnter(submits: submitsNow, progress: &progress)
         case let .other(text):
             guard !question.multiSelect else { return .stuck("여러 개 고르기의 직접 입력은 보내지 않음") }
             guard isTypable(text) else { return .stuck("입력할 수 없는 글자가 있음") }
@@ -218,8 +229,7 @@ public enum ReplyDriver {
                 return .send(.text(text))
             }
             guard progress.typedText, ClaudeScreen.sameText(dialog.otherDraft, text) else { return .stuck("칸에 다른 글이 있음") }
-            if submitsNow { progress.pressedSubmit = true }
-            return .send(.key(.enter))
+            return pressEnter(submits: submitsNow, progress: &progress)
         case let .options(chosen):
             guard question.multiSelect, chosen.allSatisfy(optionRows.indices.contains) else { return .stuck("고를 수 없는 선택지") }
             guard dialog.otherDraft.isEmpty, dialog.rows.allSatisfy({ $0.kind != .other || !$0.isChecked }) else {
@@ -232,8 +242,14 @@ public enum ReplyDriver {
             }
             guard let submit = dialog.rows.firstIndex(where: { $0.kind == .submit }) else { return .stuck("Submit 줄이 없음") }
             if focus != submit { return step(from: focus, to: submit) }
-            return .send(.key(.enter))
+            return pressEnter(submits: false, progress: &progress)
         }
+    }
+
+    /// 질문을 마치는 Enter. 답 전체를 제출하는지, 다음 질문(또는 확인 화면)으로 넘기는지를 기록해 다음 화면을 바르게 읽게 한다
+    private static func pressEnter(submits: Bool, progress: inout ReplyProgress) -> ReplyMove {
+        if submits { progress.pressedSubmit = true } else { progress.pressedNext = true }
+        return .send(.key(.enter))
     }
 
     private static func step(from focus: Int, to target: Int) -> ReplyMove {

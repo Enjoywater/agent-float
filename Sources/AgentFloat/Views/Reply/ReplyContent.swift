@@ -135,7 +135,7 @@ struct ReplyContent: View {
                     ReplyField(
                         placeholder: ReplyCopy.replyPlaceholder,
                         text: Binding(get: { editor.replyText }, set: { text in center.edit { $0.setReply(text) } }),
-                        focusRequest: center.fieldFocusRequest
+                        focus: center.fieldFocus
                     )
                     .padding(.top, ReplyLayout.optionsToField)
                     blockHint(editor.block)
@@ -177,7 +177,7 @@ struct ReplyContent: View {
                 ReplyField(
                     placeholder: ReplyCopy.otherPlaceholder,
                     text: Binding(get: { editor.otherText }, set: { text in center.edit { $0.setOther(text) } }),
-                    focusRequest: center.fieldFocusRequest
+                    focus: center.fieldFocus
                 )
                 .padding(.top, ReplyLayout.optionsToField)
                 blockHint(editor.block)

@@ -25,6 +25,20 @@ import Testing
     private static let twoQuestions = PendingPrompt.choices(id: "toolu_02", questions: [deployQuestion, cadenceQuestion])
     private static let body = PendingPrompt.text(id: "a-2", message: "다음 작업을 진행할까요?")
 
+    private static func yesNo(_ text: String) -> ChoiceQuestion {
+        ChoiceQuestion(text: text, header: "확인", multiSelect: false, options: ["예", "아니오"].map {
+            ChoiceOption(label: $0, description: nil, hasPreview: false)
+        })
+    }
+
+    private static func dialog(_ question: ChoiceQuestion, focus: Int) -> ScreenState {
+        var rows = question.options.enumerated().map { index, option in
+            ChoiceRow(label: option.label, isFocused: index == focus, isChecked: false, kind: .option)
+        }
+        rows.append(ChoiceRow(label: "Type something.", isFocused: focus == rows.count, isChecked: false, kind: .other))
+        return .choiceDialog(ChoiceDialog(questionText: question.text, rows: rows, otherDraft: ""))
+    }
+
     private func state(_ name: String) throws -> ScreenState {
         ClaudeScreen.interpret(try screenFixture(name))
     }
@@ -165,6 +179,28 @@ import Testing
         #expect(!progress.pressedSubmit)
         #expect(move(Self.twoQuestions, draft, &progress, try state("choice-two-questions-q2.txt")) == .send(.key(.down)))
         #expect(progress.question == 1)
+    }
+
+    /// 앞 24자와 선택지가 같은 두 질문. 앞 질문에서 Enter 를 보낸 뒤 나온 화면은 다음 질문으로 봐야 한다 (최종 리뷰 I3)
+    @Test func lookalikeSecondQuestionGetsItsOwnAnswer() {
+        let first = Self.yesNo("다음 단계를 지금 그대로 진행해도 될까요? — 캐시 만료 쪽")
+        let second = Self.yesNo("다음 단계를 지금 그대로 진행해도 될까요? — 검색 색인 쪽")
+        let prompt = PendingPrompt.choices(id: "toolu_03", questions: [first, second])
+        let draft = ReplyDraft.choices([.option(0), .option(1)])
+        var progress = ReplyProgress()
+        #expect(move(prompt, draft, &progress, Self.dialog(first, focus: 0)) == .send(.key(.enter)))
+        #expect(move(prompt, draft, &progress, Self.dialog(second, focus: 0)) == .send(.key(.down)))
+        #expect(progress.question == 1)
+        #expect(move(prompt, draft, &progress, Self.dialog(second, focus: 1)) == .send(.key(.enter)))
+    }
+
+    /// 제출 Enter 뒤 Claude 가 곧바로 다음 질문 창을 띄우는 흐름. 키는 더 보내지 않고 기록(G4)으로 넘긴다 (최종 리뷰 I4)
+    @Test func followUpDialogAfterSubmitHandsOverToRecord() throws {
+        let followUp = Self.dialog(Self.yesNo("이어서 테스트도 돌릴까요?"), focus: 0)
+        var progress = ReplyProgress(question: 0, typedText: false, pressedSubmit: true)
+        #expect(move(Self.single, .choices([.option(0)]), &progress, followUp) == .finished)
+        #expect(ReplyDriver.isExpected(after: .key(.enter), from: .review(focusedOnSubmit: true), to: followUp))
+        #expect(!ReplyDriver.isExpected(after: .key(.down), from: .review(focusedOnSubmit: true), to: followUp))
     }
 
     @Test func reviewSubmits() throws {

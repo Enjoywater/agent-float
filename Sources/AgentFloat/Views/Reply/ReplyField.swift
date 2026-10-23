@@ -5,7 +5,7 @@ import SwiftUI
 struct ReplyField: View {
     let placeholder: String
     @Binding var text: String
-    let focusRequest: Int
+    let focus: FieldFocus
 
     @FocusState private var isFocused: Bool
     @Environment(\.colorScheme) private var scheme
@@ -29,7 +29,8 @@ struct ReplyField: View {
                         .padding(-1.5)
                 }
             }
-            .onChange(of: focusRequest) { isFocused = true }
-            .onAppear { if focusRequest > 0 { isFocused = true } }
+            // 끄는 요청도 따른다. 같은 칸이 다른 세션에 다시 쓰일 때 앞 세션의 커서가 남지 않게 한다
+            .onChange(of: focus) { isFocused = focus.wanted }
+            .onAppear { isFocused = focus.wanted }
     }
 }

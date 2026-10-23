@@ -144,6 +144,16 @@ private struct StubConsole: TerminalConsole {
         #expect(await runner.calls.map(\.arguments) == [["terminal", "read", "--terminal", handle, "--screen", "--json"]])
     }
 
+    /// `screen-unavailable` 은 렌더된 화면이 아니라 겹쳐 쓴 조각이 쌓인 누적 출력이다. 없으면 그 구분을 모르는 옛 Orca 다. 둘 다 화면으로 믿지 않는다 (최종 리뷰 I2)
+    @Test func orcaReadsOnlyARenderedScreen() throws {
+        let plain = String(decoding: try fixtureData("orca-read-screen", "json"), as: UTF8.self)
+        let unavailable = plain.replacingOccurrences(of: "\"source\": \"screen\"", with: "\"source\": \"screen-unavailable\"")
+        let absent = plain.replacingOccurrences(of: #",\s*"source": "screen""#, with: "", options: .regularExpression)
+        #expect(unavailable != plain && absent != plain)
+        #expect(throws: NavigationError.self) { try OrcaCLI.parseScreen(Data(unavailable.utf8)) }
+        #expect(throws: NavigationError.self) { try OrcaCLI.parseScreen(Data(absent.utf8)) }
+    }
+
     @Test func orcaWithoutHandleIsReadOnly() async {
         let runner = FakeCommandRunner { _ in "" }
         let session = waiting(.orca(tabId: "t1", leafId: "l1", handle: nil), app: .orca)

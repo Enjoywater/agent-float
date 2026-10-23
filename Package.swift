@@ -17,6 +17,8 @@ let package = Package(
             dependencies: ["AgentFloatCore"],
             resources: [.copy("Fixtures")]
         ),
+        // 답장 화면 상태(ReplyCenter)는 앱 타깃에 있어 따로 둔다
+        .testTarget(name: "AgentFloatTests", dependencies: ["AgentFloat", "AgentFloatCore"]),
     ],
     swiftLanguageModes: [.v6]
 )

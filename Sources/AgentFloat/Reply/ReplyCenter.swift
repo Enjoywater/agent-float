@@ -37,8 +37,8 @@ final class ReplyCenter {
     private(set) var failures: [SessionKey: DeliveryOutcome] = [:]
     /// 열려 있는 동안 생긴 변화(질문 바뀜 등)를 띠로 알린다
     private(set) var notice: ReplyCopy.Strip?
-    /// 값이 바뀔 때마다 입력 칸에 커서를 둔다. 본문 질문은 열자마자 쓸 수 있어야 한다
-    private(set) var fieldFocusRequest = 0
+    /// 입력 칸 커서. 열 때마다 질문 종류로 새로 정한다 — 본문 질문은 열자마자 쓸 수 있게 켜고, 질문 창은 숫자 키가 선택지를 고르게 끈다
+    private(set) var fieldFocus = FieldFocus()
 
     /// 내용 높이가 바뀌어 창 크기를 다시 재야 할 때
     @ObservationIgnored var onChange: (() -> Void)?
@@ -48,6 +48,8 @@ final class ReplyCenter {
 
     @ObservationIgnored private let backend: ReplyBackend
     @ObservationIgnored private var autoReturnTask: Task<Void, Never>?
+    /// 보내는 중인 세션과 그 단계. 화면을 닫아도 보내기는 계속되므로, 다시 열면 이 단계를 보여 주고 두 번째 보내기를 막는다 (설계 4.4 "같은 세션에 동시에 두 번 보내지 않음")
+    @ObservationIgnored private var inFlight: [SessionKey: DeliveryStage] = [:]
 
     init(backend: ReplyBackend) {
         self.backend = backend
@@ -73,10 +75,14 @@ final class ReplyCenter {
         autoReturnTask?.cancel()
         openSession = session
         if let prompt = session.prompt, editors[prompt.id] == nil { editors[prompt.id] = ReplyEditor(prompt: prompt) }
-        phase = failure.map(ReplyPhase.result) ?? .editing
+        if let stage = inFlight[session.key] {
+            phase = .sending(stage)
+        } else {
+            phase = failure.map(ReplyPhase.result) ?? .editing
+        }
         notice = nil
         refreshAvailability()
-        if case .text? = session.prompt, failure == nil { fieldFocusRequest += 1 }
+        fieldFocus.set(phase == .editing && Self.isBodyQuestion(session.prompt))
     }
 
     func close() {
@@ -84,6 +90,7 @@ final class ReplyCenter {
         openSession = nil
         phase = .editing
         notice = nil
+        fieldFocus.set(false)
     }
 
     func refreshAvailability() {
@@ -107,15 +114,27 @@ final class ReplyCenter {
     }
 
     func requestFieldFocus() {
-        fieldFocusRequest += 1
+        fieldFocus.set(true)
+    }
+
+    /// Tab·esc 로 칸에서 나갔을 때. 요청을 끄지 않으면 다시 그려지는 칸이 커서를 도로 가져간다
+    func releaseFieldFocus() {
+        fieldFocus.set(false)
+    }
+
+    private static func isBodyQuestion(_ prompt: PendingPrompt?) -> Bool {
+        if case .text? = prompt { true } else { false }
     }
 
     // MARK: 편집
 
     func edit(_ change: (inout ReplyEditor) -> Void) {
         guard phase == .editing, let id = openSession?.prompt?.id, var editor = editors[id] else { return }
+        let step = editor.step
         change(&editor)
         editors[id] = editor
+        // 앞 질문에서 칸에 있던 커서가 다음 질문으로 넘어가면 숫자 키가 그 질문의 선택지 대신 글자가 된다
+        if editor.step != step { fieldFocus.set(false) }
         onChange?()
     }
 
@@ -138,7 +157,8 @@ final class ReplyCenter {
     func send() {
         // 가능 여부는 비동기로 판정되어 아직 모를 수 있다. 보기만으로 확정된 경우만 막고, 나머지는 전달기의 G2 가 다시 확인한다
         guard phase == .editing, let session = openSession, let prompt = session.prompt, let draft = editor?.draft,
-              availability[session.key].map({ $0 == .ready }) ?? true else { return }
+              inFlight[session.key] == nil, availability[session.key].map({ $0 == .ready }) ?? true else { return }
+        inFlight[session.key] = .sameQuestion
         phase = .sending(.sameQuestion)
         onChange?()
         let backend = backend
@@ -154,12 +174,15 @@ final class ReplyCenter {
     }
 
     private func reached(_ stage: DeliveryStage, for key: SessionKey) {
+        guard inFlight[key] != nil else { return }
+        inFlight[key] = stage
         guard openKey == key, case .sending = phase else { return }
         phase = .sending(stage)
     }
 
     private func finish(_ outcome: DeliveryOutcome, session: AgentSession, prompt: PendingPrompt) {
         DebugLog.write("reply outcome session=\(session.key.sessionId) outcome=\(outcome)")
+        inFlight[session.key] = nil
         switch outcome {
         case .delivered, .notSent(.alreadyAnswered), .notSent(.sessionEnded):
             editors[prompt.id] = nil
@@ -224,6 +247,7 @@ final class ReplyCenter {
             editors[prompt.id] = ReplyEditor(prompt: prompt)
             phase = .editing
             notice = ReplyCopy.questionChanged
+            fieldFocus.set(Self.isBodyQuestion(prompt))
             refreshAvailability()
             onChange?()
             return
@@ -240,5 +264,17 @@ final class ReplyCenter {
             self.close()
             self.onAutoClose?()
         }
+    }
+}
+
+/// 입력 칸 커서 요청. `serial` 이 바뀌면 이미 그려진 칸이, 새로 나타난 칸은 나타날 때 `wanted` 를 따른다.
+/// 숫자 키는 커서가 칸에 있으면 글자가 되므로, 커서가 앞 세션·앞 질문에서 넘어오면 고른 것과 다른 답이 보내진다(최종 리뷰 C1)
+struct FieldFocus: Equatable {
+    private(set) var serial = 0
+    private(set) var wanted = false
+
+    mutating func set(_ wanted: Bool) {
+        serial += 1
+        self.wanted = wanted
     }
 }

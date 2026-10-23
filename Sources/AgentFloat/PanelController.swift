@@ -631,6 +631,9 @@ final class PanelController: NSObject {
         let keyWindow = presentation.replyPlacement == .card ? card.panel : panel
         keyWindow.acceptsKeyInput = true
         keyWindow.makeKey()
+        // 창이 처음 보일 때 AppKit 이 첫 입력 칸을 스스로 고른다(실측: 옆 카드). 질문 창에서 커서가 칸에 있으면 숫자 키가 선택지 대신 글자가 되므로,
+        // 입력 칸을 쓰라는 요청이 없으면 비운다 (최종 리뷰 C1)
+        if !replies.fieldFocus.wanted, keyWindow.firstResponder is NSTextView { keyWindow.makeFirstResponder(nil) }
         DebugLog.write("reply open session=\(session.key.sessionId) key=\(panel.isKeyWindow) front=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil")")
         guard DebugLog.isEnabled else { return }
         // 키 입력이 패널에 머무는지는 실행 중에만 알 수 있다 (실측 S4)
@@ -767,7 +770,12 @@ final class PanelController: NSObject {
         let fieldFocused = fieldEditor != nil
         let marked = fieldEditor?.hasMarkedText() ?? false
         if event.keyCode == KeyCode.tab, !marked {
-            if fieldFocused { keyWindow.makeFirstResponder(nil) } else { replies.requestFieldFocus() }
+            if fieldFocused {
+                keyWindow.makeFirstResponder(nil)
+                replies.releaseFieldFocus()
+            } else {
+                replies.requestFieldFocus()
+            }
             return true
         }
         let modifiers = event.modifierFlags.intersection([.command, .control, .option])
@@ -794,6 +802,7 @@ final class PanelController: NSObject {
             return false
         case .leaveField:
             keyWindow.makeFirstResponder(nil)
+            replies.releaseFieldFocus()
             return true
         case .back:
             if case .sending = replies.phase { return true }
