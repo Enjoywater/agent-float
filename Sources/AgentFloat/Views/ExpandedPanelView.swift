@@ -11,16 +11,27 @@ struct ExpandedPanelView: View {
     let onActivate: (AgentSession) -> Void
     var note: (AgentSession) -> RowNote? = { _ in nil }
     var inline: InlineReply? = nil
+    var selectedKey: SessionKey? = nil
 
     var body: some View {
         // 경과 시간은 분 단위라 갱신 주기와 상관없이 따로 시계를 둔다. 펼친 동안에만 돌아 접힌 상태의 유휴 CPU에는 영향이 없다
         TimelineView(.periodic(from: .now, by: Motion.labelTick)) { context in
             ScrollView(.vertical) {
-                SessionListContent(groups: groups, failed: failed, unseen: unseen, now: context.date, canNavigate: canNavigate, onActivate: onActivate, note: note, inline: inline)
+                SessionListContent(groups: groups, failed: failed, unseen: unseen, now: context.date, canNavigate: canNavigate, onActivate: onActivate, note: note, inline: inline, selectedKey: selectedKey)
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(height: listHeight)
         }
+    }
+}
+
+/// 목록 줄의 위치(패널 표면 좌표). 옆 카드의 위쪽을 고른 줄에 맞추는 데 쓴다 (설계 4.5 B)
+struct RowFrameKey: PreferenceKey {
+    static let space = "panelSurface"
+    static let defaultValue: [SessionKey: CGRect] = [:]
+
+    static func reduce(value: inout [SessionKey: CGRect], nextValue: () -> [SessionKey: CGRect]) {
+        value.merge(nextValue()) { _, latest in latest }
     }
 }
 
@@ -34,6 +45,7 @@ struct SessionListContent: View {
     let onActivate: (AgentSession) -> Void
     var note: (AgentSession) -> RowNote? = { _ in nil }
     var inline: InlineReply? = nil
+    var selectedKey: SessionKey? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -77,8 +89,13 @@ struct SessionListContent: View {
                         canNavigate: canNavigate(session),
                         now: now,
                         onActivate: { onActivate(session) },
-                        note: note(session)
+                        note: note(session),
+                        isSelected: session.key == selectedKey
                     )
+                    // 옆 카드를 이 줄에 맞춰 띄우려면 화면상 위치를 알아야 한다
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: RowFrameKey.self, value: [session.key: proxy.frame(in: .named(RowFrameKey.space))])
+                    })
                     // 한 줄이 열려 있으면 나머지는 물러나 시선이 그 줄에 머물게 한다 (설계 4.5 A)
                     .opacity(inline?.center.openKey == nil ? 1 : 0.55)
                 }

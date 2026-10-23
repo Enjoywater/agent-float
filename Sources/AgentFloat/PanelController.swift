@@ -50,7 +50,11 @@ final class PanelPresentation {
     /// 화면을 다시 그릴 일이 없는 값이라 관찰하지 않는다
     @ObservationIgnored var isDragging = false
     @ObservationIgnored var openReply: ((AgentSession) -> Void)?
+    /// 메인 유리가 뒤 화면을 보고 고른 톤. 옆 카드 창의 유리는 스스로 뒤를 읽지 않고 창 appearance 만 따르므로(실측) 이 톤을 넘겨 맞춘다
+    @ObservationIgnored var onGlassTone: ((GlassTone) -> Void)?
     @ObservationIgnored var replyActions = ReplyActions()
+    /// 목록 줄의 위치(창 위쪽 기준). 옆 카드를 그 줄에 맞추는 데만 쓰므로 관찰하지 않는다
+    @ObservationIgnored var rowFrames: [SessionKey: CGRect] = [:]
 }
 
 enum PanelContent {
@@ -70,6 +74,7 @@ final class PanelController: NSObject {
 
     private let model: AppModel
     private let replies: ReplyCenter
+    private let card: ReplyCardController
     private let presentation: PanelPresentation
     private let hoverTracker = HoverTracker()
     private let pillMeasurer = NSHostingView(rootView: PillMeasure(summary: AppModel.emptySummary))
@@ -106,6 +111,7 @@ final class PanelController: NSObject {
     init(model: AppModel, replies: ReplyCenter) {
         self.model = model
         self.replies = replies
+        card = ReplyCardController(replies: replies)
         let presentation = PanelPresentation()
         presentation.glassContrast = GlassContrast.resolve(
             override: ProcessInfo.processInfo.environment["AGENT_FLOAT_CONTRAST"],
@@ -133,13 +139,16 @@ final class PanelController: NSObject {
         lastAppliedFrame = frame
         super.init()
 
-        // 패널이 키 창이 되지 않아도 hover 를 받으려면 activeAlways 가 필요하다
-        host.addTrackingArea(NSTrackingArea(
-            rect: .zero,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: hoverTracker,
-            userInfo: nil
-        ))
+        // 패널이 키 창이 되지 않아도 hover 를 받으려면 activeAlways 가 필요하다.
+        // 옆 카드도 같은 추적기를 써서, 패널에서 나와 0.4초(접힘 지연) 안에 카드로 들어가면 접힘이 취소된다 (설계 4.5 B: 사이 틈을 지나는 동안 접지 않음)
+        for view in [host, card.panel.contentView].compactMap(\.self) {
+            view.addTrackingArea(NSTrackingArea(
+                rect: .zero,
+                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                owner: hoverTracker,
+                userInfo: nil
+            ))
+        }
         hoverTracker.onChange = { [weak self] inside in self?.hoverChanged(inside) }
         model.onChange = { [weak self] in self?.modelDidChange() }
 
@@ -161,6 +170,9 @@ final class PanelController: NSObject {
         )
         NotificationCenter.default.addObserver(
             self, selector: #selector(panelDidResignKey(_:)), name: NSWindow.didResignKeyNotification, object: panel
+        )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(panelDidResignKey(_:)), name: NSWindow.didResignKeyNotification, object: card.panel
         )
         connectReplies()
     }
@@ -322,7 +334,8 @@ final class PanelController: NSObject {
 
     /// 창 크기가 바뀌는 동안 진입·이탈 알림을 놓칠 수 있어 실제 커서 위치로 다시 맞춘다
     private func syncHover() {
-        isHovering = panel.frame.contains(NSEvent.mouseLocation)
+        let pointer = NSEvent.mouseLocation
+        isHovering = panel.frame.contains(pointer) || (card.isVisible && card.panel.frame.contains(pointer))
         guard !presentation.isDragging else { return }
         scheduleHoverTransition()
     }
@@ -385,6 +398,7 @@ final class PanelController: NSObject {
         if replies.openKey != nil || presentation.content == .reply {
             // 쓴 답은 남기고 다음 펼침은 목록으로 연다 (설계 4.7 접힘)
             replies.close()
+            card.hide()
             presentation.content = .list
             releaseKeyInput(restoreFocus: false)
         }
@@ -563,6 +577,7 @@ final class PanelController: NSObject {
 
     private func connectReplies() {
         presentation.openReply = { [weak self] session in self?.openReply(session) }
+        presentation.onGlassTone = { [weak self] tone in self?.card.setTone(tone) }
         presentation.replyActions = ReplyActions(
             back: { [weak self] in self?.closeReply(restoreFocus: true) },
             primary: { [weak self] in self?.replyPrimary() },
@@ -585,7 +600,7 @@ final class PanelController: NSObject {
     private var holdsReplyOpen: Bool {
         guard replies.openKey != nil else { return false }
         if case .sending = replies.phase { return true }
-        return panel.isKeyWindow || debugHoldsReply
+        return panel.isKeyWindow || card.panel.isKeyWindow || debugHoldsReply
     }
 
     private func openReply(_ session: AgentSession) {
@@ -605,14 +620,17 @@ final class PanelController: NSObject {
             withAnimation(isReduced ? Motion.crossfade : Motion.spring) {
                 presentation.content = .reply
             }
-        case .inline, .card:
+        case .inline:
             withAnimation(isReduced ? Motion.crossfade : Motion.spring) {
                 resizeExpanded(width: ReplyLayout.width, contentHeight: measureListContent())
             }
+        case .card:
+            showCard(for: session)
         }
         // 사용자가 그 줄을 눌러 답하려는 뜻을 밝혔으므로 이때만 키 입력을 받는다. 앱 자체는 활성화하지 않는다
-        panel.acceptsKeyInput = true
-        panel.makeKey()
+        let keyWindow = presentation.replyPlacement == .card ? card.panel : panel
+        keyWindow.acceptsKeyInput = true
+        keyWindow.makeKey()
         DebugLog.write("reply open session=\(session.key.sessionId) key=\(panel.isKeyWindow) front=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil")")
         guard DebugLog.isEnabled else { return }
         // 키 입력이 패널에 머무는지는 실행 중에만 알 수 있다 (실측 S4)
@@ -631,11 +649,15 @@ final class PanelController: NSObject {
 
     /// 답장 상태는 이미 닫힌 뒤다. 배치에 상관없이 목록 폭·높이와 키 입력을 되돌린다
     private func afterReplyClosed(restoreFocus: Bool) {
+        let hadCard = card.isVisible
+        card.hide()
         withAnimation(isReduced ? Motion.crossfade : Motion.spring) {
             presentation.content = .list
         }
         resizeExpanded(width: Layout.panelWidth, contentHeight: measureListContent())
         releaseKeyInput(restoreFocus: restoreFocus)
+        // 카드 위에 있던 커서는 카드가 사라져도 나감 알림을 받지 못한다
+        if hadCard { syncHover() }
     }
 
     /// 줄 안 배치는 목록 안에서 열려 있으므로 그 내용까지 함께 잰다
@@ -647,6 +669,20 @@ final class PanelController: NSObject {
         )
     }
 
+    /// 고른 줄 높이에 맞춰 패널 반대쪽에 카드를 띄운다. 줄 위치를 아직 모르면 요약 줄 바로 아래에 맞춘다
+    private func showCard(for session: AgentSession, contentHeight: CGFloat? = nil) {
+        let visible = Self.visibleFrame(for: panel.frame)
+        let measured = contentHeight.map { $0 + ReplyCardController.padding * 2 } ?? card.measureHeight(for: session)
+        let height = min(measured, floor(visible.height * Layout.maxHeightRatio))
+        let rowTop = presentation.rowFrames[session.key].map { panel.frame.maxY - $0.minY } ?? panel.frame.maxY - Layout.panelChromeHeight
+        let frame = PanelGeometry.cardFrame(
+            panel: panel.frame, rowTop: rowTop, size: CGSize(width: ReplyLayout.width, height: height),
+            trailing: presentation.anchorsTrailing, visible: visible
+        )
+        card.setContrast(presentation.glassContrast)
+        card.show(frame: frame, actions: presentation.replyActions, reduced: isReduced)
+    }
+
     private var inlineReply: InlineReply? {
         guard presentation.replyPlacement == .inline, replies.openKey != nil else { return nil }
         return InlineReply(center: replies, actions: presentation.replyActions)
@@ -654,9 +690,11 @@ final class PanelController: NSObject {
 
     /// 키 창을 내려놓고 답장 화면을 열기 전 앱이 다시 키 입력을 받게 한다
     private func releaseKeyInput(restoreFocus: Bool) {
-        let wasKey = panel.isKeyWindow
-        panel.acceptsKeyInput = false
-        if wasKey { panel.resignKey() }
+        for window in [panel, card.panel] {
+            let wasKey = window.isKeyWindow
+            window.acceptsKeyInput = false
+            if wasKey { window.resignKey() }
+        }
         defer { previousApp = nil }
         guard restoreFocus, let app = previousApp, app != NSRunningApplication.current, !app.isTerminated else { return }
         app.activate()
@@ -669,8 +707,10 @@ final class PanelController: NSObject {
         case .panel:
             guard presentation.content == .reply else { return }
             resizeExpanded(width: ReplyLayout.width, contentHeight: measureReply())
-        case .inline, .card:
+        case .inline:
             resizeExpanded(width: ReplyLayout.width, contentHeight: measureListContent())
+        case .card:
+            if let session = replies.openSession { showCard(for: session) }
         }
     }
 
@@ -700,6 +740,10 @@ final class PanelController: NSObject {
 
     /// 그려진 내용이 잰 값과 다르면 그 값으로 다시 맞춘다. 내용 높이는 창 높이와 무관해 맞춘 뒤 다시 바뀌지 않는다
     private func replyContentRendered(_ height: CGFloat) {
+        if presentation.replyPlacement == .card, card.isVisible, let session = replies.openSession, height > 0 {
+            showCard(for: session, contentHeight: ceil(height) + ReplyFooter.height)
+            return
+        }
         guard phase == .expanded, presentation.content == .reply, height > 0 else { return }
         let total = ReplyHeader.height + ceil(height) + ReplyFooter.height
         guard abs(total - presentation.listHeight) > 1 else { return }
@@ -718,12 +762,12 @@ final class PanelController: NSObject {
     /// ⏎·esc·숫자·Tab 을 텍스트 칸보다 먼저 본다. 한글 조합 중인지는 필드 편집기(`NSTextView`)에 묻는다 (설계 4.7 키 표).
     /// 이 키를 여기서 처리했으면 true — 텍스트 칸에 줄바꿈 등이 들어가지 않게 이벤트를 삼킨다
     private func handleKey(_ event: NSEvent) -> Bool {
-        guard replies.openKey != nil, panel.isKeyWindow else { return false }
-        let fieldEditor = panel.firstResponder as? NSTextView
+        guard replies.openKey != nil, let keyWindow = [panel, card.panel].first(where: \.isKeyWindow) else { return false }
+        let fieldEditor = keyWindow.firstResponder as? NSTextView
         let fieldFocused = fieldEditor != nil
         let marked = fieldEditor?.hasMarkedText() ?? false
         if event.keyCode == KeyCode.tab, !marked {
-            if fieldFocused { panel.makeFirstResponder(nil) } else { replies.requestFieldFocus() }
+            if fieldFocused { keyWindow.makeFirstResponder(nil) } else { replies.requestFieldFocus() }
             return true
         }
         let modifiers = event.modifierFlags.intersection([.command, .control, .option])
@@ -749,7 +793,7 @@ final class PanelController: NSObject {
         case .commitComposition, .passThrough:
             return false
         case .leaveField:
-            panel.makeFirstResponder(nil)
+            keyWindow.makeFirstResponder(nil)
             return true
         case .back:
             if case .sending = replies.phase { return true }
@@ -819,6 +863,8 @@ final class PanelController: NSObject {
     }
 
     private func beginDrag() {
+        // 카드는 패널 옆에 붙어 있어 패널이 움직이면 엉뚱한 자리에 남는다
+        if card.isVisible { closeReply(restoreFocus: false) }
         if !presentation.isDragging {
             presentation.isDragging = true
             hoverTask?.cancel()
@@ -913,6 +959,7 @@ final class PanelController: NSObject {
 
     func setGlassContrast(_ mode: GlassContrast) {
         presentation.glassContrast = mode
+        card.setContrast(mode)
         UserDefaults.standard.set(mode.rawValue, forKey: Self.contrastKey)
         DebugLog.write("glass contrast=\(mode.rawValue)")
     }

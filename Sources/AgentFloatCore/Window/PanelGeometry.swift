@@ -29,6 +29,15 @@ public enum PanelGeometry {
         return CGRect(origin: origin, size: expandedSize)
     }
 
+    /// 옆 카드(v1.2 설계 4.5 B). 패널이 붙은 화면 가장자리의 반대쪽에 띄우고, 위쪽은 고른 줄에 맞춘 뒤 화면 안으로 밀어 넣는다
+    public static func cardFrame(panel: CGRect, rowTop: CGFloat, size: CGSize, trailing: Bool, visible: CGRect, gap: CGFloat = 8) -> CGRect {
+        let x = trailing ? panel.minX - gap - size.width : panel.maxX + gap
+        var origin = CGPoint(x: x, y: rowTop - size.height)
+        origin.y = min(max(origin.y, visible.minY), visible.maxY - size.height)
+        origin.x = max(min(origin.x, visible.maxX - size.width), visible.minX)
+        return CGRect(origin: origin, size: size)
+    }
+
     /// 끌어 놓은 자리나 빠진 모니터 때문에 알약이 화면 밖으로 나가면 가장 덜 움직이는 쪽으로 화면 안에 밀어 넣는다.
     /// 시작할 때처럼 기본 위치로 되돌리면, 사용자가 방금 고른 자리를 버리게 된다
     public static func clamped(_ rect: CGRect, into visibleFrames: [CGRect]) -> CGRect {

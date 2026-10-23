@@ -16,6 +16,8 @@ struct SessionRow: View {
     var note: RowNote? = nil
     /// 줄 안 배치에서 펼친 줄은 바깥 상자가 배경을 깔므로 겹쳐 칠하지 않는다
     var showsBackground = true
+    /// 옆 카드가 이 줄의 답장을 보여 주는 중 (설계 4.5 B: 진한 주황 + 1pt 테두리)
+    var isSelected = false
 
     @State private var isHovered = false
     @Environment(\.colorScheme) private var colorScheme
@@ -46,8 +48,11 @@ struct SessionRow: View {
             // 대기 줄에 hover 하면 주황을 덮지 않고 겹쳐야 무엇을 가리키는지 계속 보인다
             if showsBackground {
                 ZStack {
-                    RoundedRectangle(cornerRadius: Layout.rowCornerRadius).fill(statusTint)
+                    RoundedRectangle(cornerRadius: Layout.rowCornerRadius).fill(isSelected ? Palette.waiting.opacity(0.26) : statusTint)
                     RoundedRectangle(cornerRadius: Layout.rowCornerRadius).fill(hoverTint)
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: Layout.rowCornerRadius).strokeBorder(Palette.waiting.opacity(0.55), lineWidth: 1)
+                    }
                 }
             }
         }

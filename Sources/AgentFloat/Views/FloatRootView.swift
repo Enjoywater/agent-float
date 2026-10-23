@@ -60,6 +60,7 @@ struct FloatRootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: corner)
+        .coordinateSpace(.named(RowFrameKey.space))
     }
 
     /// 접힘 = 캡슐(높이의 절반 반경), 펼침 = 반경 22 둥근 사각형. 요약 줄은 두 상태에서 같은 뷰라 morph 중에 미끄러지지 않는다
@@ -97,6 +98,7 @@ struct FloatRootView: View {
         // 위의 톤 덮어쓰기 바깥이어야 유리가 고른 톤 그대로를 읽는다
         .background(GlassToneProbe { tone in
             withAnimation(Motion.crossfade) { glassTone = tone }
+            presentation.onGlassTone?(tone)
         })
         // 유리가 줄어드는 동안 안쪽 글자가 유리 밖으로 삐져나오지 않게 한다
         .clipShape(RoundedRectangle(cornerRadius: radius))
@@ -126,8 +128,10 @@ struct FloatRootView: View {
                 onActivate: activate,
                 note: note,
                 inline: presentation.replyPlacement == .inline && replies.openKey != nil
-                    ? InlineReply(center: replies, actions: presentation.replyActions) : nil
+                    ? InlineReply(center: replies, actions: presentation.replyActions) : nil,
+                selectedKey: presentation.replyPlacement == .card ? replies.openKey : nil
             )
+            .onPreferenceChange(RowFrameKey.self) { frames in presentation.rowFrames = frames }
             .transition(reduced ? .opacity : .asymmetric(
                 insertion: .opacity.combined(with: .offset(x: -ReplyLayout.slideOffset)),
                 removal: .opacity
@@ -172,7 +176,7 @@ struct FloatRootView: View {
 }
 
 /// 모드를 바꿀 때만 톤이 생기거나 없어져, 그때 말고는 뷰 정체성이 바뀌지 않는다
-private struct PaintedText: ViewModifier {
+struct PaintedText: ViewModifier {
     let tone: GlassTone?
 
     func body(content: Content) -> some View {

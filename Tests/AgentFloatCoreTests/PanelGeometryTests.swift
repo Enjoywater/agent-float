@@ -114,4 +114,34 @@ import AgentFloatCore
         let pill = CGRect(x: 5000, y: 5000, width: 148, height: 28)
         #expect(PanelGeometry.clamped(pill, into: []) == pill)
     }
+
+    // MARK: 옆 카드 (v1.2 설계 4.5 B)
+
+    private static let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+
+    @Test func cardOpensAwayFromAnchoredEdge() {
+        let panel = CGRect(x: 1140, y: 400, width: 280, height: 480)
+        let card = PanelGeometry.cardFrame(panel: panel, rowTop: 820, size: CGSize(width: 320, height: 300), trailing: true, visible: Self.screen)
+        #expect(card.maxX == panel.minX - 8)
+        #expect(card.width == 320)
+    }
+
+    @Test func cardOpensRightOfLeadingPanel() {
+        let panel = CGRect(x: 20, y: 400, width: 280, height: 480)
+        let card = PanelGeometry.cardFrame(panel: panel, rowTop: 820, size: CGSize(width: 320, height: 300), trailing: false, visible: Self.screen)
+        #expect(card.minX == panel.maxX + 8)
+    }
+
+    @Test func cardAlignsToRowTop() {
+        let panel = CGRect(x: 1140, y: 400, width: 280, height: 480)
+        let card = PanelGeometry.cardFrame(panel: panel, rowTop: 820, size: CGSize(width: 320, height: 300), trailing: true, visible: Self.screen)
+        #expect(card.maxY == 820)
+    }
+
+    @Test func cardIsPushedOnScreen() {
+        let panel = CGRect(x: 1140, y: 20, width: 280, height: 300)
+        let card = PanelGeometry.cardFrame(panel: panel, rowTop: 200, size: CGSize(width: 320, height: 400), trailing: true, visible: Self.screen)
+        #expect(card.minY == Self.screen.minY)
+        #expect(card.height == 400)
+    }
 }
