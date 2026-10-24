@@ -10,7 +10,7 @@ public protocol GhosttyScreenReading: Sendable {
 
 public struct GhosttyConsole: TerminalConsole {
     /// 손쉬운 사용 API 의 값에는 흐림 정보가 없다 (R57)
-    public let readsFaintText = false
+    public let readsPromptInput = false
 
     private let runner: any CommandRunning
     private let screenReader: any GhosttyScreenReading

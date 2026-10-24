@@ -237,7 +237,7 @@ v1 설계 4.10(Liquid Glass 문법)과 지금 코드의 `Layout`(패널 280 · �
 | 질문 창이 떠 있는 동안 `tool_use`가 이미 transcript에 있음 | ✅ 확인 | S1(2026-10-23): 창이 떠 있는 동안 `AskUserQuestion` `tool_use` 레코드가 있고 세션 파일은 `waiting` / `input needed` |
 | 실제 답 방식 | ✅ 확인 | 최근 transcript 600개 중 질문 창 답 115: 선택지 83 · 직접 씀 32, 질문 여러 개 27회 |
 | 질문 창 키 동작 | ✅ 확인 | S1(2026-10-23): 화살표로 포커스 이동, Enter로 고름, `Type something.` 줄은 포커스하면 바로 글자를 받음, 여러 개 고르기는 Space·Enter로 켜고 끔 + `Submit` 줄, 질문 여러 개는 Enter로 다음 질문, 끝에 확인 화면(기본 포커스 Submit). 표와 판정 규칙은 rulings "v1.2 답장" |
-| 빈 프롬프트 판정 | ⚠️ 제한 | S1: 빈 프롬프트에도 흐린 안내·제안 문구가 보임 → 흐림을 읽을 수 있는 tmux에서만 본문 질문 답장, Orca·Ghostty는 보기만 (R57, R64). Task 9: tmux에서 흐린 제안 문구를 빈 칸으로 정확히 판정하고 보냄 |
+| 빈 프롬프트 판정 | ⚠️ 제한 | S1: 빈 프롬프트에도 흐린 안내·제안 문구가 보임 → 흐림을 읽을 수 있는 tmux에서만 본문 질문 답장, Orca·Ghostty는 보기만 (R57, R64). Task 9: tmux에서 흐린 제안 문구를 빈 칸으로 정확히 판정하고 보냄. 2026-10-24 (R77): Orca도 답함 — 입력 칸의 실제 글을 `draft`로 따로 줘서 가려냄. Ghostty는 아직 보기만 |
 | Ghostty로 키 보내기 | ✅ 확인 | 1.3.1 sdef: `input text <글> to <terminal>`(붙여넣기처럼), `send key "enter" [modifiers] to <terminal>`. S3: 화살표 키 이름은 `arrowUp`·`arrowDown`·`arrowLeft`·`arrowRight`. Task 9: 보이는 창의 선택된 탭에 직접 쓰기 답을 보내 기록 일치 (단계마다 osascript를 불러 tmux보다 느림) |
 | Ghostty 화면 읽기 | ✅ 확인 (보이는 창만) | S3: `open`으로 띄운 Agent Float 자신의 손쉬운 사용 권한으로 선택된 탭의 화면 글자를 읽음. 지금 데스크탑에 보이는 창만 읽히고, 창 식별자는 쓸 수 없어 진행 기호를 뗀 NFC 제목으로 짝지음(R62·R63). 글자 스타일이 없어 본문 질문은 보기만(R64). 탭 선택 여부는 sdef `tab.selected` |
 | Orca로 키 보내기·화면 읽기 | ✅ 확인 | S2(2026-10-23, 1.4.237): `--text`는 글자 그대로, `--enter`는 CR, 화살표는 ESC 시퀀스 글자로 들어감. `read --screen --json`은 줄 목록과 Orca 입력창 `draft`, 스타일 정보 없음. Task 9: 선택지·직접 쓰기 보내 기록 일치(약 1.6~2.8초), 본문 질문은 보기만 |

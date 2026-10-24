@@ -1,7 +1,7 @@
 # Orca·Ghostty 본문 질문 답장 — 조사와 설계 초안
 
 - 작성일: 2026-10-24
-- 상태: 초안 (tmux·Orca 실측 반영, Ghostty 실측 전, 사용자 승인 전)
+- 상태: Orca는 D로 구현함 (2026-10-24, R77). Ghostty는 실측 전·사용자 승인 전
 - 바탕: v1.2 설계(`2026-10-23-agent-float-v1.2-reply-design.md`)의 R57·R64. Orca·Ghostty에서는 답변 끝의 질문(본문 질문)에 보기만 됨
 
 ## 1. 문제

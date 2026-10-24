@@ -5,7 +5,7 @@ import Testing
 
 /// 보낸 입력 수에 따라 정해 둔 화면을 돌려주고, 보낸 입력을 남긴다
 private final class ScriptedConsole: TerminalConsole, Sendable {
-    let readsFaintText = true
+    let readsPromptInput = true
     private let verdict: ConsoleAvailability
     private let screens: @Sendable (Int) throws -> ConsoleScreen
     private let sent = Mutex<[ConsoleInput]>([])
@@ -259,6 +259,38 @@ private func deliver(
         try await Task.sleep(for: .milliseconds(100))
         #expect(console.inputs.count == afterReturn)
     }
+
+    /// Orca 에서 본문 질문에 답하는 전체 흐름: 안내 문구만 있는 빈 칸 → 넣은 글이 `draft` 로 보임 → Enter 뒤 `draft` 없음 (실측 S5 ④)
+    @Test func deliversBodyReplyThroughOrcaDraft() async {
+        let sends = Mutex(0)
+        let runner = FakeCommandRunner { call in
+            if call.arguments.contains("send") {
+                sends.withLock { $0 += 1 }
+                return #"{"ok":true,"result":{"send":{"accepted":true}}}"#
+            }
+            switch sends.withLock({ $0 }) {
+            case 0: return orcaScreenJSON(orcaPromptTail("❯\u{a0}Try \"create a util logging.py that...\""))
+            case 1: return orcaScreenJSON(orcaPromptTail("❯"), draft: "응, 진행해 줘")
+            default: return orcaScreenJSON(orcaPromptTail("❯"))
+            }
+        }
+        let session = AgentSession(
+            key: SessionKey(providerId: "claude-code", sessionId: "s1"), agentName: "Claude", title: "캐시 만료 정책 정리", cwd: "/Users/me/work",
+            status: .waiting, waitReason: .bodyQuestion, statusSince: Date(timeIntervalSince1970: 1_800_000_000), isStale: false, lastActivityAt: nil,
+            terminalApp: .orca, locator: .orca(tabId: "t1", leafId: "l1", handle: "term_00000000-0000-4000-8000-000000000002"), prompt: Self.bodyPrompt
+        )
+        let delivery = ReplyDelivery(
+            currentSessions: { [session] },
+            consoles: ConsoleRegistry([OrcaConsole(runner: runner)]),
+            answers: { _, _ in .text("응, 진행해 줘") },
+            timing: timing
+        )
+        let outcome = await delivery.deliver(.text("응, 진행해 줘"), prompt: Self.bodyPrompt, session: session) { _ in }
+        #expect(outcome == .delivered(.text("응, 진행해 줘")))
+        #expect(sends.withLock { $0 } == 2)
+    }
+
+    private static let bodyPrompt = PendingPrompt.text(id: "a-9", message: "다음 작업을 진행할까요?")
 
     @Test func deliversBodyReply() async throws {
         let body = PendingPrompt.text(id: "a-2", message: "다음 작업을 진행할까요?")

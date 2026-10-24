@@ -133,6 +133,6 @@ private func runner(listing: String = listing, placement: String, input: String 
     }
 
     @Test func ghosttyCannotReadFaintText() {
-        #expect(!GhosttyConsole(runner: runner(placement: ""), screenReader: reader()).readsFaintText)
+        #expect(!GhosttyConsole(runner: runner(placement: ""), screenReader: reader()).readsPromptInput)
     }
 }

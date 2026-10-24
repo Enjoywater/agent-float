@@ -136,8 +136,8 @@ public enum ConsoleAvailability: Equatable, Sendable {
 
 /// 터미널 하나에 키를 보내고 화면을 읽는 담당. 위치 정보(`TerminalLocator`) 종류마다 하나다
 public protocol TerminalConsole: Sendable {
-    /// 빈 입력 칸의 흐린 안내 문구를 가려낼 수 있는지. 못 하면 본문 질문에는 답하지 않는다 (R57)
-    var readsFaintText: Bool { get }
+    /// 입력 칸의 실제 글을 흐린 안내·제안 문구와 가려낼 수 있는지. 못 하면 본문 질문에는 답하지 않는다 (R57)
+    var readsPromptInput: Bool { get }
     func handles(_ session: AgentSession) -> Bool
     func availability(of session: AgentSession) async -> ConsoleAvailability
     func readScreen(of session: AgentSession) async throws -> ConsoleScreen
@@ -178,7 +178,7 @@ public struct ConsoleRegistry: Sendable {
         guard let console = console(for: session) else {
             return .readOnly(.unsupportedTerminal(Self.appName(session.terminalApp)))
         }
-        if case .text? = session.prompt, !console.readsFaintText {
+        if case .text? = session.prompt, !console.readsPromptInput {
             return .readOnly(.promptUnverifiable)
         }
         return await console.availability(of: session)

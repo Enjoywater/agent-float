@@ -57,16 +57,35 @@ public enum ClaudeScreen {
 
     public static func interpret(_ screen: ConsoleScreen) -> ScreenState {
         let lines = screen.lines
-        let promptIndex = lines.lastIndex(where: isPromptLine)
-        let headerIndex = lines.lastIndex(where: isHeaderLine)
-        // 맨 아래에 그려진 것이 지금의 화면이다. 위쪽 기록에 남은 옛 질문 창이나 입력 글을 읽지 않는다
-        if let headerIndex, promptIndex.map({ headerIndex > $0 }) ?? true {
-            return dialogState(Array(lines[(headerIndex + 1)...]))
-        }
-        if let promptIndex {
+        if let promptIndex = activePromptIndex(lines) {
             return .prompt(draft: promptDraft(screen, from: promptIndex))
         }
+        if let headerIndex = lines.lastIndex(where: isHeaderLine) {
+            return dialogState(Array(lines[(headerIndex + 1)...]))
+        }
         return .unrecognized
+    }
+
+    /// 입력 칸의 글을 화면과 따로 알려 주는 터미널(Orca `draft`, 실측 S5)에 쓴다. 그런 터미널의 화면 줄에 남은 입력 칸 글자는 흐린 안내·제안 문구뿐이라
+    /// 지우고 따로 받은 글을 넣는다. 질문 창이 떠 있으면 그 글이 어디에 쓰인 것인지 화면으로 확인할 수 없어 그대로 둔다 — 쓰던 글로 보고 보내지 않는다
+    public static func placingPromptInput(_ screen: ConsoleScreen) -> ConsoleScreen {
+        guard let index = activePromptIndex(screen.lines) else { return screen }
+        var lines = screen.lines
+        lines[index] = "❯\u{a0}" + (screen.composerDraft ?? "")
+        // 안내 문구가 감겨 이어진 줄도 입력 칸에 속한다
+        var next = index + 1
+        while next < lines.count, !lines[next].hasPrefix("─"), !lines[next].trimmingCharacters(in: .whitespaces).isEmpty {
+            lines[next] = ""
+            next += 1
+        }
+        return ConsoleScreen(lines: lines, faint: nil, composerDraft: nil)
+    }
+
+    /// 맨 아래에 그려진 것이 지금의 화면이다. 위쪽 기록에 남은 옛 입력 줄이나, 그 아래 질문 창이 떠 있는 화면이면 nil
+    private static func activePromptIndex(_ lines: [String]) -> Int? {
+        guard let promptIndex = lines.lastIndex(where: isPromptLine) else { return nil }
+        if let headerIndex = lines.lastIndex(where: isHeaderLine), headerIndex > promptIndex { return nil }
+        return promptIndex
     }
 
     /// 화면의 질문 문장 앞부분과 선택지(원래 라벨)가 순서까지 같아야 같은 질문이다

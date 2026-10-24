@@ -3,7 +3,7 @@ import Foundation
 /// tmux pane 에 키를 보내고 화면을 읽는다. 붙은 클라이언트가 없어도 pane 은 살아 있어 그대로 동작한다
 public struct TmuxConsole: TerminalConsole {
     /// `capture-pane -e` 가 SGR 을 함께 주므로 흐린 안내 문구를 가려낼 수 있다 (R57)
-    public let readsFaintText = true
+    public let readsPromptInput = true
 
     private let runner: any CommandRunning
     private let executable: String?

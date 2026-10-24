@@ -2,8 +2,8 @@ import Foundation
 
 /// Orca 터미널에 키를 보내고 화면을 읽는다. 화살표는 키 이름이 아니라 ESC 시퀀스 글자로 보내야 들어간다 (실측 ⑫)
 public struct OrcaConsole: TerminalConsole {
-    /// `read --screen` 이 글자만 주고 스타일은 주지 않는다 (실측 ⑫)
-    public let readsFaintText = false
+    /// `read --screen` 은 스타일을 주지 않지만, 입력 칸의 실제 글을 화면 줄에서 빼 `draft` 로 따로 준다 (실측 S5 ④)
+    public let readsPromptInput = true
 
     private let runner: any CommandRunning
 
@@ -23,7 +23,7 @@ public struct OrcaConsole: TerminalConsole {
     public func readScreen(of session: AgentSession) async throws -> ConsoleScreen {
         guard let handle = handle(of: session) else { throw NavigationError.terminalNotFound }
         let output = try await runner.run(OrcaCLI.executable, ["terminal", "read", "--terminal", handle, "--screen", "--json"])
-        return try OrcaCLI.parseScreen(Data(output.utf8))
+        return ClaudeScreen.placingPromptInput(try OrcaCLI.parseScreen(Data(output.utf8)))
     }
 
     public func send(_ input: ConsoleInput, to session: AgentSession) async throws {
