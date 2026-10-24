@@ -133,6 +133,16 @@ import Testing
         #expect(editor.draft == .text("응, 진행해 줘"))
     }
 
+    /// 앞뒤 공백은 보낼 글에서 뺀다. Claude Code 가 공백을 다듬어 기록하면 보낸 글과 달라 보여 실패로 표시된다 (최종 리뷰 M1)
+    @Test func surroundingWhitespaceIsTrimmedFromTheDraft() {
+        var body = ReplyEditor(prompt: Self.body)
+        body.setReply("  응, 진행해 줘 ")
+        #expect(body.draft == .text("응, 진행해 줘"))
+        var dialog = ReplyEditor(prompt: Self.single)
+        dialog.setOther(" 잠시 대기  ")
+        #expect(dialog.draft == .choices([.other("잠시 대기")]))
+    }
+
     @Test func commandLikeTextIsBlocked() {
         var editor = ReplyEditor(prompt: Self.body)
         for text in ["/compact", "  !ls", "#메모"] {

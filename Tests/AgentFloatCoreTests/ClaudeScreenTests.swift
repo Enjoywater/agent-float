@@ -40,6 +40,19 @@ let expiryQuestion = ChoiceQuestion(
         #expect(read.otherDraft == "")
     }
 
+    /// 설명 줄이 "3. …" 처럼 번호로 시작해도 선택지가 아니다. 설명은 다섯 칸 들여 써 있다 (최종 리뷰 M4)
+    @Test func numberedDescriptionIsNotAnOption() throws {
+        let base = try screenFixture("choice-single-focus0.txt")
+        let lines = base.lines.map { $0 == "     바꾼 코드를 되돌림" ? "     3. 단계로 나눠 되돌림" : $0 }
+        #expect(lines != base.lines)
+        guard case let .choiceDialog(read) = ClaudeScreen.interpret(ConsoleScreen(lines: lines, faint: nil, composerDraft: nil)) else {
+            Issue.record("질문 창으로 읽혀야 함")
+            return
+        }
+        #expect(ClaudeScreen.matches(read, question: expiryQuestion))
+        #expect(read.rows.count == 5)
+    }
+
     @Test func focusMovesAreRead() throws {
         #expect(try dialog("choice-single-focus1.txt").focusedIndex == 1)
         #expect(try dialog("choice-other-focused-empty.txt").focusedIndex == 3)

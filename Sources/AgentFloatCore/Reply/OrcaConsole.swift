@@ -32,7 +32,8 @@ public struct OrcaConsole: TerminalConsole {
         var arguments = ["terminal", "send", "--terminal", handle]
         switch input {
         case let .text(text):
-            arguments += ["--text", text]
+            // `--` 로 시작하는 글을 따로 넘기면 Orca 가 옵션으로 읽어 "값 없음"으로 거절한다(실측). 붙여 넘기면 값으로 받으므로 `-` 로 시작하면 모두 붙인다
+            arguments += text.hasPrefix("-") ? ["--text=\(text)"] : ["--text", text]
         case .key(.enter):
             arguments += ["--enter"]
         case let .key(key):

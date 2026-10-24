@@ -133,15 +133,20 @@ public enum ClaudeScreen {
         return text.trimmingCharacters(in: .whitespaces)
     }
 
-    /// `❯ 1. 라벨`, `  2. [✔] 라벨`, `❯    Submit`. 설명 줄처럼 번호가 없는 들여쓴 줄은 nil
+    /// 선택지 번호는 표시 기호 뒤 한 칸(두 자리 번호에 맞춰 정렬되면 두 칸)에서 시작한다. 설명 줄은 다섯 칸 들여 써 있다
+    static let maxRowIndent = 2
+
+    /// `❯ 1. 라벨`, `  2. [✔] 라벨`, `❯    Submit`. 설명 줄처럼 번호가 없거나 깊이 들여쓴 줄은 nil
     private static func parseRow(_ line: String) -> ParsedRow? {
         guard let marker = line.first, marker == "❯" || marker == " " else { return nil }
         let isFocused = marker == "❯"
-        let rest = line.dropFirst().drop(while: { $0 == " " })
+        let afterMarker = line.dropFirst()
+        let rest = afterMarker.drop(while: { $0 == " " })
         if rest.trimmingCharacters(in: .whitespaces) == submitLabel {
             return ParsedRow(number: nil, row: ChoiceRow(label: submitLabel, isFocused: isFocused, isChecked: false, kind: .submit))
         }
-        guard let match = rest.wholeMatch(of: /(\d+)\. (.*)/), let number = Int(match.output.1) else { return nil }
+        guard afterMarker.count - rest.count <= maxRowIndent,
+              let match = rest.wholeMatch(of: /(\d+)\. (.*)/), let number = Int(match.output.1) else { return nil }
         var label = String(match.output.2).trimmingCharacters(in: .whitespaces)
         var isChecked = false
         if label.hasPrefix("[✔]") {

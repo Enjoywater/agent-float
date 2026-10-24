@@ -64,9 +64,9 @@ public struct GhosttyConsole: TerminalConsole {
         }
         guard case let .ghostty(title, cwd) = session.locator else { return .failure(.unsupportedTerminal("Ghostty")) }
         guard let terminal = GhosttyMatcher.uniqueMatch(title: title, cwd: cwd, in: terminals) else {
-            // 짝이 아예 없으면 탭을 못 찾은 것이고, 있는데 하나로 못 정하면 같은 이름이 여럿인 것이다
+            // 목록은 다른 데스크탑의 창까지 담는다. 짝이 아예 없으면 탭을 못 찾은 것이고, 있는데 하나로 못 정하면 같은 이름이 여럿인 것이다
             let lenient = GhosttyMatcher.match(title: title, cwd: cwd, in: terminals)
-            return .failure(lenient == nil ? .hiddenTab : .ambiguousTab)
+            return .failure(lenient == nil ? .tabNotFound : .ambiguousTab)
         }
         guard let placement = try? await placement(of: terminal) else { return .failure(.hiddenTab) }
         guard placement.terminalCount == 1 else { return .failure(.splitTab) }

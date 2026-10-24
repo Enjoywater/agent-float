@@ -118,6 +118,8 @@ public enum ReadOnlyReason: Equatable, Sendable {
     /// 보낼 수 없는 터미널. 값은 화면에 쓸 앱 이름
     case unsupportedTerminal(String)
     case hiddenTab
+    /// 다른 데스크탑까지 찾아도 이 세션의 탭이 없음(제목이 바뀌었거나 탭이 닫힘)
+    case tabNotFound
     case accessibilityNeeded
     case ambiguousTab
     case splitTab

@@ -67,6 +67,12 @@ private func runner(listing: String = listing, placement: String, input: String 
         #expect(await console.availability(of: session()) == .readOnly(.hiddenTab))
     }
 
+    /// 목록은 다른 데스크탑의 창까지 담는다. 거기서도 짝이 없으면 가려진 것이 아니라 탭을 못 찾은 것이다(제목이 바뀌었거나 닫힘) (최종 리뷰 M6)
+    @Test func missingTabIsNotCalledHidden() async {
+        let console = GhosttyConsole(runner: runner(placement: "w1\t✳ 캐시 만료 정책 정리\ttrue\t1"), screenReader: reader())
+        #expect(await console.availability(of: session(title: "이름이 바뀐 탭")) == .readOnly(.tabNotFound))
+    }
+
     @Test func splitTabIsReadOnly() async {
         let console = GhosttyConsole(runner: runner(placement: "w1\t✳ 캐시 만료 정책 정리\ttrue\t2"), screenReader: reader())
         #expect(await console.availability(of: session()) == .readOnly(.splitTab))

@@ -185,6 +185,36 @@ private func deliver(
         #expect(console.inputs == [.key(.down)])
     }
 
+    /// Ghostty 는 읽을 때마다 osascript·손쉬운 사용을 거쳐 한 번씩 실패할 수 있다. 시간 제한 안에서는 다시 읽는다 (최종 리뷰 M2)
+    @Test func oneFailedReadAfterAKeyIsRetried() async throws {
+        let start = try screenFixture("choice-single-focus0.txt")
+        let busy = try screenFixture("prompt-busy.txt")
+        let failedOnce = Mutex(false)
+        let console = ScriptedConsole { sent in
+            guard sent > 0 else { return start }
+            let fails = failedOnce.withLock { failed in
+                defer { failed = true }
+                return !failed
+            }
+            if fails { throw ReadFailure() }
+            return busy
+        }
+        let answer = "읽은 때부터 다시 세기 (Recommended)"
+        // 여러 테스트가 함께 돌면 50ms 안에 다시 읽을 차례가 오지 않을 수 있어 넉넉히 준다. 성공하면 바로 끝난다
+        let roomy = DeliveryTiming(stepTimeout: .seconds(2), pollInterval: .milliseconds(5), recordTimeout: .seconds(2))
+        let outcome = await deliver(.choices([.option(0)]), console: console, record: .choices([question: answer]), timing: roomy)
+        #expect(outcome == .delivered(.choices([question: answer])))
+    }
+
+    @Test func screenThatStaysUnreadableStops() async throws {
+        let start = try screenFixture("choice-single-focus0.txt")
+        let console = ScriptedConsole { sent in
+            guard sent > 0 else { return start }
+            throw ReadFailure()
+        }
+        #expect(await deliver(.choices([.option(0)]), console: console) == .stopped(stage: "화면을 다시 읽지 못함"))
+    }
+
     @Test func unchangedScreenAfterKeyStops() async throws {
         let console = ScriptedConsole(screens: try sequence(["choice-single-focus0.txt"]))
         guard case .stopped = await deliver(.choices([.option(1)]), console: console) else {

@@ -125,7 +125,8 @@ public struct ReplyEditor: Equatable, Sendable {
         }
     }
 
-    /// 보낼 수 있을 때만 값이 있다. 질문이 여럿이면 확인 화면에서만 보낸다
+    /// 보낼 수 있을 때만 값이 있다. 질문이 여럿이면 확인 화면에서만 보낸다.
+    /// 앞뒤 공백은 뺀다 — Claude Code 가 다듬어 기록하면 보낸 글과 기록이 달라 보이기 때문이다
     public var draft: ReplyDraft? {
         switch prompt {
         case .permission:
@@ -133,11 +134,18 @@ public struct ReplyEditor: Equatable, Sendable {
         case .text:
             guard !replyText.trimmingCharacters(in: .whitespaces).isEmpty,
                   ReplyText.block(replyText, inPrompt: true) == nil else { return nil }
-            return .text(replyText)
+            return .text(Self.trimmed(replyText))
         case .choices:
             guard questions.count == 1 || isReviewing, answers.indices.allSatisfy(isAnswered) else { return nil }
-            return .choices(answers.compactMap { $0 })
+            return .choices(answers.compactMap { answer in
+                if case let .other(text)? = answer { return .other(Self.trimmed(text)) }
+                return answer
+            })
         }
+    }
+
+    private static func trimmed(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespaces)
     }
 
     private func isAnswered(_ index: Int) -> Bool {

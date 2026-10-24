@@ -46,6 +46,24 @@ struct ReplyCenterTests {
         #expect(center.phase == .result(.notSent(.alreadyAnswered)))
     }
 
+    /// "보내지 않음" 화면을 보는 동안 터미널에서 답하면, 화면이 원래 이유(쓰던 글 등) 대신 이미 답했다고 알린다 (최종 리뷰 M5)
+    @Test func notSentScreenTellsWhenTheTerminalAnswered() async {
+        let gate = DeliveryGate()
+        let center = ReplyCenter(backend: gate.backend)
+        let session = Self.session("a", prompt: Self.dialog(id: "q-a"))
+        center.open(session)
+        center.choose(0)
+        center.send()
+        await gate.waitForCalls(1)
+        await gate.releaseAll(.notSent(.terminalDraft))
+        await Self.settle()
+        #expect(center.phase == .result(.notSent(.terminalDraft)))
+        center.sync(with: [Self.session("a", prompt: nil, status: .running)])
+        #expect(center.phase == .result(.notSent(.alreadyAnswered)))
+        center.sync(with: [])
+        #expect(center.phase == .result(.notSent(.sessionEnded)))
+    }
+
     private static let bodyQuestion = PendingPrompt.text(id: "q-text", message: "어느 쪽으로 할까요?")
 
     private static func dialog(id: String) -> PendingPrompt {
@@ -63,10 +81,10 @@ struct ReplyCenterTests {
         ])
     }
 
-    private static func session(_ id: String, prompt: PendingPrompt) -> AgentSession {
+    private static func session(_ id: String, prompt: PendingPrompt?, status: AgentStatus = .waiting) -> AgentSession {
         AgentSession(
             key: SessionKey(providerId: "claude", sessionId: id),
-            agentName: "claude", title: "시험", cwd: "/tmp/sample", status: .waiting, waitReason: .question,
+            agentName: "claude", title: "시험", cwd: "/tmp/sample", status: status, waitReason: status == .waiting ? .question : nil,
             statusSince: Date(timeIntervalSince1970: 0), isStale: false, lastActivityAt: nil,
             terminalApp: .unknown, locator: .none, prompt: prompt
         )

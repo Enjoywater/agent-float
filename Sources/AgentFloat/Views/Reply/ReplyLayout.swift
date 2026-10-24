@@ -60,6 +60,8 @@ enum ReplyCopy {
             return Strip(title: title, detail: "\(app) 터미널에는 여기서 보낼 수 없어요")
         case .hiddenTab:
             return Strip(title: title, detail: "보이지 않는 Ghostty 탭이라 터미널 화면을 확인할 수 없어요")
+        case .tabNotFound:
+            return Strip(title: title, detail: "이 세션의 Ghostty 탭을 찾지 못했어요")
         case .accessibilityNeeded:
             return Strip(title: title, detail: "Ghostty 화면을 읽으려면 손쉬운 사용 권한이 필요해요")
         case .ambiguousTab:

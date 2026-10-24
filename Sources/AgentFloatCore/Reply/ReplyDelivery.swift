@@ -125,18 +125,24 @@ public struct ReplyDelivery: Sendable {
         case failed(String)
     }
 
-    /// 화면이 바뀔 때까지 기다린다. 다시 그리는 도중의 화면(알 수 없음, 글이 덜 그려짐)은 결과로 보지 않는다
+    /// 화면이 바뀔 때까지 기다린다. 다시 그리는 도중의 화면(알 수 없음, 글이 덜 그려짐)은 결과로 보지 않는다.
+    /// 화면 읽기가 한 번 실패해도 시간 제한 안에서는 다시 읽는다 — Ghostty 는 읽을 때마다 osascript·손쉬운 사용을 거쳐 가끔 실패한다
     private func settle(after input: ConsoleInput, from old: ScreenState, console: any TerminalConsole, session: AgentSession) async -> Settle {
         let deadline = ContinuousClock.now + timing.stepTimeout
+        var readFailed = false
         while ContinuousClock.now < deadline {
             try? await Task.sleep(for: timing.pollInterval)
-            guard let screen = try? await console.readScreen(of: session) else { return .failed("화면을 다시 읽지 못함") }
+            guard let screen = try? await console.readScreen(of: session) else {
+                readFailed = true
+                continue
+            }
+            readFailed = false
             if Self.hasText(screen.composerDraft) { return .failed("터미널 입력창에 글이 생김") }
             let new = ClaudeScreen.interpret(screen)
             if new == old || new == .unrecognized || ReplyDriver.isPartial(after: input, state: new) { continue }
             return ReplyDriver.isExpected(after: input, from: old, to: new) ? .moved(new) : .failed("화면이 예상과 다르게 바뀜")
         }
-        return .failed("화면이 바뀌지 않음")
+        return .failed(readFailed ? "화면을 다시 읽지 못함" : "화면이 바뀌지 않음")
     }
 
     private func verifyRecord(_ expected: RecordedAnswer, session: AgentSession, promptId: String) async -> DeliveryOutcome {

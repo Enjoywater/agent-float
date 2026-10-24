@@ -232,12 +232,14 @@ final class ReplyCenter {
         if phase.sentKeys { return }
         guard let current = byKey[open.key] else {
             notice = ReplyCopy.sessionEnded
+            replaceNotSentReason(with: .sessionEnded)
             scheduleAutoReturn()
             onChange?()
             return
         }
         if current.status != .waiting {
             notice = ReplyCopy.alreadyAnswered
+            replaceNotSentReason(with: .alreadyAnswered)
             scheduleAutoReturn()
             onChange?()
             return
@@ -254,6 +256,12 @@ final class ReplyCenter {
         }
         if current != open { openSession = current }
         refreshAvailability()
+    }
+
+    /// "보내지 않음" 화면은 띠 대신 결과의 이유를 보여 준다. 그사이 터미널에서 답했거나 세션이 끝났으면 그 이유로 바꿔야 화면이 지금 상황을 말한다
+    private func replaceNotSentReason(with reason: NotSentReason) {
+        guard case .result(.notSent) = phase else { return }
+        phase = .result(.notSent(reason))
     }
 
     private func scheduleAutoReturn() {

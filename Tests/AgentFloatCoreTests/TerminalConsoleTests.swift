@@ -114,6 +114,13 @@ private struct StubConsole: TerminalConsole {
         ])
     }
 
+    /// `--text --dry-run` 은 Orca 가 "값 없음"으로 거절한다(실측). `--text=<글>` 로 붙이면 값으로 받는다 (최종 리뷰 M3)
+    @Test func orcaSendsDashLedTextAsOneArgument() async throws {
+        let runner = FakeCommandRunner { _ in #"{"ok":true,"result":{"send":{"accepted":true}}}"# }
+        try await OrcaConsole(runner: runner).send(.text("--dry-run 으로 먼저"), to: orcaSession)
+        #expect(await runner.calls.map(\.arguments) == [["terminal", "send", "--terminal", handle, "--text=--dry-run 으로 먼저", "--json"]])
+    }
+
     @Test func orcaSendsArrowsAsSequences() async throws {
         let runner = FakeCommandRunner { _ in #"{"ok":true,"result":{"send":{"accepted":true}}}"# }
         let console = OrcaConsole(runner: runner)
