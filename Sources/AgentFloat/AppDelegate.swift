@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = ProcessInfo.processInfo.environment
         Self.applyAppearanceOverride(environment["AGENT_FLOAT_APPEARANCE"])
+        NSApp.mainMenu = MainMenu.make()
 
         let runner = ProcessCommandRunner()
         let activator = AppActivator()
