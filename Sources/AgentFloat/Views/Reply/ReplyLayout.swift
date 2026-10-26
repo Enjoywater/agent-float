@@ -44,7 +44,7 @@ enum ReplyCopy {
 
     static let alreadyAnswered = Strip(title: "터미널에서 이미 답했어요", detail: "")
     static let questionChanged = Strip(title: "질문이 바뀌었어요", detail: "새 질문을 확인해 주세요")
-    static let terminalDraft = Strip(title: "터미널 입력 칸에 쓰던 글이 있어요", detail: "섞여 들어갈 수 있어 아무것도 보내지 않았어요. 쓴 답은 남겨 둘게요")
+    static let terminalDraft = Strip(title: "터미널 입력 칸에 쓰던 글이 있어요", detail: "섞여 들어갈 수 있어 답을 보내지 않았어요. 쓴 답은 남겨 둘게요")
     static let unexpectedScreen = Strip(title: "터미널 화면이 예상과 달라요", detail: "아무것도 보내지 않았어요")
     static let unreadableScreen = Strip(title: "터미널 화면을 확인할 수 없어요", detail: "아무것도 보내지 않았어요")
     static let sessionEnded = Strip(title: "세션이 끝났어요", detail: "")
