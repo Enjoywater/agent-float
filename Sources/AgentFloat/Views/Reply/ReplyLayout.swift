@@ -72,8 +72,6 @@ enum ReplyCopy {
             return Strip(title: title, detail: "미리보기가 있는 질문은 터미널에서 답해 주세요")
         case .permissionPrompt:
             return permission
-        case .promptUnverifiable:
-            return Strip(title: title, detail: "이 터미널에서는 입력 칸이 비었는지 확인할 수 없어요")
         }
     }
 
@@ -83,6 +81,7 @@ enum ReplyCopy {
         case .mention: "파일 자동 완성으로 읽힐 수 있어 여기서 보낼 수 없어요"
         case .multiline: "줄바꿈은 여기서 보낼 수 없어요"
         case .controlCharacter: "보낼 수 없는 글자가 들어 있어요"
+        case .tooLong: "\(ReplyText.pasteFoldLimit)자를 넘는 글은 여기서 보낼 수 없어요"
         }
     }
 

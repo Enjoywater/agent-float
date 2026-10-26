@@ -49,7 +49,7 @@ func orcaPromptTail(_ promptLine: String) -> [String] {
 
 /// 판정 결과만 정해 두고 호출 여부를 남긴다
 private struct StubConsole: TerminalConsole {
-    let readsPromptInput: Bool
+    let promptCheck: PromptCheck
     let verdict: ConsoleAvailability
     let calls: CallLog<String>
 
@@ -79,10 +79,22 @@ private struct StubConsole: TerminalConsole {
     @Test func tmuxSendsNamedKeys() async throws {
         let runner = FakeCommandRunner { _ in "" }
         let console = TmuxConsole(runner: runner, executable: tmuxExe)
-        for key in ConsoleKey.allCases { try await console.send(.key(key), to: tmuxSession) }
+        for key in ConsoleKey.allCases where key != .backspace { try await console.send(.key(key), to: tmuxSession) }
         let names = await runner.calls.map { $0.arguments.last }
         #expect(names == ["Enter", "Up", "Down", "Left", "Right", "Tab", "Space"])
         #expect(await runner.calls.allSatisfy { $0.arguments.prefix(5) == ["-S", socket, "send-keys", "-t", "%7"] })
+    }
+
+    /// 넣기 전에 판정하는 콘솔은 지울 일이 없다. 지우기 키는 넣어 보고 확인하는 콘솔에만 열어 둔다 (R78)
+    @Test func beforeTypingConsolesNeverErase() async {
+        let runner = FakeCommandRunner { _ in #"{"ok":true,"result":{"send":{"accepted":true}}}"# }
+        await #expect(throws: NavigationError.self) {
+            try await TmuxConsole(runner: runner, executable: tmuxExe).send(.key(.backspace), to: tmuxSession)
+        }
+        await #expect(throws: NavigationError.self) {
+            try await OrcaConsole(runner: runner).send(.key(.backspace), to: orcaSession)
+        }
+        #expect(await runner.calls.isEmpty)
     }
 
     @Test func tmuxReadsPaneWithStyles() async throws {
@@ -218,7 +230,7 @@ private struct StubConsole: TerminalConsole {
 
     @Test func registryPrefersPromptReasons() async {
         let calls = CallLog<String>()
-        let registry = ConsoleRegistry([StubConsole(readsPromptInput: true, verdict: .ready, calls: calls)])
+        let registry = ConsoleRegistry([StubConsole(promptCheck: .beforeTyping, verdict: .ready, calls: calls)])
         let permission = waiting(.none, prompt: .permission(id: "toolu_02", tool: "Bash", summary: "swift test"))
         #expect(await registry.availability(of: permission) == .readOnly(.permissionPrompt))
         let preview = ChoiceQuestion(text: "어느 배치가 좋을까요?", header: nil, multiSelect: false, options: [
@@ -229,12 +241,12 @@ private struct StubConsole: TerminalConsole {
         #expect(await registry.availability(of: waiting(.none)) == .ready)
     }
 
-    @Test func bodyQuestionNeedsFaintReading() async {
+    /// 흐림을 읽지 못하는 콘솔도 넣어 보고 확인해 답한다 (R78)
+    @Test func bodyQuestionIsAnsweredWithEitherCheck() async {
         let calls = CallLog<String>()
-        let blind = ConsoleRegistry([StubConsole(readsPromptInput: false, verdict: .ready, calls: calls)])
-        #expect(await blind.availability(of: waiting(.none, prompt: bodyPrompt)) == .readOnly(.promptUnverifiable))
-        #expect(await blind.availability(of: waiting(.none, prompt: choicePrompt)) == .ready)
-        let sighted = ConsoleRegistry([StubConsole(readsPromptInput: true, verdict: .ready, calls: calls)])
+        let probing = ConsoleRegistry([StubConsole(promptCheck: .afterTyping, verdict: .ready, calls: calls)])
+        #expect(await probing.availability(of: waiting(.none, prompt: bodyPrompt)) == .ready)
+        let sighted = ConsoleRegistry([StubConsole(promptCheck: .beforeTyping, verdict: .ready, calls: calls)])
         #expect(await sighted.availability(of: waiting(.none, prompt: bodyPrompt)) == .ready)
     }
 

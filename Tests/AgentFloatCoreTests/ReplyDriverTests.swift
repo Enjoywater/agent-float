@@ -271,6 +271,98 @@ import Testing
         }
     }
 
+    // MARK: 넣어 보고 확인 (Ghostty, R78)
+
+    private static let hint = ScreenState.prompt(draft: "Try \"안내 문구\"")
+
+    private func probe(_ draft: ReplyDraft, _ progress: inout ReplyProgress, _ screen: ScreenState) -> ReplyMove {
+        ReplyDriver.nextMove(prompt: Self.body, draft: draft, progress: &progress, screen: screen, check: .afterTyping)
+    }
+
+    @Test func probeStartsWhateverThePromptShows() {
+        #expect(ReplyDriver.startCheck(prompt: Self.body, screen: Self.hint, check: .afterTyping) == .ready)
+        #expect(ReplyDriver.startCheck(prompt: Self.body, screen: Self.hint, check: .beforeTyping) == .terminalDraft)
+    }
+
+    @Test func probeTypesFirstCharacterThenRestThenSubmits() {
+        var progress = ReplyProgress()
+        let reply = ReplyDraft.text("응, 진행해 줘")
+        #expect(probe(reply, &progress, Self.hint) == .send(.text("응")))
+        #expect(probe(reply, &progress, .prompt(draft: "응")) == .send(.text(", 진행해 줘")))
+        #expect(probe(reply, &progress, .prompt(draft: "응, 진행해 줘")) == .send(.key(.enter)))
+        #expect(probe(reply, &progress, Self.hint) == .finished)
+    }
+
+    @Test func singleCharacterReplySubmitsRightAfterProbe() {
+        var progress = ReplyProgress()
+        #expect(probe(.text("응"), &progress, .prompt(draft: "")) == .send(.text("응")))
+        #expect(probe(.text("응"), &progress, .prompt(draft: "응")) == .send(.key(.enter)))
+        #expect(probe(.text("응"), &progress, .prompt(draft: "")) == .finished)
+    }
+
+    @Test func probeAfterTerminalDraftIsErasedAndRestored() {
+        var progress = ReplyProgress()
+        #expect(probe(.text("응"), &progress, .prompt(draft: "쓰던 글")) == .send(.text("응")))
+        #expect(probe(.text("응"), &progress, .prompt(draft: "쓰던 글응")) == .send(.key(.backspace)))
+        #expect(probe(.text("응"), &progress, .prompt(draft: "쓰던 글")) == .restored)
+    }
+
+    /// 사용자가 커서를 글 가운데로 옮겨 두었으면 탐침 글자가 그 자리에 들어간다. 지우기는 커서 앞 글자 하나라 그대로 맞다
+    @Test func probeInsideTerminalDraftIsErased() {
+        var progress = ReplyProgress()
+        _ = probe(.text("응"), &progress, .prompt(draft: "쓰던 글"))
+        #expect(probe(.text("응"), &progress, .prompt(draft: "쓰던응 글")) == .send(.key(.backspace)))
+    }
+
+    @Test func eraseThatDoesNotRestoreIsStuck() {
+        var progress = ReplyProgress()
+        _ = probe(.text("응"), &progress, .prompt(draft: "쓰던 글"))
+        _ = probe(.text("응"), &progress, .prompt(draft: "쓰던 글응"))
+        guard case .stuck = probe(.text("응"), &progress, .prompt(draft: "쓰던 ")) else {
+            Issue.record("처음 상태로 돌아오지 않으면 멈춤")
+            return
+        }
+    }
+
+    @Test func unknownTextAfterProbeIsStuck() {
+        var progress = ReplyProgress()
+        _ = probe(.text("응"), &progress, .prompt(draft: "쓰던 글"))
+        guard case .stuck = probe(.text("응"), &progress, .prompt(draft: "다른 글")) else {
+            Issue.record("탐침 글자가 어디 들어갔는지 모르면 지우지 않고 멈춤")
+            return
+        }
+    }
+
+    /// 결합 문자로 된 첫 글자는 지우기 한 번에 다 지워진다는 보장이 없다
+    @Test func probeNeedsASingleScalarFirstCharacter() {
+        var progress = ReplyProgress()
+        guard case .stuck = probe(.text("e\u{301}는 그대로"), &progress, .prompt(draft: "")) else {
+            Issue.record("결합 문자로 시작하면 넣지 않음")
+            return
+        }
+        #expect(progress == ReplyProgress())
+    }
+
+    @Test func probeTransitions() {
+        let hint = Self.hint
+        #expect(ReplyDriver.isExpected(after: .text("응"), from: hint, to: .prompt(draft: "응"), check: .afterTyping))
+        #expect(ReplyDriver.isExpected(after: .text("응"), from: .prompt(draft: "쓰던 글"), to: .prompt(draft: "쓰던 글응"), check: .afterTyping))
+        #expect(!ReplyDriver.isExpected(after: .text("응"), from: hint, to: .prompt(draft: "다른 글"), check: .afterTyping))
+        #expect(!ReplyDriver.isExpected(after: .text("응"), from: hint, to: .prompt(draft: "응"), check: .beforeTyping))
+        #expect(ReplyDriver.isExpected(after: .key(.backspace), from: .prompt(draft: "쓰던 글응"), to: .prompt(draft: "쓰던 글"), check: .afterTyping))
+        #expect(!ReplyDriver.isExpected(after: .key(.backspace), from: .prompt(draft: "쓰던 글응"), to: .prompt(draft: "쓰던 "), check: .afterTyping))
+        #expect(!ReplyDriver.isExpected(after: .key(.backspace), from: .prompt(draft: "쓰던 글응"), to: .prompt(draft: "쓰던 글"), check: .beforeTyping))
+        #expect(ReplyDriver.isExpected(after: .key(.enter), from: .prompt(draft: "응"), to: hint, check: .afterTyping))
+        #expect(!ReplyDriver.isExpected(after: .key(.enter), from: .prompt(draft: "응"), to: hint, check: .beforeTyping))
+    }
+
+    /// 탐침 뒤 나머지를 넣는 도중의 화면은 앞 글자까지 이어 보아야 덜 그려진 것으로 알아본다
+    @Test func restOfReplyStillRenderingIsPartial() {
+        #expect(ReplyDriver.isPartial(after: .text(", 진행해 줘"), from: .prompt(draft: "응"), state: .prompt(draft: "응, 진")))
+        #expect(!ReplyDriver.isPartial(after: .text("응"), from: Self.hint, state: .prompt(draft: "응")))
+        #expect(ReplyDriver.isPartial(after: .text("응, 진행해 줘"), from: .prompt(draft: ""), state: .prompt(draft: "응, 진")))
+    }
+
     // MARK: 기대 기록 (G4)
 
     @Test func expectedRecordForChoices() {

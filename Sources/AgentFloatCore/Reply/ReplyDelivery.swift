@@ -86,7 +86,7 @@ public struct ReplyDelivery: Sendable {
         }
         if Self.hasText(first.composerDraft) { return .notSent(.terminalDraft) }
         var state = ClaudeScreen.interpret(first)
-        switch ReplyDriver.startCheck(prompt: prompt, screen: state) {
+        switch ReplyDriver.startCheck(prompt: prompt, screen: state, check: console.promptCheck) {
         case .ready: break
         case .terminalDraft: return .notSent(.terminalDraft)
         case .unexpected: return .notSent(.unexpectedScreen)
@@ -97,13 +97,15 @@ public struct ReplyDelivery: Sendable {
         var progress = ReplyProgress()
         var sent = 0
         while true {
-            switch ReplyDriver.nextMove(prompt: prompt, draft: draft, progress: &progress, screen: state) {
+            switch ReplyDriver.nextMove(prompt: prompt, draft: draft, progress: &progress, screen: state, check: console.promptCheck) {
             case .finished:
                 // G4 기록
                 onStage(.record)
                 return await verifyRecord(expected, session: current, promptId: prompt.id)
             case let .stuck(reason):
                 return sent == 0 ? .notSent(.unexpectedScreen) : .stopped(stage: reason)
+            case .restored:
+                return .notSent(.terminalDraft)
             case let .send(input):
                 guard sent < timing.maxMoves else { return .stopped(stage: "입력 횟수 상한에 닿음") }
                 do {
@@ -139,8 +141,8 @@ public struct ReplyDelivery: Sendable {
             readFailed = false
             if Self.hasText(screen.composerDraft) { return .failed("터미널 입력창에 글이 생김") }
             let new = ClaudeScreen.interpret(screen)
-            if new == old || new == .unrecognized || ReplyDriver.isPartial(after: input, state: new) { continue }
-            return ReplyDriver.isExpected(after: input, from: old, to: new) ? .moved(new) : .failed("화면이 예상과 다르게 바뀜")
+            if new == old || new == .unrecognized || ReplyDriver.isPartial(after: input, from: old, state: new) { continue }
+            return ReplyDriver.isExpected(after: input, from: old, to: new, check: console.promptCheck) ? .moved(new) : .failed("화면이 예상과 다르게 바뀜")
         }
         return .failed(readFailed ? "화면을 다시 읽지 못함" : "화면이 바뀌지 않음")
     }

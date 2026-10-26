@@ -3,7 +3,7 @@ import Foundation
 /// Orca 터미널에 키를 보내고 화면을 읽는다. 화살표는 키 이름이 아니라 ESC 시퀀스 글자로 보내야 들어간다 (실측 ⑫)
 public struct OrcaConsole: TerminalConsole {
     /// `read --screen` 은 스타일을 주지 않지만, 입력 칸의 실제 글을 화면 줄에서 빼 `draft` 로 따로 준다 (실측 S5 ④)
-    public let readsPromptInput = true
+    public let promptCheck = PromptCheck.beforeTyping
 
     private let runner: any CommandRunning
 
@@ -37,14 +37,16 @@ public struct OrcaConsole: TerminalConsole {
         case .key(.enter):
             arguments += ["--enter"]
         case let .key(key):
-            arguments += ["--text", Self.sequence(key)]
+            guard let sequence = Self.sequence(key) else { throw NavigationError.commandFailed("erase is not used") }
+            arguments += ["--text", sequence]
         }
         let output = try await runner.run(OrcaCLI.executable, arguments + ["--json"])
         // 명령은 성공해도 터미널이 입력을 받지 않았을 수 있다
         guard OrcaCLI.sendAccepted(Data(output.utf8)) else { throw NavigationError.commandFailed("orca did not accept the input") }
     }
 
-    private static func sequence(_ key: ConsoleKey) -> String {
+    /// 넣기 전에 판정하므로 지울 일이 없다. 잘못 불려도 사용자 글을 지우지 않게 글자를 주지 않는다
+    private static func sequence(_ key: ConsoleKey) -> String? {
         switch key {
         case .up: "\u{1b}[A"
         case .down: "\u{1b}[B"
@@ -53,6 +55,7 @@ public struct OrcaConsole: TerminalConsole {
         case .tab: "\t"
         case .space: " "
         case .enter: "\r"
+        case .backspace: nil
         }
     }
 

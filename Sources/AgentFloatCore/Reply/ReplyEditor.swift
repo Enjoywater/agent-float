@@ -12,13 +12,20 @@ public enum TextBlock: Equatable, Sendable {
     case mention
     case multiline
     case controlCharacter
+    /// 붙여 넣은 글이 길면 Claude Code 가 `[Pasted text #N]` 으로 접어, 화면에서 넣은 글을 확인할 수 없다
+    case tooLong
 }
 
 public enum ReplyText {
+    /// Claude Code 2.1.310 은 800자까지 그대로 두고 801자부터 접는다(실측 S6 ⑧). 글자 수는 JS 문자열 길이인 UTF-16 단위다
+    public static let pasteFoldLimit = 800
+
     /// 직접 쓰기 칸에는 자동 완성이 뜨지 않아 명령·`@` 규칙은 프롬프트에만 적용한다 (실측 ⑩)
     public static func block(_ text: String, inPrompt: Bool) -> TextBlock? {
         if text.contains(where: \.isNewline) { return .multiline }
         if text.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) { return .controlCharacter }
+        // 보낼 글은 앞뒤 공백을 뺀 글이다
+        if text.trimmingCharacters(in: .whitespaces).utf16.count > pasteFoldLimit { return .tooLong }
         guard inPrompt else { return nil }
         if let first = text.first(where: { !$0.isWhitespace }), "/!#".contains(first) { return .commandLike }
         if text.contains("@") { return .mention }

@@ -9,8 +9,8 @@ public protocol GhosttyScreenReading: Sendable {
 }
 
 public struct GhosttyConsole: TerminalConsole {
-    /// 손쉬운 사용 API 의 값에는 흐림 정보가 없다 (R57)
-    public let readsPromptInput = false
+    /// 손쉬운 사용 API 의 값에는 흐림도 입력 커서도 없다 (실측 S6 ②·③)
+    public let promptCheck = PromptCheck.afterTyping
 
     private let runner: any CommandRunning
     private let screenReader: any GhosttyScreenReading
@@ -109,6 +109,8 @@ public enum GhosttyKeyNames {
         case .right: "arrowRight"
         case .tab: "tab"
         case .space: "space"
+        // 한 번에 한 글자(한글 음절 포함)를 지운다 (실측 S6 ⑦)
+        case .backspace: "backspace"
         }
     }
 }

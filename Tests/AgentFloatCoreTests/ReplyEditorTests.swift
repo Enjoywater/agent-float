@@ -154,6 +154,18 @@ import Testing
         #expect(editor.block == nil)
     }
 
+    /// Claude Code 는 800자를 넘게 붙여 넣으면 `[Pasted text #N]` 으로 접어, 화면에서 넣은 글을 확인할 수 없다 (실측 S6 ⑧)
+    @Test func textOverPasteFoldLimitIsBlocked() {
+        #expect(ReplyText.block(String(repeating: "a", count: 800), inPrompt: true) == nil)
+        #expect(ReplyText.block(String(repeating: "a", count: 801), inPrompt: true) == .tooLong)
+        #expect(ReplyText.block(String(repeating: "가", count: 801), inPrompt: false) == .tooLong)
+        #expect(ReplyText.block("  " + String(repeating: "a", count: 800) + "  ", inPrompt: true) == nil)
+        var editor = ReplyEditor(prompt: Self.body)
+        editor.setReply(String(repeating: "a", count: 801))
+        #expect(editor.block == .tooLong)
+        #expect(editor.primary == .disabled)
+    }
+
     @Test func mentionIsBlockedOnlyInPrompt() {
         #expect(ReplyText.block("Package.swift @Sources 확인", inPrompt: true) == .mention)
         #expect(ReplyText.block("확인 @Pack /he", inPrompt: false) == nil)

@@ -114,7 +114,7 @@ private func runner(listing: String = listing, placement: String, input: String 
         let console = GhosttyConsole(runner: fake, screenReader: reader())
         for key in ConsoleKey.allCases { try await console.send(.key(key), to: session()) }
         let scripts = await fake.calls.compactMap(\.arguments.last).filter { $0.contains("send key") }
-        let names = ["enter", "arrowUp", "arrowDown", "arrowLeft", "arrowRight", "tab", "space"]
+        let names = ["enter", "arrowUp", "arrowDown", "arrowLeft", "arrowRight", "tab", "space", "backspace"]
         #expect(scripts.count == names.count)
         for (script, name) in zip(scripts, names) { #expect(script.contains(#"send key "\#(name)" to s"#)) }
     }
@@ -132,7 +132,8 @@ private func runner(listing: String = listing, placement: String, input: String 
         #expect(await fake.calls.isEmpty)
     }
 
-    @Test func ghosttyCannotReadFaintText() {
-        #expect(!GhosttyConsole(runner: runner(placement: ""), screenReader: reader()).readsPromptInput)
+    /// 손쉬운 사용 값에는 흐림도 커서도 없어 넣어 본 뒤에야 빈 칸인지 안다 (실측 S6 ②·③)
+    @Test func ghosttyChecksPromptAfterTyping() {
+        #expect(GhosttyConsole(runner: runner(placement: ""), screenReader: reader()).promptCheck == .afterTyping)
     }
 }

@@ -22,12 +22,21 @@ public struct ReplyProgress: Equatable, Sendable {
     /// 지금 질문을 고르고 다음 질문으로 넘기는 Enter 를 눌렀는지. 다음 화면은 이 질문이 아니라 그 뒤 질문에서 찾는다 —
     /// 앞부분과 선택지가 같은 두 질문이면 뒤 질문 화면이 앞 질문과 맞아 보여 앞 질문의 답을 넣게 된다
     public var pressedNext: Bool
+    /// 넣어 보고 확인하는 콘솔에서 첫 글자를 넣기 전 입력 칸에 보이던 글. 그 글자를 지운 뒤 이 글로 돌아와야 사용자 글을 건드리지 않은 것이다
+    public var promptBefore: String?
+    /// 첫 글자를 지우는 키를 보냈는지
+    public var erasedProbe: Bool
 
-    public init(question: Int = 0, typedText: Bool = false, pressedSubmit: Bool = false, pressedNext: Bool = false) {
+    public init(
+        question: Int = 0, typedText: Bool = false, pressedSubmit: Bool = false, pressedNext: Bool = false,
+        promptBefore: String? = nil, erasedProbe: Bool = false
+    ) {
         self.question = question
         self.typedText = typedText
         self.pressedSubmit = pressedSubmit
         self.pressedNext = pressedNext
+        self.promptBefore = promptBefore
+        self.erasedProbe = erasedProbe
     }
 }
 
@@ -35,6 +44,8 @@ public enum ReplyMove: Equatable, Sendable {
     case send(ConsoleInput)
     case finished
     case stuck(String)
+    /// 넣어 본 첫 글자를 지워 입력 칸을 처음대로 되돌림. 쓰던 글이 있어 보내지 않은 것이다
+    case restored
 }
 
 public enum StartCheck: Equatable, Sendable {
@@ -44,7 +55,7 @@ public enum StartCheck: Equatable, Sendable {
 /// 화면을 읽고 다음 키 하나만 정한다. 키 순서를 미리 정해 두면 화면이 예상과 달라진 순간에도 남은 키를 계속 보내게 된다
 public enum ReplyDriver {
     /// G2. 첫 질문이 그대로 떠 있고 사용자가 터미널에서 손대지 않았을 때만 시작한다
-    public static func startCheck(prompt: PendingPrompt, screen: ScreenState) -> StartCheck {
+    public static func startCheck(prompt: PendingPrompt, screen: ScreenState, check: PromptCheck = .beforeTyping) -> StartCheck {
         switch prompt {
         case let .choices(_, questions):
             guard let first = questions.first, case let .choiceDialog(dialog) = screen,
@@ -53,6 +64,8 @@ public enum ReplyDriver {
             return dialog.focusedIndex == nil ? .unexpected : .ready
         case .text:
             guard case let .prompt(draft) = screen else { return .unexpected }
+            // 안내 문구도 글로 읽히는 콘솔은 여기서 가리지 못해 첫 글자를 넣어 본 뒤에 가린다
+            if check == .afterTyping { return .ready }
             return draft.isEmpty ? .ready : .terminalDraft
         case .permission:
             return .unexpected
@@ -60,12 +73,17 @@ public enum ReplyDriver {
     }
 
     /// G3 한 걸음
-    public static func nextMove(prompt: PendingPrompt, draft: ReplyDraft, progress: inout ReplyProgress, screen: ScreenState) -> ReplyMove {
+    public static func nextMove(
+        prompt: PendingPrompt, draft: ReplyDraft, progress: inout ReplyProgress, screen: ScreenState, check: PromptCheck = .beforeTyping
+    ) -> ReplyMove {
         switch (prompt, draft) {
         case let (.choices(_, questions), .choices(answers)) where questions.count == answers.count && !questions.isEmpty:
             return choiceMove(questions: questions, answers: answers, progress: &progress, screen: screen)
         case let (.text, .text(reply)):
-            return textMove(reply: reply, progress: &progress, screen: screen)
+            switch check {
+            case .beforeTyping: return textMove(reply: reply, progress: &progress, screen: screen)
+            case .afterTyping: return probeMove(reply: reply, progress: &progress, screen: screen)
+            }
         default:
             return .stuck("답의 종류가 질문과 맞지 않음")
         }
@@ -97,7 +115,9 @@ public enum ReplyDriver {
     }
 
     /// 보낸 입력 하나가 만들어야 할 변화만 일어났는지. 그 밖의 변화는 사용자가 터미널에서 함께 손댄 것으로 보고 멈춘다 (Review Focus 1)
-    public static func isExpected(after input: ConsoleInput, from old: ScreenState, to new: ScreenState) -> Bool {
+    public static func isExpected(
+        after input: ConsoleInput, from old: ScreenState, to new: ScreenState, check: PromptCheck = .beforeTyping
+    ) -> Bool {
         switch old {
         case let .choiceDialog(before):
             return dialogTransition(after: input, from: before, to: new)
@@ -112,9 +132,14 @@ public enum ReplyDriver {
             guard case let .prompt(after) = new else { return false }
             switch input {
             case let .text(text):
-                return ClaudeScreen.sameText(after, draft + text)
+                if ClaudeScreen.sameText(after, draft + text) { return true }
+                // 첫 글자를 넣으면 안내 문구는 사라지고, 쓰던 글이 있으면 그 글의 커서 자리에 끼어 보인다
+                return check == .afterTyping && (ClaudeScreen.sameText(after, text) || isInsertion(of: text, into: draft, giving: after))
             case .key(.enter):
-                return after.isEmpty
+                // 안내 문구도 글로 읽히는 콘솔에서는 비었는지 대신 넣은 글이 사라졌는지 본다. 보내졌는지는 기록(G4)이 가린다
+                return check == .afterTyping ? !ClaudeScreen.sameText(after, draft) : after.isEmpty
+            case .key(.backspace):
+                return check == .afterTyping && removesOneCharacter(from: draft, giving: after)
             case .key:
                 return false
             }
@@ -124,17 +149,36 @@ public enum ReplyDriver {
     }
 
     /// 붙여 넣은 글이 아직 다 그려지지 않은 중간 화면. 이것을 결과로 보면 멀쩡한 입력을 멈추게 된다
-    public static func isPartial(after input: ConsoleInput, state: ScreenState) -> Bool {
-        guard case let .text(text) = input else { return false }
-        let shown: String
-        switch state {
-        case let .choiceDialog(dialog): shown = dialog.otherDraft
-        case let .prompt(draft): shown = draft
-        case .review, .unrecognized: return false
-        }
-        let typed = text.filter { !$0.isWhitespace }
+    /// 앞서 보이던 글까지 이어 본다 — 첫 글자를 넣은 뒤 나머지를 넣는 도중이면 앞 글자가 이미 칸에 있다
+    public static func isPartial(after input: ConsoleInput, from old: ScreenState, state: ScreenState) -> Bool {
+        guard case let .text(text) = input, let shown = typedField(state) else { return false }
+        let typed = ((typedField(old) ?? "") + text).filter { !$0.isWhitespace }
         let visible = shown.filter { !$0.isWhitespace }
         return !visible.isEmpty && visible.count < typed.count && typed.hasPrefix(visible)
+    }
+
+    private static func typedField(_ state: ScreenState) -> String? {
+        switch state {
+        case let .choiceDialog(dialog): dialog.otherDraft
+        case let .prompt(draft): draft
+        case .review, .unrecognized: nil
+        }
+    }
+
+    /// `base` 의 어느 자리에 `inserted` 를 끼우면 `result` 가 되는지. 공백은 감긴 줄에서 달라질 수 있어 빼고 비교한다
+    static func isInsertion(of inserted: String, into base: String, giving result: String) -> Bool {
+        let base = Array(base.filter { !$0.isWhitespace })
+        let inserted = Array(inserted.filter { !$0.isWhitespace })
+        let result = Array(result.filter { !$0.isWhitespace })
+        guard !inserted.isEmpty, result.count == base.count + inserted.count else { return false }
+        return (0...base.count).contains { index in
+            Array(base[..<index] + inserted + base[index...]) == result
+        }
+    }
+
+    static func removesOneCharacter(from old: String, giving new: String) -> Bool {
+        let old = Array(old.filter { !$0.isWhitespace })
+        return old.indices.contains { isInsertion(of: String(old[$0]), into: new, giving: String(old)) }
     }
 
     private static func dialogTransition(after input: ConsoleInput, from before: ChoiceDialog, to new: ScreenState) -> Bool {
@@ -271,6 +315,42 @@ public enum ReplyDriver {
         guard !progress.pressedSubmit else { return .stuck("Enter 뒤에도 글이 남아 있음") }
         progress.pressedSubmit = true
         return .send(.key(.enter))
+    }
+
+    /// 첫 글자 하나만 넣어 빈 칸인지 가린다. 줄이 그 글자뿐이면 비어 있던 것이고(안내 문구는 사라진다, 실측 S5 ①·S6),
+    /// 쓰던 글이 있으면 그 글 사이에 끼어 보인다 — 그때는 지우기 한 번으로 되돌리고 보내지 않는다 (R78)
+    private static func probeMove(reply: String, progress: inout ReplyProgress, screen: ScreenState) -> ReplyMove {
+        // 결합 문자로 된 첫 글자는 지우기 한 번에 다 지워진다는 보장이 없다
+        guard isTypable(reply), let first = reply.first, !first.isWhitespace, first.unicodeScalars.count == 1 else {
+            return .stuck("입력할 수 없는 글자가 있음")
+        }
+        guard case let .prompt(current) = screen else { return .stuck("프롬프트가 보이지 않음") }
+        let probe = String(first)
+        guard let before = progress.promptBefore else {
+            progress.promptBefore = current
+            return .send(.text(probe))
+        }
+        if progress.erasedProbe {
+            return ClaudeScreen.sameText(current, before) ? .restored : .stuck("넣은 글자를 지운 뒤 입력 칸이 처음과 다름")
+        }
+        if progress.pressedSubmit { return .finished }
+        if progress.typedText {
+            guard ClaudeScreen.sameText(current, reply) else { return .stuck("프롬프트에 다른 글이 있음") }
+            progress.pressedSubmit = true
+            return .send(.key(.enter))
+        }
+        if ClaudeScreen.sameText(current, probe) {
+            let rest = String(reply.dropFirst())
+            if rest.isEmpty {
+                progress.pressedSubmit = true
+                return .send(.key(.enter))
+            }
+            progress.typedText = true
+            return .send(.text(rest))
+        }
+        guard isInsertion(of: probe, into: before, giving: current) else { return .stuck("넣은 글자가 예상과 다르게 보임") }
+        progress.erasedProbe = true
+        return .send(.key(.backspace))
     }
 
     /// 제어 문자는 키로 해석되어(줄바꿈은 Enter, ESC 는 취소) 글과 다른 동작을 일으킨다

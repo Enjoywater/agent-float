@@ -1,8 +1,9 @@
 import Foundation
 
-/// 터미널에 보낼 수 있는 키 전부. Esc·Ctrl 조합·지우기 키는 질문을 거절하거나 세션을 끝낼 수 있어 아예 표현할 수 없게 둔다 (v1.2 설계 4.3)
+/// 터미널에 보낼 수 있는 키 전부. Esc·Ctrl 조합은 질문을 거절하거나 세션을 끝낼 수 있어 아예 표현할 수 없게 둔다 (v1.2 설계 4.3).
+/// 지우기는 넣어 보고 확인하는 콘솔이 자기가 방금 넣은 글자 하나를 되돌릴 때만 쓴다 (R78)
 public enum ConsoleKey: String, CaseIterable, Sendable {
-    case enter, up, down, left, right, tab, space
+    case enter, up, down, left, right, tab, space, backspace
 }
 
 public enum ConsoleInput: Equatable, Sendable {
@@ -125,8 +126,14 @@ public enum ReadOnlyReason: Equatable, Sendable {
     case splitTab
     case previewQuestion
     case permissionPrompt
-    /// 흐림을 읽지 못해 프롬프트가 비었는지 알 수 없음 (R57)
-    case promptUnverifiable
+}
+
+/// 본문 질문에서 입력 칸이 비었는지 언제 알 수 있는지 (R57·R78)
+public enum PromptCheck: Equatable, Sendable {
+    /// 넣기 전에 화면만 보고 안다. 흐림(tmux)이나 입력 칸의 실제 글(Orca `draft`)을 따로 읽는다
+    case beforeTyping
+    /// 안내 문구가 글로 읽혀 첫 글자를 넣어 본 뒤에야 안다. 쓰던 글 뒤에 붙었으면 그 글자를 지우고 멈춘다 (Ghostty)
+    case afterTyping
 }
 
 public enum ConsoleAvailability: Equatable, Sendable {
@@ -136,8 +143,7 @@ public enum ConsoleAvailability: Equatable, Sendable {
 
 /// 터미널 하나에 키를 보내고 화면을 읽는 담당. 위치 정보(`TerminalLocator`) 종류마다 하나다
 public protocol TerminalConsole: Sendable {
-    /// 입력 칸의 실제 글을 흐린 안내·제안 문구와 가려낼 수 있는지. 못 하면 본문 질문에는 답하지 않는다 (R57)
-    var readsPromptInput: Bool { get }
+    var promptCheck: PromptCheck { get }
     func handles(_ session: AgentSession) -> Bool
     func availability(of session: AgentSession) async -> ConsoleAvailability
     func readScreen(of session: AgentSession) async throws -> ConsoleScreen
@@ -177,9 +183,6 @@ public struct ConsoleRegistry: Sendable {
         }
         guard let console = console(for: session) else {
             return .readOnly(.unsupportedTerminal(Self.appName(session.terminalApp)))
-        }
-        if case .text? = session.prompt, !console.readsPromptInput {
-            return .readOnly(.promptUnverifiable)
         }
         return await console.availability(of: session)
     }

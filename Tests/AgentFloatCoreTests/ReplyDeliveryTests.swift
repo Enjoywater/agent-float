@@ -5,12 +5,16 @@ import Testing
 
 /// 보낸 입력 수에 따라 정해 둔 화면을 돌려주고, 보낸 입력을 남긴다
 private final class ScriptedConsole: TerminalConsole, Sendable {
-    let readsPromptInput = true
+    let promptCheck: PromptCheck
     private let verdict: ConsoleAvailability
     private let screens: @Sendable (Int) throws -> ConsoleScreen
     private let sent = Mutex<[ConsoleInput]>([])
 
-    init(verdict: ConsoleAvailability = .ready, screens: @escaping @Sendable (Int) throws -> ConsoleScreen) {
+    init(
+        promptCheck: PromptCheck = .beforeTyping, verdict: ConsoleAvailability = .ready,
+        screens: @escaping @Sendable (Int) throws -> ConsoleScreen
+    ) {
+        self.promptCheck = promptCheck
         self.verdict = verdict
         self.screens = screens
     }
@@ -302,5 +306,44 @@ private func deliver(
         let outcome = await deliver(.text("응, 진행해 줘"), console: console, sessions: [waitingSession(prompt: body)], record: .text("응, 진행해 줘"), prompt: body)
         #expect(outcome == .delivered(.text("응, 진행해 줘")))
         #expect(console.inputs == [.text("응, 진행해 줘"), .key(.enter)])
+    }
+
+    /// 프롬프트 줄만 바꾼 화면. 흐림을 읽지 못하는 콘솔처럼 안내 문구도 글로 남는다
+    private func promptScreen(_ text: String) throws -> ConsoleScreen {
+        ConsoleScreen(lines: try screenFixture("prompt-draft.txt").lines.map {
+            $0.hasPrefix("❯\u{a0}") ? "❯\u{a0}" + text : $0
+        }, faint: nil, composerDraft: nil)
+    }
+
+    /// Ghostty 의 전체 흐름: 안내 문구 → 첫 글자만 보임 → 답 전체 → Enter 뒤 안내 문구 (R78)
+    @Test func deliversBodyReplyByProbing() async throws {
+        let body = PendingPrompt.text(id: "a-2", message: "다음 작업을 진행할까요?")
+        let screens = try ["Try \"안내 문구\"", "응", "응, 진행해 줘", "Try \"안내 문구\""].map(promptScreen)
+        let console = ScriptedConsole(promptCheck: .afterTyping) { screens[min($0, 3)] }
+        let outcome = await deliver(.text("응, 진행해 줘"), console: console, sessions: [waitingSession(prompt: body)], record: .text("응, 진행해 줘"), prompt: body)
+        #expect(outcome == .delivered(.text("응, 진행해 줘")))
+        #expect(console.inputs == [.text("응"), .text(", 진행해 줘"), .key(.enter)])
+    }
+
+    @Test func probeOverTerminalDraftIsErasedAndNotSent() async throws {
+        let body = PendingPrompt.text(id: "a-2", message: "다음 작업을 진행할까요?")
+        let screens = try ["쓰던 글", "쓰던 글응", "쓰던 글"].map(promptScreen)
+        let console = ScriptedConsole(promptCheck: .afterTyping) { screens[min($0, 2)] }
+        let outcome = await deliver(.text("응, 진행해 줘"), console: console, sessions: [waitingSession(prompt: body)], prompt: body)
+        #expect(outcome == .notSent(.terminalDraft))
+        #expect(console.inputs == [.text("응"), .key(.backspace)])
+    }
+
+    /// 지운 뒤에도 처음 글로 돌아오지 않으면 남은 글자를 터미널에서 확인해야 한다
+    @Test func eraseThatLeavesTextStops() async throws {
+        let body = PendingPrompt.text(id: "a-2", message: "다음 작업을 진행할까요?")
+        let screens = try ["쓰던 글", "쓰던 글응", "쓰던 글응!"].map(promptScreen)
+        let console = ScriptedConsole(promptCheck: .afterTyping) { screens[min($0, 2)] }
+        let outcome = await deliver(.text("응"), console: console, sessions: [waitingSession(prompt: body)], prompt: body)
+        guard case .stopped = outcome else {
+            Issue.record("처음 상태가 아니면 멈춤으로 알림: \(outcome)")
+            return
+        }
+        #expect(console.inputs == [.text("응"), .key(.backspace)])
     }
 }
