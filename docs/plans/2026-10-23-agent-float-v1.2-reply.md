@@ -16,7 +16,7 @@
 - 공통 타입 이름에 `claude`를 쓰지 않음. Claude Code 고유 판독만 `Claude*` 이름
 - 주석은 why만. 자명한 주석·주석 처리된 코드 금지. 중첩 삼항 금지. TODO는 `// TODO(@Enjoywater): 사유` 형식만
 - **회사·개인 정보 절대 금지 (설계 3장)**: 코드·테스트·fixture·문서·커밋 메시지·인증서 이름에 회사 이름, 사람 이름·이메일·계정명, 실제 세션 제목·폴더명, 실제 transcript 문장을 넣지 않음. 경로는 `/Users/me`, id는 `00000000-…`, 예시 내용은 시안과 같은 가상 주제(캐시 만료 정책·검색 색인·동기화 재시도). 매 커밋 전에 `scripts/privacy-check.sh`(Task 1) 0건
-- 커밋 메시지 끝 줄은 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`만
+- 커밋 공동 작성자는 저장소 루트 `AGENTS.md`에 따라 실제 기여한 에이전트로 기록한다 (세션 링크 줄 없음).
 - 터미널에 보내는 키는 `ConsoleKey`(enter·up·down·left·right·tab·space)와 검사를 통과한 글자뿐. **Esc·Ctrl 조합·지우기 키는 타입으로 막는다** (설계 4.3)
 - 셸·AppleScript에 들어가는 외부 값(handle, pane id, 소켓 경로, terminal id, 보낼 글)은 형식 검사·이스케이프 뒤에만 쓴다 (R25 원칙)
 - 하나라도 확인 못 하면 보내지 않는다. 판정이 애매하면 "보내지 않음" 쪽으로 (설계 4.4)

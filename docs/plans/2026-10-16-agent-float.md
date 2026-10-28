@@ -21,7 +21,7 @@
 - UI 문구는 한국어, spec에 적힌 문구 그대로
 - 색은 시스템 색. 테두리 빛은 `Color.primary`(다크 흰빛 / 라이트 먹색) (spec 4.6, 4.10)
 - 주석은 why만. 자명한 주석·주석 처리된 코드 금지 (사용자 전역 규칙, PreToolUse hook이 검사함)
-- 커밋은 각 Task 마지막 단계에서 `git add -A && git commit -m "<메시지>"`, 메시지 끝에 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
+- 커밋은 각 Task 마지막 단계에서 `git add -A && git commit -m "<메시지>"`, 공동 작성자는 저장소 루트 `AGENTS.md`에 따라 실제 기여한 에이전트로 기록한다.
 
 ## Review Focus
 
