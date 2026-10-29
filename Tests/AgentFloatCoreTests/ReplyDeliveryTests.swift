@@ -325,6 +325,15 @@ private func deliver(
         #expect(console.inputs == [.text("응"), .text(", 진행해 줘"), .key(.enter)])
     }
 
+    @Test func probeMatchingSuggestionPrefixStillDelivers() async throws {
+        let reply = "짧은 예시를 보여줘"
+        let screens = try ["짧은 예시 보여줘", "짧", reply, "Try \"안내 문구\""].map(promptScreen)
+        let console = ScriptedConsole(promptCheck: .afterTyping) { screens[min($0, 3)] }
+        let outcome = await deliver(.text(reply), console: console, sessions: [waitingSession(prompt: Self.bodyPrompt)], record: .text(reply), prompt: Self.bodyPrompt)
+        #expect(outcome == .delivered(.text(reply)))
+        #expect(console.inputs == [.text("짧"), .text("은 예시를 보여줘"), .key(.enter)])
+    }
+
     @Test func probeOverTerminalDraftIsErasedAndNotSent() async throws {
         let body = PendingPrompt.text(id: "a-2", message: "다음 작업을 진행할까요?")
         let screens = try ["쓰던 글", "쓰던 글응", "쓰던 글"].map(promptScreen)

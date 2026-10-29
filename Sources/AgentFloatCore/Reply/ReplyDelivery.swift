@@ -141,8 +141,11 @@ public struct ReplyDelivery: Sendable {
             readFailed = false
             if Self.hasText(screen.composerDraft) { return .failed("터미널 입력창에 글이 생김") }
             let new = ClaudeScreen.interpret(screen)
-            if new == old || new == .unrecognized || ReplyDriver.isPartial(after: input, from: old, state: new) { continue }
-            return ReplyDriver.isExpected(after: input, from: old, to: new, check: console.promptCheck) ? .moved(new) : .failed("화면이 예상과 다르게 바뀜")
+            if new == old || new == .unrecognized { continue }
+            // 제안과 첫 글자가 같으면 정상적인 시험 입력도 제안의 일부처럼 보인다. 기대한 결과인지 먼저 가린다.
+            if ReplyDriver.isExpected(after: input, from: old, to: new, check: console.promptCheck) { return .moved(new) }
+            if ReplyDriver.isPartial(after: input, from: old, state: new) { continue }
+            return .failed("화면이 예상과 다르게 바뀜")
         }
         return .failed(readFailed ? "화면을 다시 읽지 못함" : "화면이 바뀌지 않음")
     }
