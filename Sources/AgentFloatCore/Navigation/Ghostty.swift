@@ -129,7 +129,8 @@ public enum GhosttyMatcher {
 
     /// 제목 앞에 붙는 상태 기호와 그 뒤 공백을 걷어 낸다. 세션 제목은 기호 없이 저장되어 있다
     public static func strippedTitle(_ raw: String) -> String {
-        guard startsWithClaudeGlyph(raw) else { return raw }
+        let codexSpinner = raw.first?.unicodeScalars.first.map { (0x2800...0x28FF).contains($0.value) } ?? false
+        guard startsWithClaudeGlyph(raw) || codexSpinner else { return raw }
         return String(raw.dropFirst().drop(while: \.isWhitespace))
     }
 

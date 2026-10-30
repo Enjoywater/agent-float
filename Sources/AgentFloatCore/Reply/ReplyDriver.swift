@@ -74,11 +74,11 @@ public enum ReplyDriver {
 
     /// G3 한 걸음
     public static func nextMove(
-        prompt: PendingPrompt, draft: ReplyDraft, progress: inout ReplyProgress, screen: ScreenState, check: PromptCheck = .beforeTyping
+        prompt: PendingPrompt, draft: ReplyDraft, progress: inout ReplyProgress, screen: ScreenState, check: PromptCheck = .beforeTyping, codex: Bool = false
     ) -> ReplyMove {
         switch (prompt, draft) {
         case let (.choices(_, questions), .choices(answers)) where questions.count == answers.count && !questions.isEmpty:
-            return choiceMove(questions: questions, answers: answers, progress: &progress, screen: screen)
+            return choiceMove(questions: questions, answers: answers, progress: &progress, screen: screen, codex: codex)
         case let (.text, .text(reply)):
             switch check {
             case .beforeTyping: return textMove(reply: reply, progress: &progress, screen: screen)
@@ -201,6 +201,8 @@ public enum ReplyDriver {
         case .key(.space):
             let flipped = zip(checksBefore, checksAfter).enumerated().filter { $1.0 != $1.1 }.map(\.offset)
             return to == from && flipped == [from] && before.otherDraft == after.otherDraft
+        case .key(.tab):
+            return to == from && checksBefore == checksAfter && !before.notesActive && after.notesActive && after.otherDraft.isEmpty
         case let .text(text):
             return to == from && checksBefore == checksAfter && before.otherDraft.isEmpty
                 && ClaudeScreen.sameText(after.otherDraft, text)
@@ -217,7 +219,7 @@ public enum ReplyDriver {
     // MARK: 질문 창
 
     private static func choiceMove(
-        questions: [ChoiceQuestion], answers: [ChoiceAnswer], progress: inout ReplyProgress, screen: ScreenState
+        questions: [ChoiceQuestion], answers: [ChoiceAnswer], progress: inout ReplyProgress, screen: ScreenState, codex: Bool
     ) -> ReplyMove {
         switch screen {
         case let .review(focusedOnSubmit):
@@ -233,12 +235,12 @@ public enum ReplyDriver {
         case let .choiceDialog(dialog):
             // 제출한 뒤에 뜬 질문 창은 Claude 가 새로 물은 것이다. 거기에는 아무 키도 보내지 않고 기록(G4)으로 넘긴다
             if progress.pressedSubmit { return .finished }
-            return dialogMove(dialog, questions: questions, answers: answers, progress: &progress)
+            return dialogMove(dialog, questions: questions, answers: answers, progress: &progress, codex: codex)
         }
     }
 
     private static func dialogMove(
-        _ dialog: ChoiceDialog, questions: [ChoiceQuestion], answers: [ChoiceAnswer], progress: inout ReplyProgress
+        _ dialog: ChoiceDialog, questions: [ChoiceQuestion], answers: [ChoiceAnswer], progress: inout ReplyProgress, codex: Bool
     ) -> ReplyMove {
         let start = progress.question + (progress.pressedNext ? 1 : 0)
         guard start < questions.count,
@@ -253,7 +255,7 @@ public enum ReplyDriver {
         guard let focus = dialog.focusedIndex else { return .stuck("포커스를 찾을 수 없음") }
         let question = questions[index]
         // 질문 하나짜리 하나 고르기는 고르는 Enter 가 곧 제출이다. 그 밖에는 확인 화면의 Submit 이 제출이다 (실측 ⑥)
-        let submitsNow = questions.count == 1 && !question.multiSelect
+        let submitsNow = codex ? index == questions.count - 1 : questions.count == 1 && !question.multiSelect
         let optionRows = dialog.rows.indices.filter { dialog.rows[$0].kind == .option }
 
         switch answers[index] {
@@ -267,6 +269,7 @@ public enum ReplyDriver {
             guard isTypable(text) else { return .stuck("입력할 수 없는 글자가 있음") }
             guard let target = dialog.rows.firstIndex(where: { $0.kind == .other }) else { return .stuck("직접 쓰기 칸이 없음") }
             if focus != target { return step(from: focus, to: target) }
+            if codex && !dialog.notesActive { return .send(.key(.tab)) }
             if dialog.otherDraft.isEmpty {
                 guard !progress.typedText else { return .stuck("입력한 글이 칸에 보이지 않음") }
                 progress.typedText = true

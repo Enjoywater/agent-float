@@ -23,7 +23,8 @@ public struct OrcaConsole: TerminalConsole {
     public func readScreen(of session: AgentSession) async throws -> ConsoleScreen {
         guard let handle = handle(of: session) else { throw NavigationError.terminalNotFound }
         let output = try await runner.run(OrcaCLI.executable, ["terminal", "read", "--terminal", handle, "--screen", "--json"])
-        return ClaudeScreen.placingPromptInput(try OrcaCLI.parseScreen(Data(output.utf8)))
+        let screen = try OrcaCLI.parseScreen(Data(output.utf8))
+        return session.key.providerId == "codex" ? CodexScreen.placingPromptInput(screen) : ClaudeScreen.placingPromptInput(screen)
     }
 
     public func send(_ input: ConsoleInput, to session: AgentSession) async throws {

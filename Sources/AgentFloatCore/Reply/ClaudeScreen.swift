@@ -25,11 +25,13 @@ public struct ChoiceDialog: Equatable, Sendable {
     public let rows: [ChoiceRow]
     /// 직접 쓰기 칸에 적힌 글. 비었으면 ""
     public let otherDraft: String
+    public let notesActive: Bool
 
-    public init(questionText: String, rows: [ChoiceRow], otherDraft: String) {
+    public init(questionText: String, rows: [ChoiceRow], otherDraft: String, notesActive: Bool = false) {
         self.questionText = questionText
         self.rows = rows
         self.otherDraft = otherDraft
+        self.notesActive = notesActive
     }
 
     public var focusedIndex: Int? {

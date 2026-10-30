@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let runner = ProcessCommandRunner()
         let activator = AppActivator()
-        let store = SessionStore(providers: [Self.makeProvider(environment)])
+        let store = SessionStore(providers: Self.makeProviders(environment))
         let model = AppModel(
             store: store,
             navigators: Self.makeNavigators(runner: runner, activator: activator),
@@ -144,18 +144,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// 실제 세션을 띄우거나 바꾸지 않고 화면·전환을 확인할 수 있게 입력을 바꿔 끼운다
-    private static func makeProvider(_ environment: [String: String]) -> any AgentProvider {
+    static func makeProviders(_ environment: [String: String]) -> [any AgentProvider] {
         if let raw = environment["AGENT_FLOAT_FAKE_SESSIONS"], let count = Int(raw), count > 0 {
-            return FakeProvider(count: count, startedAt: Date())
+            return [FakeProvider(count: count, startedAt: Date())]
         }
+        let claude: ClaudeCodeProvider
         if let home = environment["AGENT_FLOAT_CLAUDE_HOME"], !home.isEmpty {
-            return ClaudeCodeProvider(
+            claude = ClaudeCodeProvider(
                 claudeHome: URL(fileURLWithPath: home, isDirectory: true),
                 homeDirectory: NSHomeDirectory(),
                 inspector: DarwinProcessInspector()
             )
+        } else {
+            claude = ClaudeCodeProvider.live()
         }
-        return ClaudeCodeProvider.live()
+        let codexHome = environment["AGENT_FLOAT_CODEX_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? NSHomeDirectory() + "/.codex"
+        return [claude, CodexCodeProvider(codexHome: URL(fileURLWithPath: codexHome, isDirectory: true))]
     }
 
     /// 시스템 설정의 화면 모드를 바꾸지 않고 라이트·다크 모양을 각각 확인하려는 디버그 덮어쓰기

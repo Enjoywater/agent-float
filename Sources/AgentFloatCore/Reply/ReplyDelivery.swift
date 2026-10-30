@@ -85,7 +85,8 @@ public struct ReplyDelivery: Sendable {
             return .notSent(.unreadableScreen)
         }
         if Self.hasText(first.composerDraft) { return .notSent(.terminalDraft) }
-        var state = ClaudeScreen.interpret(first)
+        let isCodex = current.key.providerId == "codex"
+        var state = isCodex ? CodexScreen.interpret(first) : ClaudeScreen.interpret(first)
         switch ReplyDriver.startCheck(prompt: prompt, screen: state, check: console.promptCheck) {
         case .ready: break
         case .terminalDraft: return .notSent(.terminalDraft)
@@ -97,7 +98,7 @@ public struct ReplyDelivery: Sendable {
         var progress = ReplyProgress()
         var sent = 0
         while true {
-            switch ReplyDriver.nextMove(prompt: prompt, draft: draft, progress: &progress, screen: state, check: console.promptCheck) {
+            switch ReplyDriver.nextMove(prompt: prompt, draft: draft, progress: &progress, screen: state, check: console.promptCheck, codex: isCodex) {
             case .finished:
                 // G4 기록
                 onStage(.record)
@@ -114,6 +115,11 @@ public struct ReplyDelivery: Sendable {
                     return .stopped(stage: "입력을 보내지 못함")
                 }
                 sent += 1
+                if isCodex, input == .key(.enter), progress.pressedSubmit {
+                    // Codex는 제출 직후 같은 모양의 다음 질문을 띄울 수 있다. 기록으로 판정하고 더 입력하지 않는다.
+                    onStage(.record)
+                    return await verifyRecord(expected, session: current, promptId: prompt.id)
+                }
                 switch await settle(after: input, from: state, console: console, session: current) {
                 case let .moved(next): state = next
                 case let .failed(reason): return .stopped(stage: reason)
@@ -140,7 +146,7 @@ public struct ReplyDelivery: Sendable {
             }
             readFailed = false
             if Self.hasText(screen.composerDraft) { return .failed("터미널 입력창에 글이 생김") }
-            let new = ClaudeScreen.interpret(screen)
+            let new = session.key.providerId == "codex" ? CodexScreen.interpret(screen) : ClaudeScreen.interpret(screen)
             if new == old || new == .unrecognized { continue }
             // 제안과 첫 글자가 같으면 정상적인 시험 입력도 제안의 일부처럼 보인다. 기대한 결과인지 먼저 가린다.
             if ReplyDriver.isExpected(after: input, from: old, to: new, check: console.promptCheck) { return .moved(new) }
