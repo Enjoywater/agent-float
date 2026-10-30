@@ -8,6 +8,8 @@
   나를 기다리는 에이전트를 놓치지 않게.
   <br><br>
   <a href="#설치">설치</a> ·
+  <a href="https://enjoywater.github.io/agent-float/">기능소개서 ↗</a> ·
+  <a href="#지원-에이전트와-탐지-범위">지원 범위</a> ·
   <a href="#한눈에-보는-상태">상태</a> ·
   <a href="#플로팅에서-답하기">답하기</a> ·
   <a href="#알려진-한계">한계</a> ·
@@ -18,6 +20,7 @@
   <img src="https://img.shields.io/badge/macOS-26%2B-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white" alt="Swift 6">
   <img src="https://img.shields.io/badge/Claude_Code-supported-D97757?style=flat-square" alt="Claude Code">
+  <img src="https://img.shields.io/badge/Codex-supported-10A37F?style=flat-square" alt="Codex">
 </p>
 
 <p align="center">
@@ -31,13 +34,39 @@
 
 ## 소개
 
-여러 터미널에서 AI 에이전트를 동시에 돌리면, 어느 세션이 내 답을 기다리는지 보려고 탭을 하나씩 열어 보게 된다. Agent Float는 모든 세션의 상태를 화면 구석의 작은 유리 알약 하나에 모아 보여 주는 macOS 앱이다.
+화면과 동작을 함께 보려면 [기능소개서 열기 ↗](https://enjoywater.github.io/agent-float/)를 참고한다. 브라우저에서 바로 열리며 설치 없이 기능 데모를 조작할 수 있다.
+
+여러 터미널에서 AI 에이전트를 동시에 돌리면, 어느 세션이 내 답을 기다리는지 보려고 탭을 하나씩 열어 보게 된다. Agent Float는 탐지한 세션의 상태를 화면 구석의 작은 유리 알약 하나에 모아 보여 주는 macOS 앱이다.
 
 - **본다**: 대기·진행·완료 개수가 알약에 뜨고, 나를 기다리는 세션이 생기면 테두리 빛이 돈다
 - **간다**: 마우스를 올리면 세션 목록이 펼쳐지고, 줄을 누르면 그 세션이 열린 터미널 탭으로 이동한다
 - **답한다**: 질문하며 기다리는 세션에는 터미널로 가지 않고 그 자리에서 답한다
 
-v1은 Claude Code 세션만 읽는다. 다른 에이전트는 같은 구조에 provider만 더해 붙이도록 설계했다.
+Claude Code와 Codex 세션을 읽고, 위치를 확인할 수 있는 터미널로 이동하거나 질문에 답할 수 있다. 두 에이전트는 같은 목록과 답장 화면을 사용하지만 탐지 범위에는 차이가 있다.
+
+세션 목록의 두 번째 줄과 답장 헤더에는 `Claude` / `Codex` 이름 배지가 표시된다. 배지는 에이전트 종류를, 옆의 기존 터미널 아이콘은 실행 위치를 뜻한다. 제목 공간과 상태 점의 의미는 유지한다. 패널 전환·줄 안에서 펼침·옆 카드 모두 같은 이름 배지를 사용한다.
+
+## 지원 에이전트와 탐지 범위
+
+| 항목 | Claude Code | Codex |
+|---|---|---|
+| 탐지 기준 | `~/.claude/sessions`의 세션 파일과 프로세스 생존 확인 | 로컬 공유 app-server 상태와 살아 있는 TUI 프로세스·실제 터미널 대조 |
+| 자동화 세션 | 터미널 연결이 없어도 살아 있는 세션 파일이 있으면 포함 | 실제 TUI·터미널이 없는 자동화나 서버 내부 임시 세션은 제외 |
+| 이동 | 확인한 터미널 위치로 이동. 위치 종류별 동작은 아래 표 참고 | 제목·작업 폴더로 위치가 하나로 정해진 세션의 터미널로 이동 |
+| 답장 | 선택지·직접 쓰기·여러 개 고르기·질문 여러 개·본문 질문 | 선택지 하나 고르기·notes 직접 입력·질문 여러 개·본문 질문 |
+| 승인 대기 | 내용만 표시, 승인은 터미널에서 | 내용만 표시, 승인은 터미널에서 |
+
+Codex는 공유 서버에 남은 예전 세션을 열린 세션으로 간주하지 않는다. 같은 Codex 홈과 작업 폴더의 살아 있는 TUI 프로세스, 현재 터미널 제목, 고유한 이동 위치를 함께 확인한다. 닫힌 세션이나 위치가 모호한 항목은 목록에서 제외한다. 변경은 기존 5초 폴링 주기로 반영한다.
+
+Codex 0.165.0에서 검증했다. `--no-daemon`·별도·원격 서버·공유 서버를 사용하지 않는 IDE나 데스크톱 세션은 지원 범위에서 제외한다. 터미널 제목을 임의로 바꾸거나 같은 제목이 중복되면 탐지에서 빠질 수 있다. 자세한 근거와 검증 방법은 [Codex 탐지·이동·답장](docs/codex-detection.md)에 있다.
+
+### 직접 실행하지 않은 세션이 보이는 이유
+
+Claude Code는 봇·스케줄러 같은 자동화 도구가 실행한 세션도 탐지한다. 사용자가 직접 터미널을 열지 않았더라도 프로세스가 살아 있고 세션 파일이 있으면 목록에 나타날 수 있다. 종료된 프로세스의 기록은 제외한다.
+
+Claude 세션 제목은 대화의 AI 제목, 세션 파일의 이름, `이름 없는 세션` 순으로 고른다. AI 제목이 없는 자동화 작업은 `1700000000000-…-draft` 같은 임시 작업 이름이 그대로 보일 수 있다. 숫자 이름만으로 자동화 여부를 판단하지는 않는다.
+
+현재 **직접 실행 / 자동화 / 판별 불가를 자동 분류하거나 필터링하는 기능은 구현하지 않았다.** 터미널 연결 여부, 부모 프로세스, 실행 옵션, 작업 경로를 함께 보면 구분에 도움이 되지만, 터미널이 없다는 이유만으로 자동화라고 확정할 수는 없다. 직접 백그라운드로 띄운 세션도 있기 때문이다.
 
 ## 한눈에 보는 상태
 
@@ -69,7 +98,7 @@ v1은 Claude Code 세션만 읽는다. 다른 에이전트는 같은 구조에 p
         <img src="docs/media/state-new-light.gif" height="128" alt="진행에서 완료로 바뀌며 NEW">
       </picture>
       <br><b>초록 · 완료</b>
-      <br><sub>턴이 끝나고 남은 일이 없는 세션</sub>
+      <br><sub>턴이 끝나고 다음 입력을 받을 수 있는 세션. 작업 성공을 보장하지는 않음</sub>
     </td>
     <td align="center">
       <picture>
@@ -89,6 +118,8 @@ v1은 Claude Code 세션만 읽는다. 다른 에이전트는 같은 구조에 p
 
 ## 줄을 누르면 그 터미널로
 
+확인한 위치가 있는 줄에는 hover 강조와 클릭 이동이 연결된다. Codex도 같은 이동 기능을 사용한다. 아래의 `claude --bg`와 그 밖의 터미널 폴백은 Claude Code에 해당한다.
+
 | 터미널 | 줄을 누르면 |
 |---|---|
 | Ghostty | 그 탭으로 이동 (탭 제목과 작업 폴더로 찾음) |
@@ -97,13 +128,15 @@ v1은 Claude Code 세션만 읽는다. 다른 에이전트는 같은 구조에 p
 | tmux (어느 터미널 안이든) | 그 pane으로 전환한 뒤 바깥 터미널을 앞으로. Terminal.app·iTerm2면 그 탭까지. 붙은 클라이언트가 없으면 Ghostty 새 탭에서 붙음 |
 | `claude --bg` 백그라운드 세션 | Ghostty 새 탭에서 `claude attach <jobId>` 실행 |
 | 그 밖의 터미널 (Cursor, Warp 등) | 그 앱만 앞으로 올림 |
-| 갈 곳이 없는 세션 | 경고음 |
+| 위치 정보가 없는 세션 | 이동용 hover·클릭 비활성화 |
 
-이동한 뒤 1초 안에 대상 앱이 실제로 앞에 와야 `NEW`가 꺼진다.
+이동을 시도했지만 대상 탭이나 앱을 찾지 못하면 경고음이 난다. 이동한 뒤 1초 안에 대상 앱이 실제로 앞에 와야 `NEW`가 꺼진다.
 
 ## 플로팅에서 답하기
 
 질문 창(선택지·직접 쓰기·여러 개 고르기·질문 여러 개)이나 답변 끝의 질문으로 기다리는 줄을 누르면 답장 화면이 열린다. 승인 대기는 내용만 보여 준다. ⌘+클릭은 지금처럼 바로 이동한다.
+
+Codex는 `request_user_input`의 선택지와 `None of the above`의 notes 입력, 질문 여러 개에 차례로 답하기, 마지막 본문 질문에 답하기를 지원한다. 질문 창에서 여러 항목을 동시에 고르는 기능은 Claude Code에 해당한다. 아래 터미널별 전송 조건은 두 에이전트에 공통으로 적용한다.
 
 <p align="center">
   <picture>
@@ -138,7 +171,7 @@ v1은 Claude Code 세션만 읽는다. 다른 에이전트는 같은 구조에 p
 
 - 보내기는 터미널에 키를 하나씩 넣고 매번 화면이 그 키대로 바뀌었는지 확인한 뒤, 기록된 답이 고른 답과 같은지 대조한다. 확인할 수 없으면 보내지 않고 이유를 보여 준다 (터미널에 쓰던 글이 있음, 질문이 바뀜 등)
 - 답변 끝의 질문은 빈 입력 칸에도 흐린 안내 문구가 떠서, 입력 칸에 쓰던 글이 있는지 먼저 가린다: tmux는 글자 스타일(흐림)로, Orca는 입력 칸 글을 따로 알려 주는 `draft`로 넣기 전에 가린다. Ghostty는 둘 다 알려 주지 않아 첫 글자 하나를 넣어 보고, 입력 칸이 그 글자뿐일 때만 나머지를 넣는다. 쓰던 글이 있었으면 그 글자를 지우고 보내지 않는다
-- 800자를 넘는 답은 Claude Code가 붙여 넣은 글을 `[Pasted text]`로 접어 확인할 수 없어 보내지 않는다
+- 답장 길이는 두 에이전트 모두 800자(UTF-16 단위)로 제한한다. 이 제한은 Claude Code가 긴 붙여넣기를 `[Pasted text]`로 접는 동작을 기준으로 두었다
 - `/`·`!`·`#`로 시작하거나 `@`가 든 답, 여러 줄 답은 자동 완성·줄바꿈이 Enter를 가로챌 수 있어 터미널에서 직접 보낸다
 - 보내다 멈추거나 기록이 다르면 알약 맨 앞에 빨간 `FAIL`, 목록 맨 위에 "확인 필요"가 남는다. 그 줄의 실패 화면에서 `닫기`·`터미널에서 열기`를 누르거나 ⌘+클릭해야 꺼진다
 
@@ -193,6 +226,7 @@ v1은 Claude Code 세션만 읽는다. 다른 에이전트는 같은 구조에 p
 - macOS 26 이상 (Liquid Glass)
 - Swift 6 도구 모음 (Xcode 26 또는 Command Line Tools)
 - Orca 이동을 쓰려면 `/usr/local/bin/orca` CLI
+- Codex 탐지를 쓰려면 로컬 공유 app-server를 사용하는 Codex CLI (0.165.0 검증)
 
 ```sh
 git clone https://github.com/Enjoywater/agent-float.git
@@ -232,7 +266,9 @@ make install                         # /Applications 에 설치하고 실행 (�
 - Ghostty 안의 tmux는 tmux pane까지는 가지만 Ghostty 탭은 고르지 못한다 (Ghostty가 탭의 tty를 알려 주지 않음)
 - tmux 세션의 바깥 Terminal.app·iTerm2 탭을 고르지 못하면(제어 권한 거절 등) pane만 바뀌고 경고음이 난다
 - Claude Code 세션 파일 형식은 공개 규격이 아니라 실측에 기대고 있다. 모르는 상태 값은 회색으로 표시한다
-- 답하기는 Claude Code 질문 창의 화면 모양(2.1.309 실측)에 기대고 있다. 모양이 바뀌면 키를 넣기 전이면 보내지 않고, 넣는 도중이면 거기서 멈춰 실패로 표시한다
+- Codex는 로컬 공유 app-server 상태와 살아 있는 TUI의 고유한 터미널 제목을 대조한다(0.165.0 검증). `--no-daemon`·별도·원격 서버는 제외하며, 제목 변경·중복으로 위치를 확정할 수 없는 세션은 표시하지 않는다
+- 답하기는 Claude Code(2.1.309 실측)와 Codex(0.165.0 실측)의 질문 창·입력 칸 모양에 기대고 있다. 모양이 바뀌면 키를 넣기 전이면 보내지 않고, 넣는 도중이면 거기서 멈춰 실패로 표시한다
+- Claude 자동화 세션을 직접 실행한 세션과 나누는 표시·필터는 아직 없다. 숫자나 임시 작업 이름으로 표시되는 이유는 [직접 실행하지 않은 세션이 보이는 이유](#직접-실행하지-않은-세션이-보이는-이유) 참고
 - Ghostty에서 답변 끝의 질문에 답할 때 입력 칸에 쓰던 글이 있으면, 넣어 본 글자 하나가 잠깐 붙었다 지워진다. 가려진 탭·다른 데스크탑의 창·분할된 탭에는 답할 수 없다(보기만)
 - 승인 대기에는 답할 수 없다(내용만 보여 줌)
 - Orca에서 흐린 다음 입력 제안이 떠 있으면 쓰던 글로 판단해 답장을 보내지 않는다. 제안과 실제 입력을 구분할 수 없어 터미널에서 직접 답해야 한다
@@ -249,6 +285,21 @@ make install  # 조립 후 /Applications 에 설치하고 실행 (켜져 있던 
 make clean
 ```
 
+`AgentProvider`는 에이전트 공통 protocol이다. [ClaudeCodeProvider](Sources/AgentFloatCore/Claude/ClaudeCodeProvider.swift)와 [CodexCodeProvider](Sources/AgentFloatCore/Codex/CodexCodeProvider.swift)가 각각 구현하고, `SessionStore`가 결과를 모은다. 답장 절차는 `ReplyDelivery`를 공유하며 화면 판독과 답장 기록 읽기는 각 에이전트의 형식에 맞춘다.
+
+### 검증
+
+기본 `make test`는 실제 사용자 세션에 입력하지 않는다. Codex 추가와 종료된 세션 제외, 터미널 짝짓기, 상태·질문 판정, 답장 기록 대조, 통신 실패·복구를 회귀 테스트로 확인했다.
+
+기존 공유 서버에 작업 중인 Codex 세션이 있을 때 아래 검사를 별도로 실행할 수 있다. 첫 검사는 상태만 읽고, 두 번째 검사는 실제 Ghostty 탭으로 이동해 포커스를 확인한다.
+
+```sh
+AGENT_FLOAT_TEST_LIVE_CODEX=1 swift test --filter liveSharedDaemonReadOnlySmoke
+AGENT_FLOAT_TEST_LIVE_NAVIGATION=1 swift test --filter liveDetectedGhosttySessionCanBeFocused
+```
+
+실제 사용자 환경에서는 서버에 남은 3개 중 열린 Codex TUI 1개만 표시되는 것과 Ghostty 이동을 확인했다. 답장은 임시 Codex 홈·로컬 가짜 모델 응답 서버·격리된 tmux의 실제 Codex TUI에서 선택지, notes 직접 입력, 본문 답장, 두 질문 연속 답장을 전송하고 기록이 일치하는지 확인했다. 이 전송 검증에는 실제 모델 API를 호출하지 않았다. 재현용 fixture manifest와 선택적 검사 설정은 [Codex 검증과 범위](docs/codex-detection.md#검증과-범위)를 참고한다.
+
 <details>
 <summary>개발용 환경 변수</summary>
 
@@ -259,6 +310,7 @@ make clean
 | `AGENT_FLOAT_DEBUG=1` | 판정·이동·창 동작 로그를 stderr로 출력 (`open --stderr <파일>`과 같이 쓰면 편함) |
 | `AGENT_FLOAT_FAKE_SESSIONS=<개수>` | 실제 세션 대신 가짜 세션으로 화면 확인 |
 | `AGENT_FLOAT_CLAUDE_HOME=<폴더>` | `~/.claude` 대신 읽을 폴더 |
+| `AGENT_FLOAT_CODEX_HOME=<폴더>` | Codex 공유 서버 소켓을 찾을 폴더. 미설정 시 `CODEX_HOME`, 다음으로 `~/.codex` 사용 |
 | `AGENT_FLOAT_APPEARANCE=light\|dark` | 라이트·다크 모양 고정 |
 | `AGENT_FLOAT_CONTRAST=standard\|outline\|inverse` | 가장자리 대비를 메뉴 선택보다 우선해 고정 (유리 그대로·윤곽선·반대) |
 | `AGENT_FLOAT_REDUCE_MOTION=1` | 동작 줄이기 모드처럼 표시 |
@@ -275,6 +327,7 @@ make clean
 Sources/
   AgentFloatCore/        UI 없는 로직 (단위 테스트 대상)
     Claude/              세션 파일·transcript 읽기와 상태 판정
+    Codex/               공유 서버 상태·실제 TUI 탐지, 질문·답장 기록 읽기
     Provider/            에이전트 provider 규약과 여러 provider를 모으는 SessionStore
     Model/ Signals/      세션 모델, 묶음과 ASK·NEW 신호 규칙
     Navigation/          Ghostty·Orca·Terminal.app·iTerm2·tmux 이동과 폴백
