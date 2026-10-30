@@ -1,0 +1,468 @@
+{
+  "version": 1,
+  "shots": [
+    {
+      "file": "hero-light.gif",
+      "scene": "mixed",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 9,
+      "size": [
+        460,
+        574
+      ],
+      "steps": [
+        "접힌 알약에서 1초 대기",
+        "마우스를 올려 Claude와 Codex 목록을 5초 보여주기",
+        "마우스를 빼고 접힌 화면에서 1초 대기"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "reply-choice-light.gif",
+      "scene": "choice",
+      "agent": "codex",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 14,
+      "size": [
+        480,
+        720
+      ],
+      "steps": [
+        "목록의 Codex 질문 열기",
+        "첫 선택지를 고르고 1초 대기",
+        "보내기 후 단계와 성공 표시 확인"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "hero-dark.gif",
+      "scene": "mixed",
+      "agent": "claude",
+      "theme": "dark",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 9,
+      "size": [
+        460,
+        574
+      ],
+      "steps": [
+        "접힌 알약에서 1초 대기",
+        "마우스를 올려 Claude와 Codex 목록을 5초 보여주기",
+        "마우스를 빼고 접힌 화면에서 1초 대기"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "reply-choice-dark.gif",
+      "scene": "choice",
+      "agent": "codex",
+      "theme": "dark",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 14,
+      "size": [
+        480,
+        720
+      ],
+      "steps": [
+        "목록의 Codex 질문 열기",
+        "첫 선택지를 고르고 1초 대기",
+        "보내기 후 단계와 성공 표시 확인"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "reply-multi.gif",
+      "scene": "multi",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 20,
+      "size": [
+        480,
+        720
+      ],
+      "steps": [
+        "Claude 질문 열기",
+        "첫 질문의 첫 선택지 후 다음",
+        "둘째 질문의 둘째 선택지 후 확인",
+        "첫 답을 수정하고 확인 화면으로 돌아와 보내기"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "reply-body.gif",
+      "scene": "body",
+      "agent": "codex",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 17,
+      "size": [
+        480,
+        720
+      ],
+      "steps": [
+        "Codex 본문 질문 열기",
+        "가상 답변 입력: 네, 서버 설정값으로 분리해 주세요.",
+        "보내기 후 성공 표시 확인"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "reply-permission.gif",
+      "scene": "permission",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 10,
+      "size": [
+        480,
+        720
+      ],
+      "steps": [
+        "승인 대기 내용 열기",
+        "가상 명령과 읽기 전용 안내를 3초 보여주기",
+        "목록으로 돌아오기"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "guard-draft.gif",
+      "scene": "choice",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "draft",
+      "seconds": 15,
+      "size": [
+        480,
+        720
+      ],
+      "steps": [
+        "질문 열기",
+        "첫 선택지 선택 후 보내기",
+        "보내지 않음과 기존 입력 안내를 보여주기"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "guard-mismatch.gif",
+      "scene": "choice",
+      "agent": "codex",
+      "theme": "light",
+      "placement": "panel",
+      "result": "mismatch",
+      "seconds": 18,
+      "size": [
+        480,
+        720
+      ],
+      "steps": [
+        "질문 열기",
+        "첫 선택지 선택 후 보내기",
+        "불일치 안내 확인",
+        "불일치 결과와 상단 FAIL 표시 보여주기"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "placement-inline.gif",
+      "scene": "choice",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "inline",
+      "result": "delivered",
+      "seconds": 13,
+      "size": [
+        480,
+        982
+      ],
+      "steps": [
+        "혼합 목록에서 Claude 질문 열기",
+        "줄 안에서 펼쳐진 배지와 질문 확인",
+        "첫 선택지를 고른 후 닫기"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "placement-card.gif",
+      "scene": "choice",
+      "agent": "codex",
+      "theme": "light",
+      "placement": "card",
+      "result": "delivered",
+      "seconds": 16,
+      "size": [
+        720,
+        680
+      ],
+      "steps": [
+        "목록에서 Codex 질문 열기",
+        "목록과 옆 카드의 배지를 보여주기",
+        "첫 선택지 선택 후 보내기"
+      ],
+      "priority": "required"
+    },
+    {
+      "file": "state-ask-light.gif",
+      "scene": "ask",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        348,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "교체 시 알약과 상태 변화만 촬영"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "state-ask-dark.gif",
+      "scene": "ask",
+      "agent": "claude",
+      "theme": "dark",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        348,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "교체 시 알약과 상태 변화만 촬영"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "state-running-light.gif",
+      "scene": "running",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        290,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "교체 시 알약과 상태 변화만 촬영"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "state-running-dark.gif",
+      "scene": "running",
+      "agent": "claude",
+      "theme": "dark",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        290,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "교체 시 알약과 상태 변화만 촬영"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "state-new-light.gif",
+      "scene": "new",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 12,
+      "size": [
+        416,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "교체 시 알약과 상태 변화만 촬영"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "state-new-dark.gif",
+      "scene": "new",
+      "agent": "claude",
+      "theme": "dark",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 12,
+      "size": [
+        416,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "교체 시 알약과 상태 변화만 촬영"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "state-unknown-light.gif",
+      "scene": "unknown",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        290,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "교체 시 알약과 상태 변화만 촬영"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "state-unknown-dark.gif",
+      "scene": "unknown",
+      "agent": "claude",
+      "theme": "dark",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        290,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "교체 시 알약과 상태 변화만 촬영"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "bg-light.gif",
+      "scene": "mixed",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        598,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "해당 배경을 준비한 뒤 기존 구도 재현"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "bg-dark.gif",
+      "scene": "mixed",
+      "agent": "claude",
+      "theme": "dark",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        598,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "해당 배경을 준비한 뒤 기존 구도 재현"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "bg-doc.gif",
+      "scene": "mixed",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        598,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "해당 배경을 준비한 뒤 기존 구도 재현"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "bg-sonoma.gif",
+      "scene": "mixed",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        598,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "해당 배경을 준비한 뒤 기존 구도 재현"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "bg-code.gif",
+      "scene": "mixed",
+      "agent": "claude",
+      "theme": "dark",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        598,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "해당 배경을 준비한 뒤 기존 구도 재현"
+      ],
+      "priority": "review"
+    },
+    {
+      "file": "bg-vivid.gif",
+      "scene": "mixed",
+      "agent": "claude",
+      "theme": "light",
+      "placement": "panel",
+      "result": "delivered",
+      "seconds": 4,
+      "size": [
+        598,
+        256
+      ],
+      "steps": [
+        "기존 GIF 전체 프레임을 확인해 유지/교체 판정",
+        "해당 배경을 준비한 뒤 기존 구도 재현"
+      ],
+      "priority": "review"
+    }
+  ]
+}

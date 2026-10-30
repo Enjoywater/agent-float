@@ -7,6 +7,16 @@ struct FakeProvider: AgentProvider {
     let id = "fake"
     let count: Int
     let startedAt: Date
+    /// 촬영 시나리오는 가짜 세션 모드에서만 적용한다. 일반 가짜 세션의 넘침 검사는 그대로 둔다.
+    var mediaScene: MediaScene? = nil
+    var mediaAgent: MediaAgent = .claude
+
+    enum MediaScene: String, CaseIterable { case mixed, choice, multi, body, permission, ask, running, new, unknown }
+    enum MediaAgent: String, CaseIterable {
+        case claude, codex
+        var name: String { self == .claude ? "Claude" : "Codex" }
+        var other: Self { self == .claude ? .codex : .claude }
+    }
 
     var watchedDirectories: [URL] { [] }
 
@@ -32,7 +42,8 @@ struct FakeProvider: AgentProvider {
     private static let reasons: [WaitReason] = [.question, .permission, .bodyQuestion, .worker]
 
     func snapshot(now: Date) throws -> [AgentSession] {
-        (0..<count).map { index in
+        if let mediaScene { return mediaSnapshot(scene: mediaScene, now: now) }
+        return (0..<count).map { index in
             let status = status(of: index, now: now)
             return AgentSession(
                 key: SessionKey(providerId: id, sessionId: "fake-\(index)"),
@@ -48,6 +59,57 @@ struct FakeProvider: AgentProvider {
                 locator: .none,
                 prompt: status == .waiting ? Self.prompt(for: index) : nil
             )
+        }
+    }
+
+    private func mediaSnapshot(scene: MediaScene, now: Date) -> [AgentSession] {
+        func session(_ id: String, _ agent: MediaAgent, _ title: String, _ status: AgentStatus,
+                     reason: WaitReason? = nil, prompt: PendingPrompt? = nil) -> AgentSession {
+            AgentSession(
+                key: SessionKey(providerId: self.id, sessionId: "fake-media-\(id)"),
+                agentName: agent.name, title: title, cwd: "/demo/\(agent == .claude ? "sample-app" : "agent-float")",
+                status: status, waitReason: reason, statusSince: startedAt.addingTimeInterval(-120),
+                isStale: false, lastActivityAt: startedAt, terminalApp: agent == .claude ? .ghostty : .orca,
+                locator: .none, prompt: prompt
+            )
+        }
+        func question(_ id: String) -> PendingPrompt {
+            .choices(id: "media-question-\(id)", questions: [ChoiceQuestion(
+                text: "에이전트 이름 표시를 어디까지 적용할까요?",
+                header: "적용 범위", multiSelect: false,
+                options: [
+                    ChoiceOption(label: "목록과 답장 화면 (Recommended)", description: "두 화면에서 같은 배지를 사용합니다", hasPreview: false),
+                    ChoiceOption(label: "목록부터 적용", description: "답장 화면은 다음 단계로 진행합니다", hasPreview: false),
+                ]
+            )])
+        }
+        switch scene {
+        case .mixed:
+            return [
+                session("claude", .claude, "결제 화면 개선", .waiting, reason: .question, prompt: question("claude")),
+                session("codex", .codex, "세션 탐지 기능 추가", .waiting, reason: .question, prompt: question("codex")),
+                session("running", .codex, "API 응답 처리", .running),
+                session("done", .claude, "회귀 테스트 보완", .done),
+            ]
+        case .ask:
+            return [session("target", mediaAgent, "적용 범위 확인", .waiting, reason: .question, prompt: question("target"))]
+        case .running, .unknown, .new:
+            let status: AgentStatus = scene == .unknown ? .unknown :
+                (scene == .new && now.timeIntervalSince(startedAt) >= Self.finishAfter ? .done : .running)
+            return [session("target", mediaAgent, "회귀 테스트 보완", status)]
+        case .choice, .multi, .body, .permission:
+            let prompt: PendingPrompt = switch scene {
+            case .multi: .choices(id: "media-multi", questions: [Self.deployQuestion, Self.cadenceQuestion])
+            case .body: .text(id: "media-body", message: Self.bodyMessage)
+            case .permission: .permission(id: "media-permission", tool: "Bash", summary: "swift test --parallel")
+            default: question("target")
+            }
+            let reason: WaitReason = scene == .body ? .bodyQuestion : scene == .permission ? .permission : .question
+            return [
+                session("target", mediaAgent, scene == .permission ? "테스트 실행 승인" : "에이전트 배지 적용", .waiting, reason: reason, prompt: prompt),
+                session("running", mediaAgent.other, "API 응답 처리", .running),
+                session("done", mediaAgent.other, "회귀 테스트 보완", .done),
+            ]
         }
     }
 

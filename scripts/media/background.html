@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Float · 촬영 배경</title>
+<style>
+html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f5f5f7;color:#1d1d1f}
+body{min-height:100vh}body.dark{background:#161617;color:#f5f5f7}body.vivid{background:linear-gradient(125deg,#007aff,#af52de 55%,#ff9500)}
+article{padding:70px;max-width:750px}h1{font-size:36px;letter-spacing:-1.2px}p{font-size:18px;line-height:1.8;color:#6e6e73}pre{font:16px/2 ui-monospace,monospace;color:#b8d7ff}.dark p{color:#a1a1a6}
+</style>
+<body>
+<script>
+const mode=new URLSearchParams(location.search).get('mode')||'light';
+if(['dark','code'].includes(mode))document.body.className='dark';
+if(mode==='vivid')document.body.className='vivid';
+if(mode==='doc'){
+ const article=document.createElement('article');const h=document.createElement('h1');h.textContent='작업을 이어가는 작은 도구';
+ const p=document.createElement('p');p.textContent='이 문서는 촬영을 위한 가상 배경입니다. 상태를 확인하고 필요한 작업으로 이어 갑니다. 실제 프로젝트나 개인 정보를 포함하지 않습니다.';
+ article.append(h,p);document.body.append(article);
+}
+if(mode==='code'){
+ const article=document.createElement('article');const pre=document.createElement('pre');pre.textContent='struct DemoSession {\n    let agentName: String\n    let title: String\n    let status: Status\n}\n\n// 가상 코드 · 기능 설명용 배경\nlet session = DemoSession(\n    agentName: "Codex",\n    title: "에이전트 배지 적용",\n    status: .waiting\n)';article.append(pre);document.body.append(article);
+}
+</script>
+</body>
+</html>

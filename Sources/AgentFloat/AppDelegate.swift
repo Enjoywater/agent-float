@@ -32,13 +32,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let runner = ProcessCommandRunner()
         let activator = AppActivator()
         let store = SessionStore(providers: Self.makeProviders(environment))
+        let isFake = environment["AGENT_FLOAT_FAKE_SESSIONS"].flatMap(Int.init).map { $0 > 0 } ?? false
         let model = AppModel(
             store: store,
-            navigators: Self.makeNavigators(runner: runner, activator: activator),
-            focusProbes: [GhosttyFocusProbe(runner: runner), AppleTerminalFocusProbe(runner: runner), ITermFocusProbe(runner: runner)],
+            navigators: isFake ? NavigatorRegistry([]) : Self.makeNavigators(runner: runner, activator: activator),
+            focusProbes: isFake ? [] : [GhosttyFocusProbe(runner: runner), AppleTerminalFocusProbe(runner: runner), ITermFocusProbe(runner: runner)],
             activator: activator
         )
-        let isFake = environment["AGENT_FLOAT_FAKE_SESSIONS"].flatMap(Int.init).map { $0 > 0 } ?? false
         let replies = ReplyCenter(backend: isFake ? FakeReplyBackend.make(environment) : Self.makeReplyBackend(runner: runner, store: store))
         replies.onFailuresChange = { [weak model] keys in model?.setFailures(keys) }
         let controller = PanelController(model: model, replies: replies)
@@ -146,7 +146,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 실제 세션을 띄우거나 바꾸지 않고 화면·전환을 확인할 수 있게 입력을 바꿔 끼운다
     static func makeProviders(_ environment: [String: String]) -> [any AgentProvider] {
         if let raw = environment["AGENT_FLOAT_FAKE_SESSIONS"], let count = Int(raw), count > 0 {
-            return [FakeProvider(count: count, startedAt: Date())]
+            return [FakeProvider(
+                count: count, startedAt: Date(),
+                mediaScene: environment["AGENT_FLOAT_MEDIA_SCENE"].flatMap(FakeProvider.MediaScene.init(rawValue:)),
+                mediaAgent: environment["AGENT_FLOAT_MEDIA_AGENT"].flatMap(FakeProvider.MediaAgent.init(rawValue:)) ?? .claude
+            )]
         }
         let claude: ClaudeCodeProvider
         if let home = environment["AGENT_FLOAT_CLAUDE_HOME"], !home.isEmpty {
