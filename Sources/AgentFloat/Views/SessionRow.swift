@@ -83,11 +83,14 @@ struct SessionRow: View {
 
     private var detailLine: some View {
         HStack(spacing: 5) {
+            AgentBadge(session: session)
             if let icon = AppIcons.icon(for: session.terminalApp) {
                 Image(nsImage: icon)
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 12, height: 12)
+                    .fixedSize()
+                    .accessibilityLabel(terminalLabel)
             }
             detailText
                 .lineLimit(1)
@@ -95,6 +98,15 @@ struct SessionRow: View {
         }
         .font(.system(size: 11))
         .foregroundStyle(.secondary)
+    }
+
+    private var terminalLabel: String {
+        switch session.terminalApp {
+        case .ghostty: "Ghostty 터미널"
+        case .orca: "Orca 터미널"
+        case let .other(name): "\(name) 터미널"
+        case .unknown: "터미널"
+        }
     }
 
     private var detailText: Text {

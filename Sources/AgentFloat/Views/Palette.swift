@@ -2,7 +2,7 @@ import AgentFloatCore
 import AppKit
 import SwiftUI
 
-/// 색은 상태 표시에만 쓰고 모두 시스템 색이라 라이트·다크·대비 증가 설정을 시스템이 맞춰 준다 (spec 4.10)
+/// 상태 점·알림의 시스템 색. 에이전트 구분은 AgentBadge의 이름과 별도 배경색으로 표시한다.
 enum Palette {
     static let running = Color(nsColor: .systemBlue)
     static let waiting = Color(nsColor: .systemOrange)

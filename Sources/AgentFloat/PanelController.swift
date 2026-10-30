@@ -744,7 +744,7 @@ final class PanelController: NSObject {
     /// 그려진 내용이 잰 값과 다르면 그 값으로 다시 맞춘다. 내용 높이는 창 높이와 무관해 맞춘 뒤 다시 바뀌지 않는다
     private func replyContentRendered(_ height: CGFloat) {
         if presentation.replyPlacement == .card, card.isVisible, let session = replies.openSession, height > 0 {
-            showCard(for: session, contentHeight: ceil(height) + ReplyFooter.height)
+            showCard(for: session, contentHeight: ReplyScreen.compactHeaderHeight + ceil(height) + ReplyFooter.height)
             return
         }
         guard phase == .expanded, presentation.content == .reply, height > 0 else { return }

@@ -29,13 +29,24 @@ struct ReplyScreen: View {
     let actions: ReplyActions
     /// nil 이면 높이를 재는 중이라 스크롤 없이 내용 그대로 늘어놓는다
     let height: CGFloat?
-    /// 옆 카드는 고른 줄이 패널에 강조되어 있어 머리 줄을 다시 그리지 않는다
+    /// 옆 카드는 고른 줄에 제목이 있어 에이전트 배지만 따로 표시한다
     var showsHeader = true
+
+    static let compactHeaderHeight: CGFloat = AgentBadge.height + 10
+    private var headerHeight: CGFloat { showsHeader ? ReplyHeader.height : Self.compactHeaderHeight }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if showsHeader {
                 ReplyHeader(session: session, isLocked: isSending, onBack: actions.back)
+            } else {
+                HStack {
+                    AgentBadge(session: session)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, ReplyLayout.contentInset)
+                .padding(.top, 6)
+                .padding(.bottom, 4)
             }
             if let height {
                 // 내용만 스크롤하고 버튼 줄은 고정한다 (설계 4.8 높이)
@@ -47,7 +58,7 @@ struct ReplyScreen: View {
                     .scrollBounceBehavior(.basedOnSize)
                     .onPreferenceChange(ReplyContentHeightKey.self) { actions.contentHeight($0) }
                     .frame(maxHeight: .infinity)
-                    .frame(height: max(0, height - (showsHeader ? ReplyHeader.height : 0) - ReplyFooter.height))
+                    .frame(height: max(0, height - headerHeight - ReplyFooter.height))
             } else {
                 content
             }
@@ -108,8 +119,9 @@ struct ReplyHeader: View {
                 .padding(.leading, ReplyLayout.titleLeading - ReplyLayout.backSize - 6)
                 .padding(.trailing, ReplyLayout.contentInset)
                 HStack(spacing: 5) {
+                    AgentBadge(session: session)
                     if let icon = AppIcons.icon(for: session.terminalApp) {
-                        Image(nsImage: icon).resizable().interpolation(.high).frame(width: 12, height: 12)
+                        Image(nsImage: icon).resizable().interpolation(.high).frame(width: 12, height: 12).fixedSize()
                     }
                     Text(detail).lineLimit(1).truncationMode(.tail)
                 }

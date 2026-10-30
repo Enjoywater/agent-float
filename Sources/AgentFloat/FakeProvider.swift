@@ -36,7 +36,7 @@ struct FakeProvider: AgentProvider {
             let status = status(of: index, now: now)
             return AgentSession(
                 key: SessionKey(providerId: id, sessionId: "fake-\(index)"),
-                agentName: "Fake",
+                agentName: index % 2 == 0 ? "Claude" : "Codex",
                 title: Self.titles[index % Self.titles.count],
                 cwd: folder(of: index),
                 status: status,
