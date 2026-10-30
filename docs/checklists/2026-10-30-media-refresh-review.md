@@ -49,3 +49,7 @@ Claude/Codex 세션·질문·전송 결과는 가상 데이터다. 실제 모델
 - 가상 시나리오와 입력 경로 변경 후 Swift 테스트 468개가 통과했다.
 - README와 소개서의 교체 GIF URL에는 새 캐시 버전을 붙였고, 소개서의 배지 적용 전 화면 안내를 현재 촬영 안내로 바꿨다.
 - 사용자의 요청으로 최종 GIF 11개와 로컬 HTML 미리보기를 Desktop 검토 폴더에도 복사했다.
+
+## 배포 확인
+
+미디어 교체 커밋 `1d3cda3`의 GitHub Pages 빌드가 성공했다. [기능소개서](https://enjoywater.github.io/agent-float/)의 현재 촬영 안내와 새 캐시 버전을 확인했고, GIF 11개 모두 HTTP 200 응답과 검수본 SHA-256 일치를 확인했다. Desktop 검토 복사본도 같은 해시다.
