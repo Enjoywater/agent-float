@@ -25,11 +25,11 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.gif">
-    <img src="docs/media/hero-light.gif" width="460" alt="알약에 마우스를 올리면 세션 목록이 펼쳐지는 모습">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.gif?v=20261030-3">
+    <img src="docs/media/hero-light.gif?v=20261030-3" width="460" alt="알약에 마우스를 올리면 세션 목록이 펼쳐지는 모습">
   </picture>
   <br>
-  <sub>이 문서의 화면은 모두 데모용 가짜 세션으로 찍었다</sub>
+  <sub>화면 녹화는 가상 세션과 가상 전송 결과로 촬영했다</sub>
 </p>
 
 ## 소개
@@ -140,16 +140,16 @@ Codex는 `request_user_input`의 선택지와 `None of the above`의 notes 입�
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/media/reply-choice-dark.gif">
-    <img src="docs/media/reply-choice-light.gif" width="400" alt="선택지를 고르고 보내면 단계별로 확인한 뒤 보냈어요가 뜨는 모습">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/reply-choice-dark.gif?v=20261030-3">
+    <img src="docs/media/reply-choice-light.gif?v=20261030-3" width="400" alt="선택지를 고르고 보내면 단계별로 확인한 뒤 보냈어요가 뜨는 모습">
   </picture>
 </p>
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="docs/media/reply-multi.gif" width="260" alt="질문 두 개에 차례로 답하고 확인 화면에서 보내기"><br><b>질문 여러 개</b><br><sub>차례로 고른 뒤 한 번에 확인하고 보냄</sub></td>
-    <td align="center" width="33%"><img src="docs/media/reply-body.gif" width="260" alt="답변 끝의 질문에 직접 써서 보내기"><br><b>답변 끝의 질문</b><br><sub>마지막 답변을 보며 직접 써서 보냄</sub></td>
-    <td align="center" width="33%"><img src="docs/media/reply-permission.gif" width="260" alt="승인 대기의 내용 보기"><br><b>승인 대기</b><br><sub>내용만 보여 줌. 승인은 터미널에서</sub></td>
+    <td align="center" width="33%"><img src="docs/media/reply-multi.gif?v=20261030-3" width="260" alt="질문 두 개에 차례로 답하고 확인 화면에서 보내기"><br><b>질문 여러 개</b><br><sub>차례로 고른 뒤 한 번에 확인하고 보냄</sub></td>
+    <td align="center" width="33%"><img src="docs/media/reply-body.gif?v=20261030-3" width="260" alt="답변 끝의 질문에 직접 써서 보내기"><br><b>답변 끝의 질문</b><br><sub>마지막 답변을 보며 직접 써서 보냄</sub></td>
+    <td align="center" width="33%"><img src="docs/media/reply-permission.gif?v=20261030-3" width="260" alt="승인 대기의 내용 보기"><br><b>승인 대기</b><br><sub>내용만 보여 줌. 승인은 터미널에서</sub></td>
   </tr>
 </table>
 
@@ -164,8 +164,8 @@ Codex는 `request_user_input`의 선택지와 `None of the above`의 notes 입�
 
 <table>
   <tr>
-    <td align="center" width="50%"><img src="docs/media/guard-draft.gif" width="320" alt="터미널 입력 칸에 쓰던 글이 있어 보내지 않음"><br><b>터미널에 쓰던 글이 있으면 멈춤</b></td>
-    <td align="center" width="50%"><img src="docs/media/guard-mismatch.gif" width="320" alt="기록된 답이 달라 알약에 FAIL이 남음"><br><b>기록이 다르면 <code>FAIL</code>로 남김</b></td>
+    <td align="center" width="50%"><img src="docs/media/guard-draft.gif?v=20261030-3" width="320" alt="터미널 입력 칸에 쓰던 글이 있어 보내지 않음"><br><b>터미널에 쓰던 글이 있으면 멈춤</b></td>
+    <td align="center" width="50%"><img src="docs/media/guard-mismatch.gif?v=20261030-3" width="320" alt="기록된 답이 달라 알약에 FAIL이 남음"><br><b>기록이 다르면 <code>FAIL</code>로 남김</b></td>
   </tr>
 </table>
 
@@ -186,11 +186,11 @@ Codex는 `request_user_input`의 선택지와 `None of the above`의 notes 입�
 
 <table>
   <tr>
-    <td align="center" width="50%"><img src="docs/media/reply-choice-light.gif" width="300" alt="패널이 답장 화면으로 바뀜"><br><b>패널 전환</b> (기본값)<br><sub>패널이 그 세션의 답장 화면으로 바뀜</sub></td>
-    <td align="center" width="50%"><img src="docs/media/placement-inline.gif" width="300" alt="누른 줄이 그 자리에서 길어짐"><br><b>줄 안에서 펼침</b><br><sub>누른 줄이 그 자리에서 길어짐</sub></td>
+    <td align="center" width="50%"><img src="docs/media/reply-choice-light.gif?v=20261030-3" width="300" alt="패널이 답장 화면으로 바뀜"><br><b>패널 전환</b> (기본값)<br><sub>패널이 그 세션의 답장 화면으로 바뀜</sub></td>
+    <td align="center" width="50%"><img src="docs/media/placement-inline.gif?v=20261030-3" width="300" alt="누른 줄이 그 자리에서 길어짐"><br><b>줄 안에서 펼침</b><br><sub>누른 줄이 그 자리에서 길어짐</sub></td>
   </tr>
   <tr>
-    <td align="center" colspan="2"><img src="docs/media/placement-card.gif" width="600" alt="목록 옆에 답장 카드가 떠 답을 써서 보냄"><br><b>옆에 카드</b><br><sub>목록은 두고 패널 옆에 카드가 뜸</sub></td>
+    <td align="center" colspan="2"><img src="docs/media/placement-card.gif?v=20261030-3" width="600" alt="목록 옆에 답장 카드가 떠 답을 써서 보냄"><br><b>옆에 카드</b><br><sub>목록은 두고 패널 옆에 카드가 뜸</sub></td>
   </tr>
 </table>
 
@@ -309,6 +309,8 @@ AGENT_FLOAT_TEST_LIVE_NAVIGATION=1 swift test --filter liveDetectedGhosttySessio
 |---|---|
 | `AGENT_FLOAT_DEBUG=1` | 판정·이동·창 동작 로그를 stderr로 출력 (`open --stderr <파일>`과 같이 쓰면 편함) |
 | `AGENT_FLOAT_FAKE_SESSIONS=<개수>` | 실제 세션 대신 가짜 세션으로 화면 확인 |
+| `AGENT_FLOAT_MEDIA_SCENE=mixed\|choice\|multi\|body\|permission\|ask\|running\|new\|unknown` | 가짜 세션 모드에서 촬영용 고정 시나리오 선택 |
+| `AGENT_FLOAT_MEDIA_AGENT=claude\|codex` | 촬영 시나리오의 질문 담당 에이전트 선택 |
 | `AGENT_FLOAT_CLAUDE_HOME=<폴더>` | `~/.claude` 대신 읽을 폴더 |
 | `AGENT_FLOAT_CODEX_HOME=<폴더>` | Codex 공유 서버 소켓을 찾을 폴더. 미설정 시 `CODEX_HOME`, 다음으로 `~/.codex` 사용 |
 | `AGENT_FLOAT_APPEARANCE=light\|dark` | 라이트·다크 모양 고정 |
