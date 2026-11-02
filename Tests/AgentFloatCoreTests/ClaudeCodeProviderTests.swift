@@ -70,6 +70,25 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         try? FileManager.default.removeItem(at: claudeHome)
     }
 
+    @Test func herdrOverridesGhostty() throws {
+        let inspector = HerdrInspector()
+        try writeSession(pid: 42, sessionId: Self.sessionId(1))
+        let provider = ClaudeCodeProvider(claudeHome: claudeHome, homeDirectory: Self.homeDirectory, inspector: inspector)
+        let session = try #require(provider.snapshot(now: Self.now).first)
+        #expect(session.terminalApp == .herdr)
+        #expect(session.locator == .herdr(HerdrTests.target))
+    }
+
+    @Test func herdrEnvironmentDoesNotOverrideTmuxPane() throws {
+        var inspector = HerdrInspector()
+        inspector.env["TMUX"] = "/tmp/tmux,40,0"
+        inspector.env["TMUX_PANE"] = "%2"
+        try writeSession(pid: 42, sessionId: Self.sessionId(1))
+        let provider = ClaudeCodeProvider(claudeHome: claudeHome, homeDirectory: Self.homeDirectory, inspector: inspector)
+        let session = try #require(provider.snapshot(now: Self.now).first)
+        #expect(session.locator == .tmux(socket: "/tmp/tmux", paneId: "%2", pid: 42))
+    }
+
     // MARK: Helpers
 
     private func provider(_ inspector: FakeInspector) -> ClaudeCodeProvider {

@@ -6,6 +6,7 @@ struct CodexProcess: Sendable {
     let cwd: String
     let environment: [String: String]
     let tty: String
+    var herdr: HerdrTarget? = nil
 }
 
 struct CodexPlacement: Sendable {
@@ -20,6 +21,7 @@ struct CodexTerminalInventory: Sendable {
     let titlesByTTY: [String: String]
     let tmuxTitles: [String: String]
     let orcaTitles: [String: String]
+    var herdrTerminals: [HerdrTarget: HerdrTerminal] = [:]
 
     func placement(title: String?, cwd: String) -> CodexPlacement? {
         guard let title, !title.isEmpty else { return nil }
@@ -31,6 +33,12 @@ struct CodexTerminalInventory: Sendable {
                 let path = pieces.dropLast(2).joined(separator: ",")
                 if pieces.count >= 3, TmuxCLI.isSafeSocketPath(path), TmuxCLI.isPaneId(pane), Self.matches(tmuxTitles[path + "\t" + pane], title: title, cwd: cwd) {
                     matches.append(CodexPlacement(app: .other("tmux"), locator: .tmux(socket: path, paneId: pane, pid: process.pid)))
+                }
+                continue
+            }
+            if let target = process.herdr {
+                if let terminal = herdrTerminals[target], Self.matches(terminal.title, title: title, cwd: cwd) {
+                    matches.append(CodexPlacement(app: .herdr, locator: .herdr(target)))
                 }
                 continue
             }
@@ -103,9 +111,17 @@ struct CodexTerminalInventory: Sendable {
                 guard let device = inspector.tty(pid: ancestor) else { break }
                 outerTTY = device
             }
-            processes.append(CodexProcess(pid: pid, cwd: cwd, environment: environment, tty: outerTTY))
+            processes.append(CodexProcess(pid: pid, cwd: cwd, environment: environment, tty: outerTTY,
+                herdr: HerdrTarget.detect(pid: pid, environment: environment, inspector: inspector)))
         }
-        let programs = Set(processes.compactMap { $0.environment["TERM_PROGRAM"] })
+        var herdrTerminals: [HerdrTarget: HerdrTerminal] = [:]
+        for target in Set(processes.compactMap(\.herdr)) {
+            // A Herdr failure excludes only its own session, leaving other terminal discovery intact.
+            if let terminal = try? HerdrCLI.read(target), terminal.belongs(to: target, inspector: inspector) {
+                herdrTerminals[target] = terminal
+            }
+        }
+        let programs = Set(processes.filter { $0.herdr == nil }.compactMap { $0.environment["TERM_PROGRAM"] })
         var ghostty: [GhosttyTerminal] = []
         var titlesByTTY: [String: String] = [:]
         var tmuxTitles: [String: String] = [:]
@@ -157,7 +173,7 @@ struct CodexTerminalInventory: Sendable {
                 }
             }
         }
-        return CodexTerminalInventory(processes: processes, ghostty: ghostty, titlesByTTY: titlesByTTY, tmuxTitles: tmuxTitles, orcaTitles: orcaTitles)
+        return CodexTerminalInventory(processes: processes, ghostty: ghostty, titlesByTTY: titlesByTTY, tmuxTitles: tmuxTitles, orcaTitles: orcaTitles, herdrTerminals: herdrTerminals)
     }
 }
 

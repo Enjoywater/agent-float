@@ -131,7 +131,7 @@ final class AppModel {
     private static func sessionPid(of locator: TerminalLocator) -> Int32? {
         switch locator {
         case let .application(pid), let .tmux(_, _, pid): pid
-        case .ghostty, .orca, .background, .appleTerminal, .iTerm, .none: nil
+        case .herdr, .ghostty, .orca, .background, .appleTerminal, .iTerm, .none: nil
         }
     }
 

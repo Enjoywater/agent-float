@@ -190,6 +190,7 @@ public struct ConsoleRegistry: Sendable {
     static func appName(_ app: TerminalApp) -> String? {
         switch app {
         case .ghostty: "Ghostty"
+        case .herdr: "Herdr"
         case .orca: "Orca"
         case .other("Apple_Terminal"): "Terminal"
         case .other("iTerm.app"): "iTerm2"

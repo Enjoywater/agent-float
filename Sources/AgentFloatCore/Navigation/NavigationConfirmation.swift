@@ -1,5 +1,6 @@
 public enum TerminalBundle {
     public static let ghostty = "com.mitchellh.ghostty"
+    public static let herdr = "dev.herdr.app"
     public static let orca = "com.stablyai.orca"
     public static let appleTerminal = "com.apple.Terminal"
     public static let iTerm = "com.googlecode.iterm2"
@@ -17,6 +18,7 @@ public enum ExpectedFrontmost: Equatable, Sendable {
     public static func expected(for locator: TerminalLocator, activatedPid: Int32?) -> ExpectedFrontmost? {
         switch locator {
         case .ghostty, .background: .bundle(TerminalBundle.ghostty)
+        case .herdr: .bundle(TerminalBundle.herdr)
         case .orca: .bundle(TerminalBundle.orca)
         case .appleTerminal: .bundle(TerminalBundle.appleTerminal)
         case .iTerm: .bundle(TerminalBundle.iTerm)

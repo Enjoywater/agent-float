@@ -23,7 +23,7 @@ public enum WaitReason: Equatable, Sendable {
 }
 
 public enum TerminalApp: Equatable, Sendable {
-    case ghostty, orca
+    case ghostty, orca, herdr
     case other(String)
     case unknown
 }
@@ -32,6 +32,7 @@ public enum TerminalLocator: Equatable, Sendable {
     case ghostty(title: String?, cwd: String)
     /// Unopened Orca worktrees may expose temporary pty tab/leaf IDs while their handles remain stable (1.4.224).
     case orca(tabId: String, leafId: String, handle: String? = nil)
+    case herdr(HerdrTarget)
     case background(jobId: String)
     /// Terminal.app/iTerm2 expose each tab/session tty, uniquely matching the agent's tty.
     case appleTerminal(tty: String)

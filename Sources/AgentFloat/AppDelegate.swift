@@ -117,6 +117,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static func makeNavigators(runner: ProcessCommandRunner, activator: AppActivator) -> NavigatorRegistry {
         NavigatorRegistry([
             GhosttyNavigator(runner: runner),
+            HerdrNavigator(runner: runner, activateHerdr: {
+                activator.activate(bundleIdentifier: TerminalBundle.herdr)
+            }),
             OrcaNavigator(runner: runner, activateOrca: {
                 activator.activate(bundleIdentifier: TerminalBundle.orca)
             }),
@@ -138,6 +141,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 throw NavigationError.terminalNotFound
             }
             switch app.bundleIdentifier {
+            case TerminalBundle.herdr?:
+                let inspector = DarwinProcessInspector()
+                guard let clientPid = chain.first,
+                      let target = HerdrTarget.detect(pid: clientPid, environment: inspector.environment(pid: clientPid), inspector: inspector) else {
+                    throw NavigationError.terminalNotFound
+                }
+                try await HerdrNavigator(runner: runner, activateHerdr: {
+                    activator.activate(bundleIdentifier: TerminalBundle.herdr)
+                }).focus(target)
             case TerminalBundle.appleTerminal?:
                 try await appleTerminal.selectTab(tty: clientTty)
             case TerminalBundle.iTerm?:

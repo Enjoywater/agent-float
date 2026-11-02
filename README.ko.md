@@ -131,6 +131,7 @@ Claude 세션 제목은 대화의 AI 제목, 세션 파일의 이름, `이름 �
 |---|---|
 | Ghostty | 그 탭으로 이동 (탭 제목과 작업 폴더로 찾음) |
 | Orca | 그 터미널 탭으로 이동 (`orca` CLI 사용) |
+| Herdr 데스크톱 앱 | 로컬 터미널 소속을 확인하고 `herdr-app`으로 선택한 뒤 앱을 앞으로 올림 |
 | Terminal.app · iTerm2 | 그 탭으로 이동 (세션의 tty로 찾음) |
 | tmux (어느 터미널 안이든) | 그 pane으로 전환한 뒤 바깥 터미널을 앞으로. Terminal.app·iTerm2면 그 탭까지. 붙은 클라이언트가 없으면 Ghostty 새 탭에서 붙음 |
 | `claude --bg` 백그라운드 세션 | Ghostty 새 탭에서 `claude attach <jobId>` 실행 |
@@ -165,7 +166,7 @@ Codex는 `request_user_input`의 선택지와 `None of the above`의 notes 입�
 | tmux (어느 터미널 안이든, Orca 팀 tmux 포함) | 보냄 | 보냄 |
 | Orca | 보냄 | 보냄 |
 | Ghostty | 보냄 — 지금 보이는 창의 선택된 탭이고 분할이 없을 때만. 그 밖은 보기만 | 보냄 — 질문 창과 같은 조건 |
-| Terminal.app · iTerm2 · 그 밖 | 보기만 | 보기만 |
+| Herdr · Terminal.app · iTerm2 · 그 밖 | 보기만 | 보기만 |
 
 ### 확인할 수 없으면 보내지 않는다
 
@@ -263,6 +264,8 @@ make install                         # /Applications 에 설치하고 실행 (�
 - `답장 화면`: [답장 화면 배치](#답장-화면-배치) 참고
 - `가장자리 대비`: [어떤 배경에서도](#어떤-배경에서도) 참고
 - `로그인 시 실행`: 등록할 때의 앱 위치를 기억한다. 시스템 설정에서 승인해야 할 수 있으며, 막힌 항목은 Option을 누른 채 선택해 등록 해제할 수 있다. `make install`로 설치한 앱에서 등록하면 `make clean`의 영향을 받지 않는다
+
+Herdr 지원은 구형 `herdr` CLI가 아니라 `herdr-core`와 `herdr-app`을 사용하는 데스크톱 앱을 대상으로 한다. 터미널 식별자·프로세스 소속·앱 배치가 일치해야 이동하며, 대상이 없거나 모호하면 Ghostty로 넘기지 않고 실패를 표시한다. Herdr에서 직접 답하기는 보기만 지원한다.
 
 ## 알려진 한계
 

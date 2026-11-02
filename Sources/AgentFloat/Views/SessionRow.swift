@@ -103,6 +103,7 @@ struct SessionRow: View {
     private var terminalLabel: String {
         switch session.terminalApp {
         case .ghostty: LanguageSettings.shared.strings.terminalName("Ghostty")
+        case .herdr: LanguageSettings.shared.strings.terminalName("Herdr")
         case .orca: LanguageSettings.shared.strings.terminalName("Orca")
         case let .other(name): LanguageSettings.shared.strings.terminalName(name)
         case .unknown: LanguageSettings.shared.strings.terminal

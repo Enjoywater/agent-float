@@ -9,11 +9,13 @@ public protocol ProcessInspecting: Sendable {
     func parentPid(of pid: Int32) -> Int32?
     /// Controlling terminal device path, or nil when unavailable or absent.
     func tty(pid: Int32) -> String?
+    func executablePath(pid: Int32) -> String?
 }
 
 public extension ProcessInspecting {
     // Optional tty support lets unsupported terminals fall back to app activation.
     func tty(pid: Int32) -> String? { nil }
+    func executablePath(pid: Int32) -> String? { nil }
 }
 
 public struct DarwinProcessInspector: ProcessInspecting {
@@ -37,6 +39,12 @@ public struct DarwinProcessInspector: ProcessInspecting {
         // The same PID with a different start time identifies a different process.
         let actual = Int64(info.pbi_start_tvsec)
         return abs(actual - Int64(expected.timeIntervalSince1970)) <= 1
+    }
+
+    public func executablePath(pid: Int32) -> String? {
+        var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+        return String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 
     public func environment(pid: Int32) -> [String: String] {

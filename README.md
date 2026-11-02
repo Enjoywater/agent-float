@@ -73,6 +73,7 @@ Locatable rows have a hover highlight and navigation action. Codex uses the same
 |---|---|
 | Ghostty | Select the tab by title and working directory |
 | Orca | Select its terminal through the `orca` CLI |
+| Herdr desktop app | Select the verified local terminal through `herdr-app` and raise Herdr |
 | Terminal.app / iTerm2 | Select the tab/session by tty |
 | tmux, in any terminal | Select its pane, then raise the outer terminal; select its tab too in Terminal.app/iTerm2. With no attached client, attach in a new Ghostty tab |
 | `claude --bg` | Run `claude attach <jobId>` in a new Ghostty tab |
@@ -94,7 +95,7 @@ Codex supports `request_user_input` choices, notes under `None of the above`, se
 | tmux, including Orca team tmux | Send | Send |
 | Orca | Send | Send |
 | Ghostty | Send only to the selected, unsplit tab in a visible window | Same restrictions |
-| Terminal.app / iTerm2 / others | Read-only | Read-only |
+| Herdr / Terminal.app / iTerm2 / others | Read-only | Read-only |
 
 <p align="center"><img src="docs/media/en/reply-multi.gif" width="260" alt="Review multiple answers"><img src="docs/media/en/reply-body.gif" width="260" alt="Write a text reply"><img src="docs/media/en/reply-permission.gif" width="260" alt="Read approval details"></p>
 
@@ -162,6 +163,8 @@ By default the app appears only in the menu bar. Settings include `Reset Positio
 - `Reply View` and `Edge Contrast` are described above.
 - `Launch at Login` remembers the registered app location. Register the installed app so `make clean` does not remove it. System Settings may require approval; Option-select can unregister a blocked item.
 - Drag the summary row to move the pill. Position persists across launches and is clamped after display changes. `Reset Position` restores its default corner. Lists scroll when needed. Reduce Motion follows the macOS preference.
+
+Herdr support targets the desktop app using `herdr-core` and `herdr-app`, rather than the older `herdr` CLI. Its terminal IDs, process ownership, and window placement must agree. Missing or ambiguous targets fail without falling back to Ghostty. Direct replies in Herdr remain read-only.
 
 ## Known Limitations
 

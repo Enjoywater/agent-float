@@ -29,6 +29,7 @@ enum AppIcons {
     private static func candidates(for app: TerminalApp) -> [String] {
         switch app {
         case .ghostty: [TerminalBundle.ghostty]
+        case .herdr: [TerminalBundle.herdr]
         case .orca: [TerminalBundle.orca]
         case let .other(program): otherCandidates[program] ?? []
         case .unknown: []

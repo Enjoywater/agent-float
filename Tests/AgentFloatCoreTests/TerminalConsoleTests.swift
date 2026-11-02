@@ -68,6 +68,22 @@ private struct StubConsole: TerminalConsole {
     private let tmuxSession = waiting(.tmux(socket: socket, paneId: "%7", pid: 4242), app: .other("tmux"))
     private let orcaSession = waiting(.orca(tabId: "t1", leafId: "l1", handle: handle), app: .orca)
 
+    @Test func herdrNeverUsesGhosttyOrOrcaReplyTransport() async {
+        let session = waiting(.herdr(HerdrTests.target), app: .herdr)
+        let runner = FakeCommandRunner { _ in "" }
+        struct UnreadableScreen: GhosttyScreenReading {
+            let isTrusted = false
+            func screen(windowTitle: String) throws -> [String] { throw NavigationError.terminalNotFound }
+        }
+        let registry = ConsoleRegistry([
+            GhosttyConsole(runner: runner, screenReader: UnreadableScreen()),
+            OrcaConsole(runner: runner), TmuxConsole(runner: runner, executable: tmuxExe),
+        ])
+        #expect(registry.console(for: session) == nil)
+        #expect(await registry.availability(of: session) == .readOnly(.unsupportedTerminal("Herdr")))
+        #expect(await runner.calls.isEmpty)
+    }
+
     // MARK: tmux
 
     @Test func tmuxSendsLiteralText() async throws {

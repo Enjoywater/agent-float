@@ -170,6 +170,7 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         if let tmux = context.tmux {
             return (.other("tmux"), .tmux(socket: tmux.socket, paneId: tmux.paneId, pid: file.pid))
         }
+        if let herdr = context.herdr { return (.herdr, .herdr(herdr)) }
         switch context.program {
         case "ghostty":
             return (.ghostty, .ghostty(title: aiTitle, cwd: cwd))
@@ -192,6 +193,7 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         let environment = inspector.environment(pid: key.pid)
         let ancestors = ProcessAncestry.chain(from: key.pid, inspector: inspector)
         let context = TerminalContext(
+            herdr: HerdrTarget.detect(pid: key.pid, procStart: key.procStart, environment: environment, inspector: inspector),
             program: Self.nonEmpty(environment["TERM_PROGRAM"]),
             paneKey: Self.nonEmpty(environment["ORCA_PANE_KEY"]),
             orcaHandle: Self.nonEmpty(environment["ORCA_TERMINAL_HANDLE"]),
@@ -346,6 +348,7 @@ private struct ProcessKey: Hashable {
 }
 
 private struct TerminalContext {
+    let herdr: HerdrTarget?
     let program: String?
     let paneKey: String?
     let orcaHandle: String?
