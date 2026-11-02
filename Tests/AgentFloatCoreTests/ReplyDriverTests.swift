@@ -165,7 +165,7 @@ import Testing
         let prompt = PendingPrompt.choices(id: "toolu_03", questions: [Self.fieldsQuestion])
         var progress = ReplyProgress()
         guard case .stuck = move(prompt, .choices([.other("작성자")]), &progress, try state("choice-multiselect-checked.txt")) else {
-            Issue.record("여러 개 고르기의 직접 입력은 보내지 않음")
+            Issue.record("Custom input is unsupported for multiple selection")
             return
         }
     }

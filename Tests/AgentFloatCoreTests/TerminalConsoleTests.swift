@@ -267,6 +267,6 @@ private struct StubConsole: TerminalConsole {
         #expect(await registry.availability(of: waiting(.application(pid: 4012), app: .other("Cursor")))
             == .readOnly(.unsupportedTerminal("Cursor")))
         #expect(await registry.availability(of: waiting(.background(jobId: "job1"), app: .unknown))
-            == .readOnly(.unsupportedTerminal("이")))
+            == .readOnly(.unsupportedTerminal(nil)))
     }
 }

@@ -64,7 +64,7 @@ struct SessionRow: View {
 
     private var titleLine: some View {
         HStack(spacing: 6) {
-            Text(session.title)
+            Text(session.title.isEmpty ? LanguageSettings.shared.strings.untitled : session.title)
                 .font(.system(size: 13, weight: isUnseen ? .semibold : .medium))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -102,10 +102,10 @@ struct SessionRow: View {
 
     private var terminalLabel: String {
         switch session.terminalApp {
-        case .ghostty: "Ghostty 터미널"
-        case .orca: "Orca 터미널"
-        case let .other(name): "\(name) 터미널"
-        case .unknown: "터미널"
+        case .ghostty: LanguageSettings.shared.strings.terminalName("Ghostty")
+        case .orca: LanguageSettings.shared.strings.terminalName("Orca")
+        case let .other(name): LanguageSettings.shared.strings.terminalName(name)
+        case .unknown: LanguageSettings.shared.strings.terminal
         }
     }
 
@@ -114,19 +114,19 @@ struct SessionRow: View {
         let base = Labels.folder(cwd: session.cwd, home: Self.home)
         switch note {
         case .drafting:
-            return Text("\(base) · \(Text(ReplyCopy.drafting).foregroundColor(ReplyPalette.accent).fontWeight(.semibold))")
+            return Text("\(base) · \(Text(LanguageSettings.shared.strings.reply.drafting).foregroundColor(ReplyPalette.accent).fontWeight(.semibold))")
         case .failed:
-            return Text("\(base) · \(Text(ReplyCopy.deliveryFailed).foregroundColor(ReplyPalette.failed).fontWeight(.semibold))")
+            return Text("\(base) · \(Text(LanguageSettings.shared.strings.reply.deliveryFailed).foregroundColor(ReplyPalette.failed).fontWeight(.semibold))")
         }
     }
 
     private var detail: String {
         var parts = [Labels.folder(cwd: session.cwd, home: Self.home)]
         if let reason = session.waitReason, session.status == .waiting {
-            parts.append(Labels.waitReason(reason))
+            parts.append(LanguageSettings.shared.strings.waitReason(reason))
         }
         if session.isStale {
-            parts.append(Labels.inactivity(since: session.lastActivityAt ?? session.statusSince, now: now))
+            parts.append(LanguageSettings.shared.strings.inactivity(Labels.inactivityMinutes(since: session.lastActivityAt ?? session.statusSince, now: now)))
         }
         return parts.joined(separator: " · ")
     }

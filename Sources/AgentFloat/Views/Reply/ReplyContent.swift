@@ -71,7 +71,7 @@ struct ReplyContent: View {
             return nil
         case .editing:
             if let notice = center.notice { return ReplyStrip(tone: .warn, strip: notice) }
-            if let readOnly { return ReplyStrip(tone: readOnly == .permissionPrompt ? .warn : .info, strip: ReplyCopy.readOnly(readOnly)) }
+            if let readOnly { return ReplyStrip(tone: readOnly == .permissionPrompt ? .warn : .info, strip: LanguageSettings.shared.strings.reply.readOnly(readOnly)) }
             return nil
         }
     }
@@ -79,30 +79,30 @@ struct ReplyContent: View {
     private func strip(for outcome: DeliveryOutcome) -> ReplyStrip {
         switch outcome {
         case let .delivered(answer):
-            return ReplyStrip(tone: .ok, strip: ReplyCopy.delivered(Self.describe(answer, prompt: session.prompt)))
+            return ReplyStrip(tone: .ok, strip: LanguageSettings.shared.strings.reply.delivered(Self.describe(answer, prompt: session.prompt)))
         case let .notSent(reason):
             return notSentStrip(reason)
         case .stopped:
-            return ReplyStrip(tone: .error, strip: ReplyCopy.stopped)
+            return ReplyStrip(tone: .error, strip: LanguageSettings.shared.strings.reply.stopped)
         case let .mismatched(sent, recorded?):
-            return ReplyStrip(tone: .error, strip: ReplyCopy.mismatched, extra: [
-                (ReplyCopy.sentAnswer, Self.describe(sent, prompt: session.prompt)),
-                (ReplyCopy.recordedAnswer, Self.describe(recorded, prompt: session.prompt)),
+            return ReplyStrip(tone: .error, strip: LanguageSettings.shared.strings.reply.mismatched, extra: [
+                (LanguageSettings.shared.strings.reply.sentAnswer, Self.describe(sent, prompt: session.prompt)),
+                (LanguageSettings.shared.strings.reply.recordedAnswer, Self.describe(recorded, prompt: session.prompt)),
             ])
         case .mismatched(_, nil):
-            return ReplyStrip(tone: .error, strip: ReplyCopy.mismatchTimeout)
+            return ReplyStrip(tone: .error, strip: LanguageSettings.shared.strings.reply.mismatchTimeout)
         }
     }
 
     private func notSentStrip(_ reason: NotSentReason) -> ReplyStrip {
         switch reason {
-        case .alreadyAnswered: ReplyStrip(tone: .warn, strip: ReplyCopy.alreadyAnswered)
-        case .questionChanged: ReplyStrip(tone: .warn, strip: ReplyCopy.questionChanged)
-        case .sessionEnded: ReplyStrip(tone: .warn, strip: ReplyCopy.sessionEnded)
-        case .terminalDraft: ReplyStrip(tone: .warn, strip: ReplyCopy.terminalDraft)
-        case .unexpectedScreen: ReplyStrip(tone: .warn, strip: ReplyCopy.unexpectedScreen)
-        case .unreadableScreen: ReplyStrip(tone: .warn, strip: ReplyCopy.unreadableScreen)
-        case let .readOnly(readOnly): ReplyStrip(tone: .info, strip: ReplyCopy.readOnly(readOnly))
+        case .alreadyAnswered: ReplyStrip(tone: .warn, strip: LanguageSettings.shared.strings.reply.alreadyAnswered)
+        case .questionChanged: ReplyStrip(tone: .warn, strip: LanguageSettings.shared.strings.reply.questionChanged)
+        case .sessionEnded: ReplyStrip(tone: .warn, strip: LanguageSettings.shared.strings.reply.sessionEnded)
+        case .terminalDraft: ReplyStrip(tone: .warn, strip: LanguageSettings.shared.strings.reply.terminalDraft)
+        case .unexpectedScreen: ReplyStrip(tone: .warn, strip: LanguageSettings.shared.strings.reply.unexpectedScreen)
+        case .unreadableScreen: ReplyStrip(tone: .warn, strip: LanguageSettings.shared.strings.reply.unreadableScreen)
+        case let .readOnly(readOnly): ReplyStrip(tone: .info, strip: LanguageSettings.shared.strings.reply.readOnly(readOnly))
         }
     }
 
@@ -133,7 +133,7 @@ struct ReplyContent: View {
                 MessageTail(message: message)
                 if readOnly == nil {
                     ReplyField(
-                        placeholder: ReplyCopy.replyPlaceholder,
+                        placeholder: LanguageSettings.shared.strings.reply.replyPlaceholder,
                         text: Binding(get: { editor.replyText }, set: { text in center.edit { $0.setReply(text) } }),
                         focus: center.fieldFocus
                     )
@@ -175,7 +175,7 @@ struct ReplyContent: View {
             .padding(.top, style.questionToOptions)
             if readOnly == nil, editor.acceptsOtherText {
                 ReplyField(
-                    placeholder: ReplyCopy.otherPlaceholder,
+                    placeholder: LanguageSettings.shared.strings.reply.otherPlaceholder,
                     text: Binding(get: { editor.otherText }, set: { text in center.edit { $0.setOther(text) } }),
                     focus: center.fieldFocus
                 )
@@ -188,7 +188,7 @@ struct ReplyContent: View {
     @ViewBuilder
     private func blockHint(_ block: TextBlock?) -> some View {
         if let block {
-            Text(ReplyCopy.textBlock(block))
+            Text(LanguageSettings.shared.strings.reply.textBlock(block))
                 .font(.system(size: 11))
                 .foregroundStyle(Palette.askText)
                 .padding(.top, 6)
@@ -243,7 +243,7 @@ struct StepIndicator: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("질문 \(min(step + 1, count)) / \(count)")
+        .accessibilityLabel(LanguageSettings.shared.strings.questionProgress(min(step + 1, count), count))
     }
 }
 
@@ -257,7 +257,7 @@ struct ReviewList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(ReplyCopy.review).font(.system(size: 13, weight: .semibold))
+                Text(LanguageSettings.shared.strings.reply.review).font(.system(size: 13, weight: .semibold))
                 Spacer(minLength: 0)
                 StepIndicator(step: editor.questions.count - 1, count: editor.questions.count)
             }
@@ -265,9 +265,9 @@ struct ReviewList: View {
                 ForEach(Array(editor.questions.enumerated()), id: \.offset) { index, question in
                     VStack(alignment: .leading, spacing: 5) {
                         HStack {
-                            HeaderChip(text: question.header ?? "질문 \(index + 1)")
+                            HeaderChip(text: question.header ?? LanguageSettings.shared.strings.questionNumber(index + 1))
                             Spacer(minLength: 0)
-                            Button(ReplyCopy.edit) { onEdit(index) }
+                            Button(LanguageSettings.shared.strings.reply.edit) { onEdit(index) }
                                 .buttonStyle(.plain)
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(ReplyPalette.accent)
@@ -292,7 +292,7 @@ struct ReviewList: View {
         case let .options(indices)?:
             Text(indices.sorted().map { question.options[$0].displayLabel }.joined(separator: ", ")).font(.system(size: 13))
         case let .other(text)?:
-            Text("\(text)\(Text(" · \(ReplyCopy.fromOther)").font(.system(size: 11.5)).foregroundStyle(.secondary))")
+            Text("\(text)\(Text(" · \(LanguageSettings.shared.strings.reply.fromOther)").font(.system(size: 11.5)).foregroundStyle(.secondary))")
                 .font(.system(size: 13))
         case nil:
             EmptyView()
@@ -311,10 +311,10 @@ struct MessageTail: View {
         let tail = Self.tail(of: message)
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(ReplyCopy.lastMessage).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                Text(LanguageSettings.shared.strings.reply.lastMessage).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 if tail.isTruncated, !showsAll {
-                    Button(ReplyCopy.showAll) { showsAll = true }
+                    Button(LanguageSettings.shared.strings.reply.showAll) { showsAll = true }
                         .buttonStyle(.plain)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(ReplyPalette.accent)

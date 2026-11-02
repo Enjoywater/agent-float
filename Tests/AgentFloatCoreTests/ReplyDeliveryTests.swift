@@ -216,7 +216,7 @@ private func deliver(
             guard sent > 0 else { return start }
             throw ReadFailure()
         }
-        #expect(await deliver(.choices([.option(0)]), console: console) == .stopped(stage: "화면을 다시 읽지 못함"))
+        #expect(await deliver(.choices([.option(0)]), console: console) == .stopped(stage: "Screen could not be read again"))
     }
 
     @Test func unchangedScreenAfterKeyStops() async throws {

@@ -85,7 +85,7 @@ public enum ReplyDriver {
             case .afterTyping: return probeMove(reply: reply, progress: &progress, screen: screen)
             }
         default:
-            return .stuck("답의 종류가 질문과 맞지 않음")
+            return .stuck("Answer kind does not match the question")
         }
     }
 
@@ -223,15 +223,15 @@ public enum ReplyDriver {
     ) -> ReplyMove {
         switch screen {
         case let .review(focusedOnSubmit):
-            guard focusedOnSubmit else { return .stuck("확인 화면의 포커스가 Submit 이 아님") }
-            guard progress.question == questions.count - 1 else { return .stuck("마지막 질문 전에 확인 화면이 나옴") }
-            guard !progress.pressedSubmit else { return .stuck("Submit 뒤에도 확인 화면이 남아 있음") }
+            guard focusedOnSubmit else { return .stuck("Confirmation focus is not on Submit") }
+            guard progress.question == questions.count - 1 else { return .stuck("Confirmation appeared before the final question") }
+            guard !progress.pressedSubmit else { return .stuck("Confirmation remains after Submit") }
             progress.pressedSubmit = true
             return .send(.key(.enter))
         case .prompt:
-            return progress.pressedSubmit ? .finished : .stuck("보내기 전에 질문 창이 사라짐")
+            return progress.pressedSubmit ? .finished : .stuck("Dialog disappeared before sending")
         case .unrecognized:
-            return .stuck("알 수 없는 화면")
+            return .stuck("Unrecognized screen")
         case let .choiceDialog(dialog):
             // A post-submission dialog is a new question; send no keys and proceed to G4.
             if progress.pressedSubmit { return .finished }
@@ -245,14 +245,14 @@ public enum ReplyDriver {
         let start = progress.question + (progress.pressedNext ? 1 : 0)
         guard start < questions.count,
               let index = questions[start...].indices.first(where: { ClaudeScreen.matches(dialog, question: questions[$0]) }) else {
-            return .stuck("다른 질문 창이 떠 있음")
+            return .stuck("A different dialog is visible")
         }
         progress.pressedNext = false
         if index != progress.question {
             progress.question = index
             progress.typedText = false
         }
-        guard let focus = dialog.focusedIndex else { return .stuck("포커스를 찾을 수 없음") }
+        guard let focus = dialog.focusedIndex else { return .stuck("Focus could not be found") }
         let question = questions[index]
         // Single-question single-select Enter submits directly; other dialogs submit from confirmation (measurement 6).
         let submitsNow = codex ? index == questions.count - 1 : questions.count == 1 && !question.multiSelect
@@ -260,34 +260,34 @@ public enum ReplyDriver {
 
         switch answers[index] {
         case let .option(choice):
-            guard !question.multiSelect, optionRows.indices.contains(choice) else { return .stuck("고를 수 없는 선택지") }
+            guard !question.multiSelect, optionRows.indices.contains(choice) else { return .stuck("Invalid option") }
             let target = optionRows[choice]
             if focus != target { return step(from: focus, to: target) }
             return pressEnter(submits: submitsNow, progress: &progress)
         case let .other(text):
-            guard !question.multiSelect else { return .stuck("여러 개 고르기의 직접 입력은 보내지 않음") }
-            guard isTypable(text) else { return .stuck("입력할 수 없는 글자가 있음") }
-            guard let target = dialog.rows.firstIndex(where: { $0.kind == .other }) else { return .stuck("직접 쓰기 칸이 없음") }
+            guard !question.multiSelect else { return .stuck("Custom input is unsupported for multiple selection") }
+            guard isTypable(text) else { return .stuck("Unsupported input character") }
+            guard let target = dialog.rows.firstIndex(where: { $0.kind == .other }) else { return .stuck("Custom input field is missing") }
             if focus != target { return step(from: focus, to: target) }
             if codex && !dialog.notesActive { return .send(.key(.tab)) }
             if dialog.otherDraft.isEmpty {
-                guard !progress.typedText else { return .stuck("입력한 글이 칸에 보이지 않음") }
+                guard !progress.typedText else { return .stuck("Typed text is not visible in the field") }
                 progress.typedText = true
                 return .send(.text(text))
             }
-            guard progress.typedText, ClaudeScreen.sameText(dialog.otherDraft, text) else { return .stuck("칸에 다른 글이 있음") }
+            guard progress.typedText, ClaudeScreen.sameText(dialog.otherDraft, text) else { return .stuck("The field contains different text") }
             return pressEnter(submits: submitsNow, progress: &progress)
         case let .options(chosen):
-            guard question.multiSelect, chosen.allSatisfy(optionRows.indices.contains) else { return .stuck("고를 수 없는 선택지") }
+            guard question.multiSelect, chosen.allSatisfy(optionRows.indices.contains) else { return .stuck("Invalid option") }
             guard dialog.otherDraft.isEmpty, dialog.rows.allSatisfy({ $0.kind != .other || !$0.isChecked }) else {
-                return .stuck("직접 쓰기 칸이 비어 있지 않음")
+                return .stuck("Custom input field is not empty")
             }
             for (choice, row) in optionRows.enumerated() where dialog.rows[row].isChecked != chosen.contains(choice) {
                 if focus != row { return step(from: focus, to: row) }
                 // Use Space for toggles because Enter can mean something else on direct-input rows (R60).
                 return .send(.key(.space))
             }
-            guard let submit = dialog.rows.firstIndex(where: { $0.kind == .submit }) else { return .stuck("Submit 줄이 없음") }
+            guard let submit = dialog.rows.firstIndex(where: { $0.kind == .submit }) else { return .stuck("Submit row is missing") }
             if focus != submit { return step(from: focus, to: submit) }
             return pressEnter(submits: false, progress: &progress)
         }
@@ -306,16 +306,16 @@ public enum ReplyDriver {
     // MARK: Text questions
 
     private static func textMove(reply: String, progress: inout ReplyProgress, screen: ScreenState) -> ReplyMove {
-        guard isTypable(reply) else { return .stuck("입력할 수 없는 글자가 있음") }
-        guard case let .prompt(current) = screen else { return .stuck("프롬프트가 보이지 않음") }
+        guard isTypable(reply) else { return .stuck("Unsupported input character") }
+        guard case let .prompt(current) = screen else { return .stuck("Prompt is not visible") }
         if current.isEmpty {
             if progress.pressedSubmit { return .finished }
-            guard !progress.typedText else { return .stuck("입력한 글이 프롬프트에 보이지 않음") }
+            guard !progress.typedText else { return .stuck("Typed text is not visible in the prompt") }
             progress.typedText = true
             return .send(.text(reply))
         }
-        guard progress.typedText, ClaudeScreen.sameText(current, reply) else { return .stuck("프롬프트에 다른 글이 있음") }
-        guard !progress.pressedSubmit else { return .stuck("Enter 뒤에도 글이 남아 있음") }
+        guard progress.typedText, ClaudeScreen.sameText(current, reply) else { return .stuck("Prompt contains different text") }
+        guard !progress.pressedSubmit else { return .stuck("Text remains after Enter") }
         progress.pressedSubmit = true
         return .send(.key(.enter))
     }
@@ -325,20 +325,20 @@ public enum ReplyDriver {
     private static func probeMove(reply: String, progress: inout ReplyProgress, screen: ScreenState) -> ReplyMove {
         // A combining first character may not be fully removed by one deletion.
         guard isTypable(reply), let first = reply.first, !first.isWhitespace, first.unicodeScalars.count == 1 else {
-            return .stuck("입력할 수 없는 글자가 있음")
+            return .stuck("Unsupported input character")
         }
-        guard case let .prompt(current) = screen else { return .stuck("프롬프트가 보이지 않음") }
+        guard case let .prompt(current) = screen else { return .stuck("Prompt is not visible") }
         let probe = String(first)
         guard let before = progress.promptBefore else {
             progress.promptBefore = current
             return .send(.text(probe))
         }
         if progress.erasedProbe {
-            return ClaudeScreen.sameText(current, before) ? .restored : .stuck("넣은 글자를 지운 뒤 입력 칸이 처음과 다름")
+            return ClaudeScreen.sameText(current, before) ? .restored : .stuck("Composer was not restored after deleting the probe")
         }
         if progress.pressedSubmit { return .finished }
         if progress.typedText {
-            guard ClaudeScreen.sameText(current, reply) else { return .stuck("프롬프트에 다른 글이 있음") }
+            guard ClaudeScreen.sameText(current, reply) else { return .stuck("Prompt contains different text") }
             progress.pressedSubmit = true
             return .send(.key(.enter))
         }
@@ -351,7 +351,7 @@ public enum ReplyDriver {
             progress.typedText = true
             return .send(.text(rest))
         }
-        guard isInsertion(of: probe, into: before, giving: current) else { return .stuck("넣은 글자가 예상과 다르게 보임") }
+        guard isInsertion(of: probe, into: before, giving: current) else { return .stuck("Probe insertion did not match expectations") }
         progress.erasedProbe = true
         return .send(.key(.backspace))
     }

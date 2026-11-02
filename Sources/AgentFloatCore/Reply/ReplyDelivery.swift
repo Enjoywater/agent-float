@@ -108,11 +108,11 @@ public struct ReplyDelivery: Sendable {
             case .restored:
                 return .notSent(.terminalDraft)
             case let .send(input):
-                guard sent < timing.maxMoves else { return .stopped(stage: "입력 횟수 상한에 닿음") }
+                guard sent < timing.maxMoves else { return .stopped(stage: "Input move limit reached") }
                 do {
                     try await console.send(input, to: current)
                 } catch {
-                    return .stopped(stage: "입력을 보내지 못함")
+                    return .stopped(stage: "Input could not be sent")
                 }
                 sent += 1
                 if isCodex, input == .key(.enter), progress.pressedSubmit {
@@ -145,15 +145,15 @@ public struct ReplyDelivery: Sendable {
                 continue
             }
             readFailed = false
-            if Self.hasText(screen.composerDraft) { return .failed("터미널 입력창에 글이 생김") }
+            if Self.hasText(screen.composerDraft) { return .failed("Terminal composer acquired text") }
             let new = session.key.providerId == "codex" ? CodexScreen.interpret(screen) : ClaudeScreen.interpret(screen)
             if new == old || new == .unrecognized { continue }
             // A probe matching a suggestion prefix can look like hint text; check the expected result first.
             if ReplyDriver.isExpected(after: input, from: old, to: new, check: console.promptCheck) { return .moved(new) }
             if ReplyDriver.isPartial(after: input, from: old, state: new) { continue }
-            return .failed("화면이 예상과 다르게 바뀜")
+            return .failed("Screen changed unexpectedly")
         }
-        return .failed(readFailed ? "화면을 다시 읽지 못함" : "화면이 바뀌지 않음")
+        return .failed(readFailed ? "Screen could not be read again" : "Screen did not change")
     }
 
     private func verifyRecord(_ expected: RecordedAnswer, session: AgentSession, promptId: String) async -> DeliveryOutcome {

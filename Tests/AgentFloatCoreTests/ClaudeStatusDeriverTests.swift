@@ -180,8 +180,8 @@ import Testing
         ("worker request", .worker),
         ("sandbox request", .sandbox),
         ("dialog open", .dialog),
-        ("", .other("대기")),
-        ("   ", .other("대기")),
+        ("", .unspecified),
+        ("   ", .unspecified),
         ("something new", .other("something new")),
     ])
     func mapsWaitingFor(raw: String, expected: WaitReason) {
@@ -189,7 +189,7 @@ import Testing
     }
 
     @Test func missingWaitingForFallsBackToGenericLabel() {
-        #expect(ClaudeStatusDeriver.waitReason(from: nil) == .other("대기"))
+        #expect(ClaudeStatusDeriver.waitReason(from: nil) == .unspecified)
     }
 
     // MARK: Session-file parsing

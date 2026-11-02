@@ -50,7 +50,7 @@ struct SessionListContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if !failed.isEmpty {
-                header(ReplyCopy.needsReview, count: failed.count)
+                header(LanguageSettings.shared.strings.reply.needsReview, count: failed.count)
                     .foregroundStyle(Palette.failText(on: paintedTone))
                 rows(failed)
             }
@@ -105,10 +105,10 @@ struct SessionListContent: View {
 
     static func title(of status: AgentStatus) -> String {
         switch status {
-        case .waiting: "내 응답 대기"
-        case .running: "진행 중"
-        case .done: "완료"
-        case .unknown: "상태 확인 불가"
+        case .waiting: LanguageSettings.shared.strings.waiting
+        case .running: LanguageSettings.shared.strings.running
+        case .done: LanguageSettings.shared.strings.done
+        case .unknown: LanguageSettings.shared.strings.unknown
         }
     }
 }

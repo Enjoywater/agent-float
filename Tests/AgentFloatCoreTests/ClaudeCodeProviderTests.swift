@@ -376,7 +376,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
 
         let found = try session(try provider(inspector).snapshot(now: Self.now), id)
 
-        #expect(found.title == "이름 없는 세션")
+        #expect(found.title == "")
     }
 
     @Test func missingCwdFallsBackToHomeDirectory() throws {

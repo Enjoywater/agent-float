@@ -8,7 +8,7 @@ struct ReplyStrip: View {
     }
 
     let tone: Tone
-    let strip: ReplyCopy.Strip
+    let strip: ReplyStrings.Strip
     var extra: [(String, String)] = []
 
     @Environment(\.colorScheme) private var scheme
@@ -80,7 +80,7 @@ struct DeliverySteps: View {
             ForEach(DeliveryStage.allCases, id: \.rawValue) { stage in
                 HStack(spacing: 8) {
                     marker(for: stage).frame(width: 14, height: 14)
-                    Text(ReplyCopy.stages[stage.rawValue])
+                    Text(LanguageSettings.shared.strings.reply.stages[stage.rawValue])
                         .font(.system(size: 12))
                         .foregroundStyle(style(for: stage))
                 }
@@ -90,7 +90,7 @@ struct DeliverySteps: View {
         .padding(10)
         .background(ReplyPalette.fill(scheme), in: RoundedRectangle(cornerRadius: ReplyLayout.innerRadius))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(ReplyCopy.stages[current.rawValue])
+        .accessibilityLabel(LanguageSettings.shared.strings.reply.stages[current.rawValue])
     }
 
     private func style(for stage: DeliveryStage) -> HierarchicalShapeStyle {

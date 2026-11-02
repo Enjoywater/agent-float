@@ -69,8 +69,8 @@ struct AgentBadge: View {
             }
             .fixedSize()
             .layoutPriority(1)
-            .accessibilityLabel("\(name) 에이전트")
-            .help("\(name) 에이전트")
+            .accessibilityLabel(LanguageSettings.shared.strings.agentName(name))
+            .help(LanguageSettings.shared.strings.agentName(name))
     }
 
     private static func color(_ rgb: UInt32) -> Color {

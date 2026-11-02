@@ -36,7 +36,16 @@ final class ReplyCenter {
     /// Retain interrupted or mismatched deliveries until the user acknowledges them.
     private(set) var failures: [SessionKey: DeliveryOutcome] = [:]
     /// Show changes occurring while open, such as a replaced question, in a strip.
-    private(set) var notice: ReplyCopy.Strip?
+    private enum Notice { case questionChanged, sessionEnded, alreadyAnswered }
+    private var noticeKind: Notice?
+    var notice: ReplyStrings.Strip? {
+        switch noticeKind {
+        case .questionChanged: LanguageSettings.shared.strings.reply.questionChanged
+        case .sessionEnded: LanguageSettings.shared.strings.reply.sessionEnded
+        case .alreadyAnswered: LanguageSettings.shared.strings.reply.alreadyAnswered
+        case nil: nil
+        }
+    }
     /// Reset focus by prompt type on every open: text prompts focus input; dialogs keep number keys for options.
     private(set) var fieldFocus = FieldFocus()
 
@@ -80,7 +89,7 @@ final class ReplyCenter {
         } else {
             phase = failure.map(ReplyPhase.result) ?? .editing
         }
-        notice = nil
+        noticeKind = nil
         refreshAvailability()
         fieldFocus.set(phase == .editing && Self.isBodyQuestion(session.prompt))
     }
@@ -89,7 +98,7 @@ final class ReplyCenter {
         autoReturnTask?.cancel()
         openSession = nil
         phase = .editing
-        notice = nil
+        noticeKind = nil
         fieldFocus.set(false)
     }
 
@@ -195,7 +204,7 @@ final class ReplyCenter {
         guard openKey == session.key else { return }
         if case .notSent(.questionChanged) = outcome {
             phase = .editing
-            notice = ReplyCopy.questionChanged
+            noticeKind = .questionChanged
         } else {
             phase = .result(outcome)
         }
@@ -231,14 +240,14 @@ final class ReplyCenter {
         // Preserve sending views and results after any key was sent.
         if phase.sentKeys { return }
         guard let current = byKey[open.key] else {
-            notice = ReplyCopy.sessionEnded
+            noticeKind = .sessionEnded
             replaceNotSentReason(with: .sessionEnded)
             scheduleAutoReturn()
             onChange?()
             return
         }
         if current.status != .waiting {
-            notice = ReplyCopy.alreadyAnswered
+            noticeKind = .alreadyAnswered
             replaceNotSentReason(with: .alreadyAnswered)
             scheduleAutoReturn()
             onChange?()
@@ -248,7 +257,7 @@ final class ReplyCenter {
             openSession = current
             editors[prompt.id] = ReplyEditor(prompt: prompt)
             phase = .editing
-            notice = ReplyCopy.questionChanged
+            noticeKind = .questionChanged
             fieldFocus.set(Self.isBodyQuestion(prompt))
             refreshAvailability()
             onChange?()

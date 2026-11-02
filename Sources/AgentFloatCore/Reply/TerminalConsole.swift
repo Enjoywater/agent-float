@@ -117,7 +117,7 @@ public struct ConsoleScreen: Equatable, Sendable {
 /// Explain read-only status before users type, rather than blocking afterward (v1.2 design §4.4 G0).
 public enum ReadOnlyReason: Equatable, Sendable {
     /// Unsupported terminal; associated value is the display app name.
-    case unsupportedTerminal(String)
+    case unsupportedTerminal(String?)
     case hiddenTab
     /// No matching session tab even across Spaces, possibly renamed or closed.
     case tabNotFound
@@ -187,15 +187,15 @@ public struct ConsoleRegistry: Sendable {
         return await console.availability(of: session)
     }
 
-    static func appName(_ app: TerminalApp) -> String {
+    static func appName(_ app: TerminalApp) -> String? {
         switch app {
         case .ghostty: "Ghostty"
         case .orca: "Orca"
         case .other("Apple_Terminal"): "Terminal"
         case .other("iTerm.app"): "iTerm2"
         case let .other(name): name
-        // Inserted directly into the generic terminal sentence.
-        case .unknown: "이"
+        // Unknown app names remain semantic absence for the presentation layer.
+        case .unknown: nil
         }
     }
 }

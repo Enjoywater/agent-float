@@ -77,7 +77,7 @@ public final class CodexCodeProvider: AgentProvider, AnswerRecordReading, Sendab
                     var prompt: PendingPrompt?
                     if derived.status == .waiting, derived.reason == .question { prompt = tail?.pendingChoice }
                     if derived.status == .waiting, derived.reason == .permission {
-                        prompt = .permission(id: tail?.latestTool?.id ?? "codex:\(id):permission", tool: tail?.latestTool?.name ?? "Codex", summary: tail?.latestTool?.summary ?? "Codex가 승인을 기다리고 있습니다.")
+                        prompt = .permission(id: tail?.latestTool?.id ?? "codex:\(id):permission", tool: tail?.latestTool?.name ?? "Codex", summary: tail?.latestTool?.summary ?? "")
                     }
                     if derived.status == .done, let message = tail?.lastMessage, QuestionHeuristic.endsWithQuestion(message.text) {
                         derived = (.waiting, .bodyQuestion)
@@ -92,7 +92,7 @@ public final class CodexCodeProvider: AgentProvider, AnswerRecordReading, Sendab
                     }
                     sessions[id] = AgentSession(
                         key: SessionKey(providerId: self.id, sessionId: id), agentName: "Codex",
-                        title: Self.nonEmpty(thread.name) ?? Self.nonEmpty(thread.preview).map { String($0.prefix(120)) } ?? "이름 없는 세션",
+                        title: Self.nonEmpty(thread.name) ?? Self.nonEmpty(thread.preview).map { String($0.prefix(120)) } ?? "",
                         cwd: thread.cwd, status: derived.status, waitReason: derived.reason,
                         statusSince: since, isStale: false,
                         lastActivityAt: Date(timeIntervalSince1970: thread.updatedAt),

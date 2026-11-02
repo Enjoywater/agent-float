@@ -76,7 +76,7 @@ struct OptionRow: View {
     }
 
     private var badge: some View {
-        Text(ReplyCopy.recommended)
+        Text(LanguageSettings.shared.strings.reply.recommended)
             .font(.system(size: 9.5, weight: .bold))
             .foregroundStyle(ReplyPalette.accent)
             .padding(.vertical, 1.5)
@@ -91,9 +91,9 @@ struct OptionRow: View {
     }
 
     private var accessibilityText: String {
-        var parts = ["\(number)번", option.displayLabel]
-        if option.isRecommended { parts.append(ReplyCopy.recommended) }
-        if isSelected { parts.append("선택됨") }
+        var parts = [LanguageSettings.shared.strings.optionNumber(number), option.displayLabel]
+        if option.isRecommended { parts.append(LanguageSettings.shared.strings.reply.recommended) }
+        if isSelected { parts.append(LanguageSettings.shared.strings.selected) }
         return parts.joined(separator: ", ")
     }
 }

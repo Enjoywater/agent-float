@@ -35,7 +35,7 @@ public enum ClaudeStatusDeriver {
 
     public static func waitReason(from waitingFor: String?) -> WaitReason {
         guard let raw = waitingFor, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .other("대기")
+            return .unspecified
         }
         if raw == "input needed" { return .question }
         if raw.lowercased().contains("permission") { return .permission }
@@ -56,7 +56,7 @@ public enum ClaudeStatusDeriver {
             return .text(id: id, message: text)
         case .permission?:
             return tail.openToolUse.map { .permission(id: $0.id, tool: $0.name, summary: $0.summary) }
-        case .worker?, .sandbox?, .dialog?, .other?, nil:
+        case .worker?, .sandbox?, .dialog?, .unspecified?, .other?, nil:
             return nil
         }
     }

@@ -119,7 +119,7 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         return AgentSession(
             key: SessionKey(providerId: id, sessionId: file.sessionId),
             agentName: "Claude",
-            title: tail?.aiTitle ?? Self.nonEmpty(file.name) ?? "이름 없는 세션",
+            title: tail?.aiTitle ?? Self.nonEmpty(file.name) ?? "",
             cwd: cwd,
             status: derived.status,
             waitReason: derived.waitReason,

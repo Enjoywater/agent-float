@@ -104,8 +104,8 @@ struct ReplyHeader: View {
                     .buttonStyle(.plain)
                     .disabled(isLocked)
                     .opacity(isLocked ? 0.4 : 1)
-                    .accessibilityLabel("목록으로")
-                    Text(session.title)
+                    .accessibilityLabel(LanguageSettings.shared.strings.reply.backToList)
+                    Text(session.title.isEmpty ? LanguageSettings.shared.strings.untitled : session.title)
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -136,7 +136,7 @@ struct ReplyHeader: View {
 
     private var detail: String {
         var parts = [Labels.folder(cwd: session.cwd, home: Self.home)]
-        if session.status == .waiting, let reason = session.waitReason { parts.append(Labels.waitReason(reason)) }
+        if session.status == .waiting, let reason = session.waitReason { parts.append(LanguageSettings.shared.strings.waitReason(reason)) }
         return parts.joined(separator: " · ")
     }
 }
@@ -184,37 +184,37 @@ struct ReplyFooter: View {
     private var secondary: Secondary? {
         switch center.phase {
         case .sending:
-            return Secondary(title: ReplyCopy.openTerminal, action: {}, isEnabled: false)
+            return Secondary(title: LanguageSettings.shared.strings.reply.openTerminal, action: {}, isEnabled: false)
         case let .result(outcome):
             switch outcome {
             case .delivered, .notSent(.alreadyAnswered), .notSent(.sessionEnded): return nil
-            case .notSent: return Secondary(title: ReplyCopy.recheck, action: actions.recheck)
-            case .stopped, .mismatched: return Secondary(title: ReplyCopy.close, action: actions.close)
+            case .notSent: return Secondary(title: LanguageSettings.shared.strings.reply.recheck, action: actions.recheck)
+            case .stopped, .mismatched: return Secondary(title: LanguageSettings.shared.strings.reply.close, action: actions.close)
             }
         case .editing:
-            if readOnly == .accessibilityNeeded { return Secondary(title: ReplyCopy.openSettings, action: actions.openSettings) }
+            if readOnly == .accessibilityNeeded { return Secondary(title: LanguageSettings.shared.strings.reply.openSettings, action: actions.openSettings) }
             if readOnly != nil { return nil }
-            return Secondary(title: ReplyCopy.openTerminal, action: actions.openTerminal)
+            return Secondary(title: LanguageSettings.shared.strings.reply.openTerminal, action: actions.openTerminal)
         }
     }
 
     private var primary: PrimaryButton.Model {
         switch center.phase {
         case .sending:
-            return PrimaryButton.Model(title: "보내는 중", style: .accent, isEnabled: false, showsSpinner: true)
+            return PrimaryButton.Model(title: LanguageSettings.shared.strings.sending, style: .accent, isEnabled: false, showsSpinner: true)
         case let .result(outcome):
             switch outcome {
             case .delivered, .notSent(.alreadyAnswered), .notSent(.sessionEnded):
-                return PrimaryButton.Model(title: ReplyCopy.backToList, style: .neutral)
+                return PrimaryButton.Model(title: LanguageSettings.shared.strings.reply.backToList, style: .neutral)
             case .notSent, .stopped, .mismatched:
-                return PrimaryButton.Model(title: ReplyCopy.openTerminal, style: .accent)
+                return PrimaryButton.Model(title: LanguageSettings.shared.strings.reply.openTerminal, style: .accent)
             }
         case .editing:
-            if readOnly != nil { return PrimaryButton.Model(title: ReplyCopy.openTerminal, style: .accent) }
+            if readOnly != nil { return PrimaryButton.Model(title: LanguageSettings.shared.strings.reply.openTerminal, style: .accent) }
             switch center.editor?.primary ?? .disabled {
-            case .send: return PrimaryButton.Model(title: ReplyCopy.send, style: .accent)
-            case .next: return PrimaryButton.Model(title: ReplyCopy.next, style: .accent)
-            case .disabled: return PrimaryButton.Model(title: ReplyCopy.send, style: .accent, isEnabled: false)
+            case .send: return PrimaryButton.Model(title: LanguageSettings.shared.strings.reply.send, style: .accent)
+            case .next: return PrimaryButton.Model(title: LanguageSettings.shared.strings.reply.next, style: .accent)
+            case .disabled: return PrimaryButton.Model(title: LanguageSettings.shared.strings.reply.send, style: .accent, isEnabled: false)
             }
         }
     }

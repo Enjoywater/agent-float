@@ -18,6 +18,7 @@ public enum AgentStatus: String, Sendable, CaseIterable {
 
 public enum WaitReason: Equatable, Sendable {
     case question, bodyQuestion, permission, worker, sandbox, dialog
+    case unspecified
     case other(String)
 }
 
