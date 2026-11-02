@@ -77,6 +77,7 @@ try:
                 width = int(height * shot['size'][0] / shot['size'][1])
             else:
                 height = int(width * shot['size'][1] / shot['size'][0])
+            x = right - width
             x = min(x, clip['x'] + clip['width'] - width - 20)
             y = min(y, clip['y'] + clip['height'] - height - 20)
             if not (clip['x'] <= x and x + width <= clip['x'] + clip['width'] and (clip['y'] <= y) and (y + height <= clip['y'] + clip['height'])):
@@ -99,7 +100,7 @@ try:
                 elif frame == 1 and shot['scene'] == 'mixed':
                     time.sleep(0.7)
                 elif frame == 0 and shot['scene'] == 'new':
-                    time.sleep(5.5)
+                    time.sleep(10)
                 elif frame == 0 and is_reply and (shot['scene'] != 'permission'):
                     time.sleep(1.3)
                 elif frame == 1 and is_reply and (shot['scene'] != 'permission'):

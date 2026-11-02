@@ -227,8 +227,11 @@ final class PanelController: NSObject {
             replies.choose(choice)
         }
         if let text = environment["AGENT_FLOAT_OPEN_REPLY_TEXT"] {
-            replies.edit { editor in
-                if case .text = editor.prompt { editor.setReply(text) } else { editor.setOther(text) }
+            // Let the initial text field mount before injecting a capture-only draft.
+            _ = after(0.3) { controller in
+                controller.replies.edit { editor in
+                    if case .text = editor.prompt { editor.setReply(text) } else { editor.setOther(text) }
+                }
             }
         }
         if environment["AGENT_FLOAT_OPEN_REPLY_ADVANCE"] == "1" { replies.edit { $0.advance() } }
