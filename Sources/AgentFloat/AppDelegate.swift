@@ -56,6 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             presence: { [weak self] in self?.iconPresence ?? .menuBar },
             onSelectPresence: { [weak self] presence in self?.setIconPresence(presence) }
         )
+        LanguageSettings.shared.onChange = { [weak model] in
+            NSApp.mainMenu = MainMenu.make()
+            model?.onChange?()
+        }
         applyIconPresence()
 
         if DebugLog.isEnabled {

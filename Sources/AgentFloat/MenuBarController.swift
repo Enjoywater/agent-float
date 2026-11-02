@@ -10,6 +10,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private static let launchAtLoginId = NSUserInterfaceItemIdentifier("launchAtLogin")
     private static let contrastId = NSUserInterfaceItemIdentifier("contrast")
     private static let placementId = NSUserInterfaceItemIdentifier("placement")
+    private static let languageId = NSUserInterfaceItemIdentifier("language")
     private static let presenceId = NSUserInterfaceItemIdentifier("presence")
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -57,23 +58,30 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     /// Refresh login-item state whenever opening the menu because users can change it in System Settings.
     func menuNeedsUpdate(_ menu: NSMenu) {
+        let refreshed = makeMenu(includesQuit: menu === statusItem.menu)
+        menu.removeAllItems()
+        for item in Array(refreshed.items) {
+            refreshed.removeItem(item)
+            menu.addItem(item)
+        }
         refreshStates(of: menu)
     }
 
     private func makeMenu(includesQuit: Bool) -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
-        menu.addItem(makeItem("위치 초기화", action: #selector(resetPosition)))
-        menu.addItem(makeChoiceMenu("가장자리 대비", id: Self.contrastId, GlassContrast.allCases, title: Self.title(of:), action: #selector(selectContrast(_:))))
+        menu.addItem(makeItem(LanguageSettings.shared.strings.resetPosition, action: #selector(resetPosition)))
+        menu.addItem(makeChoiceMenu(LanguageSettings.shared.strings.edgeContrast, id: Self.contrastId, GlassContrast.allCases, title: Self.title(of:), action: #selector(selectContrast(_:))))
         // Choose where to show the reply view (v1.2 design §4.5).
-        menu.addItem(makeChoiceMenu("답장 화면", id: Self.placementId, ReplyPlacement.allCases, title: Self.title(of:), action: #selector(selectPlacement(_:))))
-        menu.addItem(makeChoiceMenu("아이콘 위치", id: Self.presenceId, IconPresence.allCases, title: Self.title(of:), action: #selector(selectPresence(_:))))
-        let launchAtLogin = makeItem("로그인 시 실행", action: #selector(toggleLaunchAtLogin))
+        menu.addItem(makeChoiceMenu(LanguageSettings.shared.strings.replyView, id: Self.placementId, ReplyPlacement.allCases, title: Self.title(of:), action: #selector(selectPlacement(_:))))
+        menu.addItem(makeChoiceMenu(LanguageSettings.shared.strings.iconLocation, id: Self.presenceId, IconPresence.allCases, title: Self.title(of:), action: #selector(selectPresence(_:))))
+        menu.addItem(makeChoiceMenu("Language", id: Self.languageId, AppLanguage.allCases, title: { $0.endonym }, action: #selector(selectLanguage(_:))))
+        let launchAtLogin = makeItem(LanguageSettings.shared.strings.launchAtLogin, action: #selector(toggleLaunchAtLogin))
         launchAtLogin.identifier = Self.launchAtLoginId
         menu.addItem(launchAtLogin)
         if includesQuit {
             menu.addItem(.separator())
-            menu.addItem(makeItem("Agent Float 종료", action: #selector(quit), keyEquivalent: "q"))
+            menu.addItem(makeItem(LanguageSettings.shared.strings.quit, action: #selector(quit), keyEquivalent: "q"))
         }
         return menu
     }
@@ -84,6 +92,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             Self.contrastId: contrast().rawValue,
             Self.placementId: placement().rawValue,
             Self.presenceId: presence().rawValue,
+            Self.languageId: LanguageSettings.shared.language.rawValue,
         ]
         for item in menu.items {
             if let id = item.identifier, let selected = current[id] {
@@ -139,26 +148,31 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private static func title(of mode: GlassContrast) -> String {
         switch mode {
         // The default is Outline, so calling another option Default would be misleading.
-        case .standard: "유리 그대로"
-        case .outline: "윤곽선"
-        case .inverse: "뒤 화면과 반대"
+        case .standard: LanguageSettings.shared.strings.plainGlass
+        case .outline: LanguageSettings.shared.strings.outline
+        case .inverse: LanguageSettings.shared.strings.inverse
         }
     }
 
     private static func title(of placement: ReplyPlacement) -> String {
         switch placement {
-        case .panel: "패널 전환"
-        case .inline: "줄 안에서 펼침"
-        case .card: "옆에 카드"
+        case .panel: LanguageSettings.shared.strings.panel
+        case .inline: LanguageSettings.shared.strings.inline
+        case .card: LanguageSettings.shared.strings.card
         }
     }
 
     private static func title(of presence: IconPresence) -> String {
         switch presence {
-        case .menuBar: "메뉴바에서 보기"
-        case .dock: "Dock에서 보기"
-        case .both: "둘 다 보기"
+        case .menuBar: LanguageSettings.shared.strings.menuBar
+        case .dock: LanguageSettings.shared.strings.dock
+        case .both: LanguageSettings.shared.strings.both
         }
+    }
+
+    @objc private func selectLanguage(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let language = AppLanguage(rawValue: raw) else { return }
+        LanguageSettings.shared.select(language)
     }
 
     @objc private func selectPresence(_ sender: NSMenuItem) {
