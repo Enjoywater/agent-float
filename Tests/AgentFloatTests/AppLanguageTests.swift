@@ -25,3 +25,12 @@ struct AppLanguageTests {
         #expect(settings.strings.resetPosition == "Reset Position")
     }
 }
+
+@MainActor @Test func languageMenuKeepsItsTitleOrderAndActualCheckmark() {
+    for language in AppLanguage.allCases {
+        let menu = MenuBarController.languageMenu(current: language, target: nil)
+        #expect(menu.title == "Language")
+        #expect(menu.submenu?.items.map(\.title) == ["한국어", "English"])
+        #expect(menu.submenu?.items.first { $0.state == .on }?.representedObject as? String == language.rawValue)
+    }
+}

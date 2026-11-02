@@ -25,3 +25,8 @@ import AgentFloatCore
     #expect(Strings.en.reply.readOnly(.unsupportedTerminal(nil)).detail == "Replies cannot be sent to this terminal here.")
     #expect(Strings.ko.reply.readOnly(.unsupportedTerminal(nil)).detail == "이 터미널에는 여기서 보낼 수 없어요")
 }
+
+@Test func deliveredCopyIncludesTheActualAnswerInBothLanguages() {
+    #expect(Strings.ko.reply.delivered("Sample answer").detail.contains("Sample answer"))
+    #expect(Strings.en.reply.delivered("Sample answer").detail.contains("Sample answer"))
+}

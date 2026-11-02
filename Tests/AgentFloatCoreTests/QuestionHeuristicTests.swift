@@ -91,3 +91,10 @@ func ignoresConditionalInstructions(_ text: String) {
 ]) func preservesQuestionsContainingConditionalExamples(_ text: String) {
     #expect(QuestionHeuristic.endsWithQuestion(text))
 }
+
+@Test func sourcesCannotChangeChecklistContext() {
+    let text = "We are waiting for your checks.\n\n- whether the feature is enabled"
+    let sources = "\n\nSources:\n- [Guide](https://example.com/guide)"
+    #expect(QuestionHeuristic.endsWithQuestion(text))
+    #expect(QuestionHeuristic.endsWithQuestion(text + sources))
+}

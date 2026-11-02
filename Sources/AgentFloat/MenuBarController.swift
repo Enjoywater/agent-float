@@ -75,7 +75,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // Choose where to show the reply view (v1.2 design §4.5).
         menu.addItem(makeChoiceMenu(LanguageSettings.shared.strings.replyView, id: Self.placementId, ReplyPlacement.allCases, title: Self.title(of:), action: #selector(selectPlacement(_:))))
         menu.addItem(makeChoiceMenu(LanguageSettings.shared.strings.iconLocation, id: Self.presenceId, IconPresence.allCases, title: Self.title(of:), action: #selector(selectPresence(_:))))
-        menu.addItem(makeChoiceMenu("Language", id: Self.languageId, AppLanguage.allCases, title: { $0.endonym }, action: #selector(selectLanguage(_:))))
+        menu.addItem(Self.languageMenu(current: LanguageSettings.shared.language, target: self))
         let launchAtLogin = makeItem(LanguageSettings.shared.strings.launchAtLogin, action: #selector(toggleLaunchAtLogin))
         launchAtLogin.identifier = Self.launchAtLoginId
         menu.addItem(launchAtLogin)
@@ -84,6 +84,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(makeItem(LanguageSettings.shared.strings.quit, action: #selector(quit), keyEquivalent: "q"))
         }
         return menu
+    }
+
+    static func languageMenu(current: AppLanguage, target: AnyObject?) -> NSMenuItem {
+        let parent = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
+        parent.identifier = languageId
+        let submenu = NSMenu()
+        for language in AppLanguage.allCases {
+            let item = NSMenuItem(title: language.endonym, action: #selector(selectLanguage(_:)), keyEquivalent: "")
+            item.target = target
+            item.representedObject = language.rawValue
+            item.state = language == current ? .on : .off
+            submenu.addItem(item)
+        }
+        parent.submenu = submenu
+        return parent
     }
 
     /// Choice items carry raw values; check the one matching the group's current value.

@@ -3,8 +3,10 @@ import Foundation
 public enum QuestionHeuristic {
     /// Prefer waiting when ambiguous, except for recognized optional offers and closing remarks.
     public static func endsWithQuestion(_ markdown: String) -> Bool {
-        guard let paragraph = lastBodyParagraph(of: markdown) else { return false }
-        let context = paragraphs(of: markdown).dropLast().last?.joined(separator: "\n") ?? ""
+        let body = paragraphs(of: markdown).filter { !isSourceParagraph($0) }
+        guard let last = body.last else { return false }
+        let paragraph = last.joined(separator: "\n")
+        let context = body.dropLast().last?.joined(separator: "\n") ?? ""
         let requestedChecks = matches(["기다리", "확인 부탁", "확인할 것", "결정", "정할 것", "질문", "대기", "waiting for", "please check"], context)
         if matches(["(?m)^\\*\\*[ABC]\\*\\*.*\\|"], context) { return true }
         return asksUser(paragraph, requestedChecks: requestedChecks || matches(["확인 부탁", "확인이 필요한", "확인 필요", "남은 확인", "남은 질문"], paragraph))
@@ -40,12 +42,6 @@ public enum QuestionHeuristic {
         decisions: ["^whether to\\b"],
         checks: ["^whether (?!to\\b)"]
     )
-
-    private static func lastBodyParagraph(of markdown: String) -> String? {
-        paragraphs(of: markdown)
-            .last { !isSourceParagraph($0) }
-            .map { $0.joined(separator: "\n") }
-    }
 
     private static func paragraphs(of markdown: String) -> [[Substring]] {
         var paragraphs: [[Substring]] = []
@@ -100,6 +96,10 @@ public enum QuestionHeuristic {
         for line in plain.components(separatedBy: .newlines) {
             let isList = line.range(of: #"^\s*(?:[-*+] |[0-9]+[.)] )"#, options: .regularExpression) != nil
             let content = line.replacingOccurrences(of: #"^\s*(?:[-*+] |[0-9]+[.)] )"#, with: "", options: .regularExpression)
+            if requestedChecks, isList {
+                let rules = content.range(of: "[가-힣]", options: .regularExpression) == nil ? english : korean
+                if matches(rules.checks, content.trimmingCharacters(in: .whitespacesAndNewlines)) { return true }
+            }
             var sentence = ""
             for character in content {
                 if ".!?？。".contains(character) {
