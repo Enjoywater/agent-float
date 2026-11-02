@@ -1,11 +1,11 @@
 #!/bin/sh
-# ad-hoc 서명은 빌드할 때마다 서명이 달라져 손쉬운 사용·자동화 권한이 풀린다.
-# 로그인 키체인에 로컬 전용 코드 서명 인증서를 하나 두고 그것으로 서명하면 한 번 허용한 권한이 유지된다 (v1.2 설계 4.9)
+# Ad-hoc signatures change on each build and invalidate Accessibility/Automation approvals.
+# Use a local-only signing certificate in the login keychain to preserve granted permissions (v1.2 design §4.9).
 set -eu
 
 name="${SIGN_IDENTITY:-Agent Float Local Signing}"
 keychain="$HOME/Library/Keychains/login.keychain-db"
-# 키체인이 받아 주는 PKCS#12 형식을 내도록 시스템 openssl(LibreSSL)을 고정해 쓴다
+# Pin system LibreSSL to generate PKCS#12 compatible with Keychain import.
 openssl=/usr/bin/openssl
 
 if security find-identity -v -p codesigning "$keychain" | grep -F -q "\"$name\""; then
@@ -16,7 +16,7 @@ fi
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# 신뢰 창에서 취소했다면 인증서는 이미 들어가 있으니 다시 만들지 않고 신뢰만 다시 묻는다
+# After cancelling trust, the certificate is already imported; request trust again instead of recreating it.
 if security find-certificate -c "$name" "$keychain" >/dev/null 2>&1; then
 	security find-certificate -c "$name" -p "$keychain" >"$work/cert.pem"
 else
@@ -34,7 +34,7 @@ EOF
 	"$openssl" req -x509 -newkey rsa:2048 -days 3650 -nodes \
 		-config "$work/openssl.cnf" -extensions ext \
 		-keyout "$work/key.pem" -out "$work/cert.pem" 2>/dev/null
-	# 가져오기에만 쓰고 버리는 일회용 암호
+	# Disposable password used only during import.
 	pass=$("$openssl" rand -hex 16)
 	"$openssl" pkcs12 -export -inkey "$work/key.pem" -in "$work/cert.pem" \
 		-name "$name" -out "$work/identity.p12" -passout "pass:$pass"

@@ -49,7 +49,7 @@ struct CodexCodeProviderTests {
             #expect(session.waitReason == reason)
             #expect((session.prompt != nil) == (reason == .permission))
             #expect(session.locator == .none)
-            // 오래된 updatedAt으로 실행이 멈췄다고 추정하지 않는다.
+            // An old updatedAt does not prove execution has stalled.
             #expect(!session.isStale)
             #expect(try provider.snapshot(now: Self.now.addingTimeInterval(10)) == sessions)
         }

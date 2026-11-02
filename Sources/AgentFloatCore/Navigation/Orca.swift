@@ -15,7 +15,7 @@ public struct OrcaTerminal: Equatable, Sendable {
 public enum OrcaCLI {
     public static let executable = "/usr/local/bin/orca"
 
-    /// `{"result":{"terminals":[{handle,tabId,leafId,…}]}}`. 이동에 필요한 세 값이 없는 항목은 건너뛴다
+    /// Parse result.terminals entries with handle/tabId/leafId; skip entries lacking required routing fields.
     public static func parseTerminalList(_ json: Data) throws -> [OrcaTerminal] {
         guard let envelope = try? JSONDecoder().decode(Envelope.self, from: json) else {
             throw NavigationError.commandFailed("unreadable orca output")
@@ -30,7 +30,7 @@ public enum OrcaCLI {
         }
     }
 
-    /// handle 을 먼저 본다. tab·leaf 는 워크트리를 열기 전까지 임시 값이라 그것만으로는 있는 터미널도 못 찾는다
+    /// Prefer stable handles because unopened worktrees may use temporary tab/leaf IDs.
     public static func match(tabId: String, leafId: String, handle: String? = nil, in terminals: [OrcaTerminal]) -> OrcaTerminal? {
         if let handle, let byHandle = terminals.first(where: { $0.handle == handle }) {
             return byHandle
@@ -38,8 +38,8 @@ public enum OrcaCLI {
         return terminals.first { $0.tabId == tabId && $0.leafId == leafId }
     }
 
-    /// `{"ok":true,"result":{"terminal":{"tail":[줄…],"draft":"…","source":"screen"}}}`. `draft` 는 Orca 입력창에 글이 있을 때만 온다 (실측 ⑫).
-    /// `source` 가 `screen` 이 아니면 렌더된 화면이 아니다 — `screen-unavailable` 은 겹쳐 쓴 조각이 쌓인 누적 출력이고, 없으면 그 구분을 모르는 옛 Orca 다
+    /// Rendered terminal results include tail lines and an optional draft only when Orca's composer contains text (measurement 12).
+    /// Require source=screen; screen-unavailable is accumulated repaint output, while missing source means an older unsupported Orca.
     public static func parseScreen(_ json: Data) throws -> ConsoleScreen {
         guard let envelope = try? JSONDecoder().decode(ScreenEnvelope.self, from: json) else {
             throw NavigationError.commandFailed("unreadable orca screen")
@@ -96,7 +96,7 @@ public enum OrcaCLI {
         }
     }
 
-    /// 항목 하나의 필드 타입이 어긋나도 목록 전체를 버리지 않도록 필드별로 관대하게 읽는다
+    /// Decode fields tolerantly so one malformed entry cannot invalidate the full list.
     private struct Entry: Decodable {
         let handle: String?
         let tabId: String?
@@ -129,14 +129,14 @@ public struct OrcaNavigator: TerminalNavigator {
 
     public func navigate(to session: AgentSession) async throws {
         guard case let .orca(tabId, leafId, handle) = session.locator else { throw NavigationError.terminalNotFound }
-        // 기본 페이지 크기가 문서에 없어, 터미널이 많아져 목록이 잘리면 있는 탭도 못 찾게 된다 (R26)
+        // Request a large explicit limit because an undocumented default page size could hide valid terminals (R26).
         let listing = try await runner.run(OrcaCLI.executable, ["terminal", "list", "--json", "--limit", "1000"])
         let terminals = try OrcaCLI.parseTerminalList(Data(listing.utf8))
         guard let target = OrcaCLI.match(tabId: tabId, leafId: leafId, handle: handle, in: terminals) else {
             throw NavigationError.terminalNotFound
         }
         _ = try await runner.run(OrcaCLI.executable, ["terminal", "switch", "--terminal", target.handle])
-        // switch 는 Orca 안의 선택만 바꾸므로 창을 앞으로 올리는 일은 앱이 한다
+        // Switch changes selection inside Orca only; the app must raise its window separately.
         activateOrca()
     }
 }

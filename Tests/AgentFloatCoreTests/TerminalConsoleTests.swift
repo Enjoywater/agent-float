@@ -34,7 +34,7 @@ private func fixtureData(_ name: String, _ ext: String) throws -> Data {
     return try Data(contentsOf: url)
 }
 
-/// Orca `read --screen --json` 응답. 실측 S5: 입력 칸의 실제 글은 `tail` 에서 빠지고 `draft` 로만 온다
+/// Orca read --screen --json omits actual composer text from tail and returns it only in draft (S5).
 func orcaScreenJSON(_ tail: [String], draft: String? = nil) -> String {
     var terminal: [String: Any] = ["tail": tail, "source": "screen"]
     if let draft { terminal["draft"] = draft }
@@ -42,12 +42,12 @@ func orcaScreenJSON(_ tail: [String], draft: String? = nil) -> String {
     return String(decoding: data, as: UTF8.self)
 }
 
-/// 빈 칸이면 흐린 안내 문구가 일반 글자로 보이고, 글이 있으면 `❯` 만 남는다 (실측 S5 ④)
+/// Empty composers expose faint hints as ordinary text; nonempty composers leave only the prompt glyph (S5, 4).
 func orcaPromptTail(_ promptLine: String) -> [String] {
     ["⏺ 이전 답변을 정리했습니다.", "", "✻ Brewed for 3s", "", String(repeating: "─", count: 40), promptLine, String(repeating: "─", count: 40), "  ◆ Haiku │ 0%"]
 }
 
-/// 판정 결과만 정해 두고 호출 여부를 남긴다
+/// Stub availability verdicts while recording calls.
 private struct StubConsole: TerminalConsole {
     let promptCheck: PromptCheck
     let verdict: ConsoleAvailability
@@ -85,7 +85,7 @@ private struct StubConsole: TerminalConsole {
         #expect(await runner.calls.allSatisfy { $0.arguments.prefix(5) == ["-S", socket, "send-keys", "-t", "%7"] })
     }
 
-    /// 넣기 전에 판정하는 콘솔은 지울 일이 없다. 지우기 키는 넣어 보고 확인하는 콘솔에만 열어 둔다 (R78)
+    /// Before-typing transports never erase; deletion is available only to probe-based transports (R78).
     @Test func beforeTypingConsolesNeverErase() async {
         let runner = FakeCommandRunner { _ in #"{"ok":true,"result":{"send":{"accepted":true}}}"# }
         await #expect(throws: NavigationError.self) {
@@ -139,7 +139,7 @@ private struct StubConsole: TerminalConsole {
         ])
     }
 
-    /// `--text --dry-run` 은 Orca 가 "값 없음"으로 거절한다(실측). `--text=<글>` 로 붙이면 값으로 받는다 (최종 리뷰 M3)
+    /// Orca rejects separate --text --dry-run as missing a value; joined --text=value works (final review M3).
     @Test func orcaSendsDashLedTextAsOneArgument() async throws {
         let runner = FakeCommandRunner { _ in #"{"ok":true,"result":{"send":{"accepted":true}}}"# }
         try await OrcaConsole(runner: runner).send(.text("--dry-run 으로 먼저"), to: orcaSession)
@@ -176,7 +176,7 @@ private struct StubConsole: TerminalConsole {
         #expect(await runner.calls.map(\.arguments) == [["terminal", "read", "--terminal", handle, "--screen", "--json"]])
     }
 
-    /// `screen-unavailable` 은 렌더된 화면이 아니라 겹쳐 쓴 조각이 쌓인 누적 출력이다. 없으면 그 구분을 모르는 옛 Orca 다. 둘 다 화면으로 믿지 않는다 (최종 리뷰 I2)
+    /// Reject accumulated screen-unavailable output and older responses without source; neither proves a rendered screen (final review I2).
     @Test func orcaReadsOnlyARenderedScreen() throws {
         let plain = String(decoding: try fixtureData("orca-read-screen", "json"), as: UTF8.self)
         let unavailable = plain.replacingOccurrences(of: "\"source\": \"screen\"", with: "\"source\": \"screen-unavailable\"")
@@ -186,7 +186,7 @@ private struct StubConsole: TerminalConsole {
         #expect(throws: NavigationError.self) { try OrcaCLI.parseScreen(Data(absent.utf8)) }
     }
 
-    // MARK: Orca 입력 칸 (실측 S5)
+    // MARK: Orca composer (measurement S5)
 
     @Test func orcaPlaceholderReadsAsAnEmptyPrompt() async throws {
         let runner = FakeCommandRunner { _ in orcaScreenJSON(orcaPromptTail("❯\u{a0}Try \"create a util logging.py that...\"")) }
@@ -202,7 +202,7 @@ private struct StubConsole: TerminalConsole {
         #expect(screen.composerDraft == nil)
     }
 
-    /// 질문 창이 떠 있을 때의 `draft` 는 어디에 쓰인 글인지 화면으로 확인할 수 없어, 지금처럼 쓰던 글로 보고 보내지 않는다
+    /// Composer draft ownership is unclear while a dialog is visible; treat it as existing text and block sending.
     @Test func orcaDraftUnderADialogStillBlocks() async throws {
         let dialog = try JSONSerialization.jsonObject(with: try fixtureData("orca-read-screen", "json")) as? [String: Any]
         let tail = try #require(((dialog?["result"] as? [String: Any])?["terminal"] as? [String: Any])?["tail"] as? [String])
@@ -241,7 +241,7 @@ private struct StubConsole: TerminalConsole {
         #expect(await registry.availability(of: waiting(.none)) == .ready)
     }
 
-    /// 흐림을 읽지 못하는 콘솔도 넣어 보고 확인해 답한다 (R78)
+    /// Consoles without faint styling can still answer using a verified probe (R78).
     @Test func bodyQuestionIsAnsweredWithEitherCheck() async {
         let calls = CallLog<String>()
         let probing = ConsoleRegistry([StubConsole(promptCheck: .afterTyping, verdict: .ready, calls: calls)])

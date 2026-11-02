@@ -37,7 +37,7 @@ import Testing
         return try Data(contentsOf: url)
     }
 
-    // MARK: 도출 표 (행 하나 = 케이스 하나)
+    // MARK: Derivation table, one case per row
 
     struct Row: CustomTestStringConvertible, Sendable {
         let name: String
@@ -192,7 +192,7 @@ import Testing
         #expect(ClaudeStatusDeriver.waitReason(from: nil) == .other("대기"))
     }
 
-    // MARK: 세션 파일 파싱
+    // MARK: Session-file parsing
 
     @Test func parsesRealBusyFile() throws {
         let file = try #require(ClaudeSessionFile.parse(fixture("session-busy")))
@@ -238,7 +238,7 @@ import Testing
         #expect(file.cwd == "/Users/me")
     }
 
-    // MARK: 파일 → 상태 (픽스처 통합)
+    // MARK: File-to-status fixture integration
 
     @Test func unknownStatusIsGrayNotRunning() throws {
         let file = try #require(ClaudeSessionFile.parse(fixture("session-unknown-status")))
@@ -256,7 +256,7 @@ import Testing
     }
 
 
-    // MARK: 대기 사유 → 질문
+    // MARK: Wait reasons and prompts
 
     private static let question = ChoiceQuestion(
         text: "만료 방식을 어떻게 할까요?",

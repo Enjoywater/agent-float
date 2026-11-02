@@ -13,7 +13,7 @@ public struct DerivedStatus: Equatable, Sendable {
 }
 
 public enum ClaudeStatusDeriver {
-    /// busy 인데 트랜스크립트가 이 시간보다 오래 조용하면 멈춘 것으로 의심한다
+    /// A busy session silent beyond this interval is suspected to be stalled.
     public static let staleAfter: TimeInterval = 600
 
     public static func derive(file: ClaudeSessionFile, tail: TranscriptTail?, now: Date) -> DerivedStatus {
@@ -25,10 +25,10 @@ public enum ClaudeStatusDeriver {
         case "idle":
             return deriveIdle(tail: tail, now: now, backgroundShellRunning: false)
         case "shell":
-            // 턴이 끝났는데 백그라운드 셸이 남아 있으면 idle 대신 이 값을 쓴다 (2.1.301 실측). 트랜스크립트 꼬리에서 시작 기록이 밀려나도 이 값으로 알 수 있다
+            // A finished turn with a remaining background shell uses this state instead of idle (2.1.301); it survives tail-window truncation.
             return deriveIdle(tail: tail, now: now, backgroundShellRunning: true)
         default:
-            // 모르는 값을 실행으로 추정하면 멈춘 세션이 일하는 것처럼 보이므로 회색으로 둔다
+            // Keep unknown values gray rather than incorrectly implying active work.
             return DerivedStatus(status: .unknown, waitReason: nil, isStale: false)
         }
     }
@@ -45,7 +45,7 @@ public enum ClaudeStatusDeriver {
         return .other(raw)
     }
 
-    /// 대기 사유가 무엇을 기다리는지와 transcript 꼬리가 맞을 때만 질문을 붙인다. 사유와 다른 종류를 보여 주면 엉뚱한 것에 답하게 된다
+    /// Attach prompts only when their type matches the wait reason, avoiding replies to the wrong question.
     public static func prompt(for reason: WaitReason?, tail: TranscriptTail?) -> PendingPrompt? {
         guard let tail else { return nil }
         switch reason {
@@ -61,12 +61,12 @@ public enum ClaudeStatusDeriver {
         }
     }
 
-    // 대기를 놓치는 쪽이 최악이라 질문 판정을 자동 재개(백그라운드 작업·예약)보다 먼저 본다
+    // Check questions before automatic continuation: missing real user waits is the worst outcome.
     private static func deriveIdle(tail: TranscriptTail?, now: Date, backgroundShellRunning: Bool) -> DerivedStatus {
         if let tail, asksUser(tail) {
             return DerivedStatus(status: .waiting, waitReason: .bodyQuestion, isStale: false)
         }
-        // 남은 일이 스스로 이어질 예정이라 조용한 것이 정상이므로 정체로 보지 않는다
+        // Silence is expected while pending work will resume automatically; do not mark it stalled.
         if backgroundShellRunning || tail.map({ hasPendingWork($0, now: now) }) == true {
             return DerivedStatus(status: .running, waitReason: nil, isStale: false)
         }

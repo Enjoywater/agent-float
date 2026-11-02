@@ -17,7 +17,7 @@ import Testing
         return call.arguments[1]
     }
 
-    // MARK: tty 형식
+    // MARK: Tty format
 
     @Test(arguments: ["/dev/ttys0", "/dev/ttys012"])
     func ttyFormatAcceptsDevicePaths(tty: String) {
@@ -29,7 +29,7 @@ import Testing
         #expect(!TtyFormat.isDevicePath(tty))
     }
 
-    // MARK: 이동
+    // MARK: Navigation
 
     @Test func appleTerminalSelectsTabByTty() async throws {
         let fake = FakeCommandRunner { _ in "ok\n" }
@@ -91,7 +91,7 @@ import Testing
         }
     }
 
-    // MARK: 직접 선택 감지
+    // MARK: Manual-selection detection
 
     @Test func appleTerminalProbeMatchesSelectedTty() async throws {
         let fake = FakeCommandRunner { _ in "/dev/ttys004\n" }

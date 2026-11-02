@@ -1,7 +1,7 @@
 import AppKit
 
-/// 메뉴바 아이콘 앱이라 평소에는 메뉴 막대에 보이지 않지만, 답장 칸의 ⌘C·⌘V·⌘A·⌘Z 는 이 메뉴의 단축키로만 동작한다
-/// (AppKit 은 텍스트 칸의 편집 단축키를 메인 메뉴의 편집 항목으로 처리한다). Dock 에 둔 채 앱이 앞에 오면 메뉴 막대에 보인다
+/// Although normally hidden, this menu supplies reply-field copy/paste/select-all/undo shortcuts.
+/// AppKit routes text editing shortcuts through the main menu; it becomes visible when the Dock app is active.
 @MainActor
 enum MainMenu {
     static func make() -> NSMenu {
@@ -11,7 +11,7 @@ enum MainMenu {
         return menu
     }
 
-    /// 첫 메뉴는 이름과 상관없이 앱 메뉴로 그려진다
+    /// The first menu is rendered as the application menu regardless of its name.
     private static func appMenu() -> NSMenu {
         let menu = NSMenu(title: "Agent Float")
         menu.addItem(NSMenuItem(title: "Agent Float 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))

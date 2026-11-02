@@ -1,23 +1,23 @@
 import Darwin
 import Foundation
 
-/// 에이전트 프로세스의 생존·환경변수·부모 pid 조회. 위젯이 하루 종일 떠 있으므로 `ps` 대신 커널 API 로 읽는다
+/// Use kernel APIs rather than ps for process liveness/environment/parents in this always-running widget.
 public protocol ProcessInspecting: Sendable {
     func isAlive(pid: Int32, procStart: String?) -> Bool
     func environment(pid: Int32) -> [String: String]
-    /// launchd(1) 이하이거나 조회에 실패하면 nil. 터미널 앱을 찾아 올라가는 순회의 종료 조건으로 쓴다
+    /// Nil for launchd or lower and inspection failure; terminates ancestor traversal.
     func parentPid(of pid: Int32) -> Int32?
-    /// 제어 터미널 장치 경로(`/dev/ttys003`). 터미널이 없거나 조회에 실패하면 nil
+    /// Controlling terminal device path, or nil when unavailable or absent.
     func tty(pid: Int32) -> String?
 }
 
 public extension ProcessInspecting {
-    // tty 로 탭을 고르는 터미널이 아니면 필요 없는 값이라, 구현하지 않은 쪽은 앱만 올리는 폴백으로 내려간다
+    // Optional tty support lets unsupported terminals fall back to app activation.
     func tty(pid: Int32) -> String? { nil }
 }
 
 public struct DarwinProcessInspector: ProcessInspecting {
-    /// 로딩 시점에 한 번만 읽는다. 환경변수 조회마다 sysctl 을 한 번 더 부르지 않기 위함
+    /// Read ARGMAX once at initialization to avoid an extra sysctl per environment lookup.
     private static let argMax: Int = {
         var mib = [CTL_KERN, KERN_ARGMAX]
         var value: Int32 = 0
@@ -32,9 +32,9 @@ public struct DarwinProcessInspector: ProcessInspecting {
 
     public func isAlive(pid: Int32, procStart: String?) -> Bool {
         guard let info = Self.bsdInfo(pid) else { return false }
-        // 파싱되지 않는 값으로 살아 있는 세션을 버리면 포맷이 한 번 바뀔 때 목록이 통째로 비므로 존재 여부만 본다
+        // If start-time parsing changes, retain live sessions using existence rather than dropping the entire list.
         guard let text = procStart, let expected = ProcStart.parse(text) else { return true }
-        // pid 는 재사용되므로 같은 pid 라도 시작 시각이 다르면 다른 프로세스다
+        // The same PID with a different start time identifies a different process.
         let actual = Int64(info.pbi_start_tvsec)
         return abs(actual - Int64(expected.timeIntervalSince1970)) <= 1
     }
@@ -42,7 +42,7 @@ public struct DarwinProcessInspector: ProcessInspecting {
     public func environment(pid: Int32) -> [String: String] {
         guard pid > 0 else { return [:] }
         var mib = [CTL_KERN, KERN_PROCARGS2, pid]
-        // 크기를 먼저 묻는 방식은 두 호출 사이에 EINVAL 이 날 수 있어 ARGMAX 만큼 한 번에 받는다
+        // Allocate ARGMAX directly; querying size first can race into EINVAL.
         var size = Self.argMax
         var buffer = [UInt8](repeating: 0, count: size)
         let status = buffer.withUnsafeMutableBytes { raw in
@@ -54,8 +54,8 @@ public struct DarwinProcessInspector: ProcessInspecting {
 
     public func parentPid(of pid: Int32) -> Int32? {
         guard pid > 0 else { return nil }
-        // 전체 정보(PROC_PIDTBSDINFO)는 다른 사용자 소유 프로세스에서 EPERM 으로 거부된다.
-        // Ghostty 는 root 소유 /usr/bin/login 을 거쳐 셸을 띄우므로(실측) 그 너머 부모까지 알려주는 짧은 정보를 쓴다
+        // Full PROC_PIDTBSDINFO returns EPERM for processes owned by another user.
+        // Ghostty launches through root-owned login; use short BSD info to traverse that ancestor boundary.
         var info = proc_bsdshortinfo()
         let size = Int32(MemoryLayout<proc_bsdshortinfo>.size)
         guard proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, &info, size) == size else { return nil }
@@ -64,13 +64,13 @@ public struct DarwinProcessInspector: ProcessInspecting {
     }
 
     public func tty(pid: Int32) -> String? {
-        // 터미널이 없는 프로세스는 NODEV(모든 비트가 1)를 돌려준다
+        // Processes without a terminal return NODEV, all bits set.
         guard let info = Self.bsdInfo(pid), info.e_tdev != UInt32.max else { return nil }
-        // devname 은 정적 버퍼를 돌려줘 동시 호출에 안전하지 않으므로 버퍼를 직접 준다
+        // Supply a private buffer because devname's static buffer is not thread-safe.
         var buffer = [CChar](repeating: 0, count: 64)
         guard devname_r(dev_t(bitPattern: info.e_tdev), S_IFCHR, &buffer, Int32(buffer.count)) != nil else { return nil }
         let name = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
-        // 장치를 못 찾으면 이름 대신 "??" 를 채우는 구현이 있다
+        // Some implementations return ?? instead of a name when no device matches.
         guard !name.isEmpty, name != "??" else { return nil }
         return "/dev/" + name
     }
@@ -79,15 +79,15 @@ public struct DarwinProcessInspector: ProcessInspecting {
         guard pid > 0 else { return nil }
         var info = proc_bsdinfo()
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-        // 없는 pid 는 0, 권한이 없으면 음수를 돌려주므로 구조체가 가득 찼을 때만 성공으로 본다
-        // arg 를 0 으로 부르면 부모가 거두지 않은 좀비도 0 이 돌아와 따로 거르지 않아도 죽은 것으로 취급된다
+        // Accept only a complete info structure: missing PIDs return zero and permission failures return negative values.
+        // With argument zero, unreaped zombies also return zero and are naturally treated as dead.
         guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
         return info
     }
 }
 
-/// `sysctl(KERN_PROCARGS2)` 버퍼 해석.
-/// 배치는 Int32 argc, 실행 경로(NUL 종료), 정렬용 NUL 패딩, argv argc 개, 이어서 `KEY=VALUE` 환경 문자열이다
+/// Parse the sysctl KERN_PROCARGS2 buffer.
+/// Layout: Int32 argc, NUL-terminated executable, alignment NULs, argc argv strings, then KEY=VALUE environment strings.
 enum ProcArgs {
     static func parseEnvironment(_ buffer: [UInt8]) -> [String: String] {
         let headerSize = MemoryLayout<Int32>.size
@@ -100,7 +100,7 @@ enum ProcArgs {
         while index < buffer.count, buffer[index] == 0 { index += 1 }
 
         for _ in 0..<argc {
-            // argv 를 다 건너뛰기 전에 버퍼가 끝났다면 환경 영역이 없는 것이다
+            // If the buffer ends before argv is skipped, no environment region exists.
             guard index < buffer.count else { return [:] }
             index = skipString(in: buffer, from: index)
         }
@@ -108,20 +108,20 @@ enum ProcArgs {
         var environment: [String: String] = [:]
         while index < buffer.count {
             let end = buffer[index...].firstIndex(of: 0) ?? buffer.count
-            // 빈 문자열은 환경 끝이며, 뒤따르는 apple 문자열은 환경변수가 아니다
+            // An empty string ends the environment; subsequent Apple strings are not variables.
             if end == index { break }
             let entry = buffer[index..<end]
             index = end + 1
             guard let separator = entry.firstIndex(of: UInt8(ascii: "=")), separator > entry.startIndex else { continue }
             let key = String(decoding: entry[entry.startIndex..<separator], as: UTF8.self)
             let value = String(decoding: entry[(separator + 1)...], as: UTF8.self)
-            // 같은 키가 겹쳐도 죽지 않도록 대입으로 쌓는다
+            // Assign incrementally so duplicate keys cannot trap.
             environment[key] = value
         }
         return environment
     }
 
-    /// NUL 로 끝나는 문자열 하나를 건너뛴 다음 위치. 종료 NUL 이 없으면 버퍼 끝을 돌려준다
+    /// Skip a NUL-terminated string, returning buffer end if the terminator is absent.
     private static func skipString(in buffer: [UInt8], from start: Int) -> Int {
         guard start < buffer.count else { return buffer.count }
         guard let nul = buffer[start...].firstIndex(of: 0) else { return buffer.count }
@@ -129,13 +129,13 @@ enum ProcArgs {
     }
 }
 
-/// 세션 파일의 `procStart`. `ps -o lstart` 형태("Fri Oct 16 04:12:10 2026")이며 UTC 로 해석한다
+/// Session procStart uses ps lstart format and is interpreted as UTC.
 enum ProcStart {
     static func parse(_ text: String) -> Date? {
-        // 한 자리 일자는 공백 두 칸으로 채워지므로 연속 공백을 하나로 줄여야 날짜 패턴과 맞는다
+        // Collapse repeated whitespace to normalize single-digit day padding before date parsing.
         let normalized = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         guard !normalized.isEmpty else { return nil }
-        // DateFormatter 는 Sendable 이 아니라 공유 static 으로 둘 수 없어 호출마다 만든다
+        // DateFormatter is not Sendable; construct per call rather than sharing a static instance.
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)

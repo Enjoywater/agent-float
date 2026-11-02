@@ -3,7 +3,7 @@ import Synchronization
 import Testing
 @testable import AgentFloatCore
 
-/// pid 별 생존·환경변수를 지정하고 `environment` 호출 횟수를 센다. 캐시가 실제로 호출을 줄이는지 확인하기 위함
+/// Configure per-PID liveness/environments and count environment calls to verify caching reduces inspections.
 private final class FakeInspector: ProcessInspecting, Sendable {
     private struct State {
         var alive: Set<Int32>
@@ -70,7 +70,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         try? FileManager.default.removeItem(at: claudeHome)
     }
 
-    // MARK: 도우미
+    // MARK: Helpers
 
     private func provider(_ inspector: FakeInspector) -> ClaudeCodeProvider {
         ClaudeCodeProvider(claudeHome: claudeHome, homeDirectory: Self.homeDirectory, inspector: inspector)
@@ -146,7 +146,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         return url
     }
 
-    /// transcript 꼬리 창(256KB)을 넘기려는 잡음. 한 줄이 약 1KB
+    /// Noise exceeding the 256 KB transcript tail window, about 1 KB per line.
     private func noise(bytes: Int) -> String {
         let line = #"{"type":"system","subtype":"filler","content":""# + String(repeating: "x", count: 1_000) + #""}"# + "\n"
         return String(repeating: line, count: bytes / line.utf8.count + 1)
@@ -178,7 +178,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         try #require(sessions.first { $0.key.sessionId == sessionId })
     }
 
-    // MARK: 터미널·제목 판별
+    // MARK: Terminal and title discovery
 
     @Test func ghosttySessionGetsTitleAndLocator() throws {
         let id = Self.sessionId(1)
@@ -266,9 +266,9 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(found.locator == .application(pid: 4012))
     }
 
-    /// nvim `:terminal` 처럼 안쪽 pty 를 만드는 프로그램은 TERM_PROGRAM 을 덮지 않아, 세션의 tty 는 탭의 tty 가 아니다
+    /// Nested ptys such as nvim :terminal inherit TERM_PROGRAM but have a different tty from the outer tab.
     @Test func nestedPtyUsesOutermostTty() throws {
-        // 세션 4016(안쪽 pty) → 셸 600(안쪽) → nvim 601(탭의 pty) → 셸 602(탭) → Terminal 603(tty 없음)
+        // Agent 4016 (inner pty) to shell 600 to nvim 601 (tab pty) to shell 602 to tty-less Terminal 603.
         let found = try placedSession(
             pid: 4016, n: 16, environment: ["TERM_PROGRAM": "Apple_Terminal"],
             ttys: [4016: "/dev/ttys020", 600: "/dev/ttys020", 601: "/dev/ttys004", 602: "/dev/ttys004"],
@@ -282,7 +282,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(found.locator == .application(pid: 4017))
     }
 
-    /// tmux 에서 CLI 로 띄운 IDE 는 TMUX 를 물려받지만 그 안의 세션은 tmux 서버 아래에 있지 않다
+    /// IDE processes launched from tmux inherit TMUX but their sessions are not descendants of its server.
     @Test func inheritedTmuxEnvironmentIsIgnored() throws {
         let environment = ["TERM_PROGRAM": "vscode", "TMUX": "/private/tmp/tmux-501/default,4242,0", "TMUX_PANE": "%7"]
         let found = try placedSession(pid: 4018, n: 18, environment: environment, parents: [4018: 700, 700: 701])
@@ -292,7 +292,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
 
     @Test func tmuxSessionUsesPaneFromEnvironment() throws {
         let environment = ["TERM_PROGRAM": "tmux", "TMUX": "/private/tmp/tmux-501/default,4242,0", "TMUX_PANE": "%7"]
-        // 세션 → pane 의 셸 → tmux 서버(4242)
+        // Agent to pane shell to tmux server 4242.
         let found = try placedSession(pid: 4013, n: 13, environment: environment, tty: "/dev/ttys006", parents: [4013: 800, 800: 4242])
         #expect(found.terminalApp == .other("tmux"))
         #expect(found.locator == .tmux(socket: "/private/tmp/tmux-501/default", paneId: "%7", pid: 4013))
@@ -448,7 +448,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(try !session(sessions, active).isStale)
     }
 
-    // MARK: 생존·파일 열거
+    // MARK: Liveness and file enumeration
 
     @Test func deadPidIsDropped() throws {
         let alive = Self.sessionId(1)
@@ -508,7 +508,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(sessions.map(\.key.sessionId) == ids)
     }
 
-    // MARK: transcript 위치
+    // MARK: Transcript placement
 
     @Test(arguments: ["-Users-me-alpha", "-Users-me-beta"])
     func transcriptLookupPrefersNewestWhenDuplicated(newerProject: String) throws {
@@ -551,7 +551,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
 
         #expect(try session(try subject.snapshot(now: Self.now), id).title == "제목A")
 
-        // 크기와 수정 시각이 같으면 내용이 바뀌었어도 다시 읽지 않아야 한다
+        // Unchanged size and mtime must skip rereads even when content was modified.
         try writeTranscript(sessionId: id, title: "제목B", modifiedAt: stamp)
         #expect(try session(try subject.snapshot(now: Self.now), id).title == "제목A")
 
@@ -561,7 +561,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(refreshed.lastActivityAt == stamp.addingTimeInterval(10))
     }
 
-    // MARK: 환경변수 캐시
+    // MARK: Environment cache
 
     @Test func environmentIsReadOncePerProcess() throws {
         let id = Self.sessionId(1)
@@ -573,7 +573,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         _ = try subject.snapshot(now: Self.now)
         #expect(inspector.environmentCalls == 1)
 
-        // 같은 pid 라도 시작 시각이 다르면 다른 프로세스다
+        // PID reuse is distinguished by process start time.
         try writeSession(pid: 4601, sessionId: id, procStart: "Fri Oct 16 05:30:00 2026")
         _ = try subject.snapshot(now: Self.now)
         #expect(inspector.environmentCalls == 2)
@@ -606,7 +606,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(inspector.environmentCalls == 2)
     }
 
-    // MARK: 쓰는 도중 읽기 (Review Focus 1)
+    // MARK: Reading concurrent writes (Review Focus 1)
 
     @Test func partialWriteKeepsLastGoodState() throws {
         let id = Self.sessionId(1)
@@ -656,7 +656,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(try session(try subject.snapshot(now: Self.now), id).status == .done)
     }
 
-    // MARK: 중복 sessionId (R16)
+    // MARK: Duplicate sessionId (R16)
 
     @Test(arguments: [true, false])
     func duplicateSessionIdKeepsNewestStatusUpdate(newerHasLargerPid: Bool) throws {
@@ -678,7 +678,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
     @Test(arguments: [nil, 1_799_999_900_000.0] as [Double?])
     func duplicateSessionIdWithSameTimestampKeepsLargerPid(statusUpdatedAt: Double?) throws {
         let id = Self.sessionId(2)
-        // 파일 이름순으로는 999 가 뒤라서, 규칙이 이름 순서에 기대면 결과가 뒤집힌다
+        // Filename sorting puts 999 last, so relying on filename order would choose the wrong duplicate.
         try writeSession(pid: 999, sessionId: id, status: "busy", statusUpdatedAt: statusUpdatedAt)
         try writeSession(pid: 1000, sessionId: id, status: "idle", statusUpdatedAt: statusUpdatedAt)
         let inspector = FakeInspector(alive: [999, 1000])
@@ -701,7 +701,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(sessions.first?.status == .running)
     }
 
-    // MARK: 제목 기억 (R17)
+    // MARK: Remembered titles (R17)
 
     @Test func rememberedTitleSurvivesWhenLaterTailHasNone() throws {
         let id = Self.sessionId(1)
@@ -722,7 +722,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         let subject = provider(FakeInspector(alive: [4902]))
         _ = try subject.snapshot(now: Self.now)
 
-        // 앞쪽 제목이 달라졌어도 이미 아는 제목이 있으면 8MB 앞부분을 다시 훑지 않는다
+        // A known title avoids rescanning the first 8 MB even if the head title changed.
         try writeTranscriptFile(
             sessionId: id, text: try titleLine("제목B", sessionId: id) + noise(bytes: 300_000),
             modifiedAt: Self.now.addingTimeInterval(-30)
@@ -758,9 +758,9 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(try session(try subject.snapshot(now: Self.now), id).title == "늦게 생긴 제목")
     }
 
-    // MARK: --resume 한 세션
+    // MARK: Resumed sessions
 
-    /// 앞 프로세스가 띄운 백그라운드 작업은 끝 알림 없이 사라진다. 그 시작 기록만 남은 transcript
+    /// Only the old process's background-job start remains; its job disappears without a completion record.
     private func writeTranscriptWithBackgroundStart(sessionId: String, startedAt: String) throws {
         let lines = [
             try jsonLine([
@@ -816,7 +816,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
         #expect(try session(try subject.snapshot(now: Self.now), id).status == .done)
     }
 
-    // MARK: 서브에이전트 활동 (R18)
+    // MARK: Subagent activity (R18)
 
     @Test(arguments: ["agent-a1.jsonl", "workflows/wf_1/agent-b2.jsonl"])
     func subagentActivityKeepsWaitingParentFromGoingStale(relativePath: String) throws {
@@ -888,7 +888,7 @@ private final class FakeInspector: ProcessInspecting, Sendable {
     }
 
 
-    // MARK: 질문과 기록된 답
+    // MARK: Questions and recorded replies
 
     private static let askLine = #"{"type":"assistant","uuid":"a-q","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_01","name":"AskUserQuestion","input":{"questions":[{"question":"만료 방식을 어떻게 할까요?","header":"만료 방식","multiSelect":false,"options":[{"label":"고정 10분 유지"}]}]}}]}}"#
     private static let askResultLine = #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_01","content":"The user answered"}]},"toolUseResult":{"answers":{"만료 방식을 어떻게 할까요?":"고정 10분 유지"}}}"#

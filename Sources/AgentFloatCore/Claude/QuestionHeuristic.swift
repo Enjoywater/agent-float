@@ -1,13 +1,13 @@
 import Foundation
 
 public enum QuestionHeuristic {
-    /// 마지막 본문 문단이 사용자에게 되묻는 말로 끝나는지 본다. 놓치면 대기 중인 세션이 묻히므로 오탐은 감수한다
+    /// Inspect the last body paragraph for a user-facing question; prefer false positives over missing waiting sessions.
     public static func endsWithQuestion(_ markdown: String) -> Bool {
         guard let paragraph = lastBodyParagraph(of: markdown) else { return false }
         return asksUser(paragraph)
     }
 
-    // 어미가 "~하겠습니다"로 끝나도 사용자의 조치를 전제로 멈춘 말이라, 문장 위치와 무관하게 문단 안에만 있으면 질문으로 본다
+    // Conditional requests still wait on user action even with a declarative ending, wherever they occur in the paragraph.
     private static let conditionalRequests = ["주시면", "해 주면", "해주면", "알려주면"]
     private static let sourceLabels = ["sources", "출처", "참고"]
     private static let sentenceTerminators: Set<Character> = [".", "!", "?", "？", "。", "\n"]
@@ -17,7 +17,7 @@ public enum QuestionHeuristic {
         "궁금함", "궁금해", "궁금합니다",
         "알려줘", "알려 줘", "알려주세요", "알려줄래", "말해줘", "골라줘", "정해줘", "선택해줘", "확인해줘",
         "어때", "어떤가", "할래", "줄래",
-        // 프로젝트마다 답변 어체가 달라, 위 평어 목록만으로는 존댓말·"달라" 요청형이 통째로 빠진다
+        // Project styles vary; include polite and imperative requests beyond the informal endings above.
         "주세요", "부탁드립니다", "해달라", "알려달라", "인가요",
     ]
 
@@ -30,7 +30,7 @@ public enum QuestionHeuristic {
     private static func paragraphs(of markdown: String) -> [[Substring]] {
         var paragraphs: [[Substring]] = []
         var current: [Substring] = []
-        // "\r\n"은 Character 하나라 개행 판정으로 나눠야 CRLF 응답도 빈 줄이 잡힌다
+        // CRLF is one Character; split by newline properties so blank paragraphs are recognized.
         for line in markdown.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
             if line.allSatisfy(\.isWhitespace) {
                 if !current.isEmpty { paragraphs.append(current) }
@@ -47,7 +47,7 @@ public enum QuestionHeuristic {
         isSourceHeading(lines[0]) || lines.allSatisfy(isLinkListItem)
     }
 
-    /// "참고로 …"처럼 라벨로 시작하는 평문 질문까지 출처로 버리면 놓치므로, 라벨 뒤가 콜론·줄 끝일 때만 헤딩으로 본다
+    /// Treat source labels as headings only before a colon or line end, preserving ordinary questions beginning with the same word.
     private static func isSourceHeading(_ line: Substring) -> Bool {
         let text = line
             .filter { !"*_`#".contains($0) }
@@ -90,7 +90,7 @@ public enum QuestionHeuristic {
         while end > sentence.startIndex {
             let previous = sentence.index(before: end)
             let character = sentence[previous]
-            // "~"나 이모지로 끝맺는 말투도 어미를 봐야 하므로 기호까지 뗀다
+            // Strip trailing symbols too, so casual tilde/emoji endings do not hide request suffixes.
             guard character.isWhitespace || character.isPunctuation || character.isSymbol else { break }
             end = previous
         }

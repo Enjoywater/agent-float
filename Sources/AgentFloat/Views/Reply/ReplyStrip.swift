@@ -1,7 +1,7 @@
 import AgentFloatCore
 import SwiftUI
 
-/// 결과·주의·보기만을 알리는 띠. 제목 한 줄 + 설명 한 줄 (설계 4.6 문구 표)
+/// Result, warning, and read-only strip: title plus explanation (design §4.6).
 struct ReplyStrip: View {
     enum Tone {
         case ok, warn, error, info
@@ -69,7 +69,7 @@ struct ReplyStrip: View {
     }
 }
 
-/// 보내는 동안 G1~G4 를 차례로 체크한다. 사용자가 확인 과정을 눈으로 보게 하려는 것이다 (설계 4.6 #6)
+/// Check G1–G4 in order while sending so users can see verification progress (design §4.6 #6).
 struct DeliverySteps: View {
     let current: DeliveryStage
 

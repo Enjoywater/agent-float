@@ -51,7 +51,7 @@ import Testing
         #expect(OrcaCLI.match(tabId: "t9", leafId: "l9", handle: "gone", in: terminals) == nil)
     }
 
-    /// Orca 를 다시 켠 뒤 아직 열지 않은 워크트리의 터미널은 목록에 탭 id 대신 임시 id 로 나온다 (1.4.224 실측)
+    /// Unopened worktrees may return temporary tab IDs after an Orca restart (1.4.224).
     @Test func orphanedTerminalIsReachedByHandle() async throws {
         let orphaned = """
         {"ok":true,"result":{"terminals":[

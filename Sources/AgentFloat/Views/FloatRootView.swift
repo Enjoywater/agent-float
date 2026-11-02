@@ -2,7 +2,7 @@ import AgentFloatCore
 import AppKit
 import SwiftUI
 
-/// 동심 모서리(패널 22 − 여백 6 = 줄 16)를 지키려면 이 값들이 함께 움직여야 해서 한곳에 둔다 (spec 4.10)
+/// Centralize dimensions to preserve concentric corners: panel 22 minus padding 6 equals row 16 (spec §4.10).
 enum Layout {
     static let pillHeight: CGFloat = 28
     static let pillPadding: CGFloat = 12
@@ -16,12 +16,12 @@ enum Layout {
     static let maxHeightRatio: CGFloat = 0.7
 
     static var listWidth: CGFloat { panelWidth - panelPadding * 2 }
-    /// 목록을 뺀 펼친 패널 높이 (위아래 여백 + 요약 줄)
+    /// Expanded height excluding the list: vertical padding plus summary row.
     static var panelChromeHeight: CGFloat { panelPadding * 2 + pillHeight }
 }
 
 extension View {
-    /// 접힌 알약 모양. 화면 밖에서 크기를 잴 때도 같은 값을 써야 창 크기와 유리 크기가 맞는다
+    /// Use identical collapsed-pill dimensions for offscreen measurement and visible glass.
     func pillChrome() -> some View {
         padding(.horizontal, Layout.pillPadding).frame(height: Layout.pillHeight)
     }
@@ -34,15 +34,15 @@ struct FloatRootView: View {
 
     @Namespace private var glass
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
-    /// 유리가 고른 톤이 들어오기 전 첫 화면은 시스템 설정과 같다고 본다
+    /// Assume system appearance until the glass reports its sampled tone.
     @State private var glassTone: GlassTone = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
 
     var body: some View {
-        // 창이 먼저 커지거나 나중에 줄어드는 동안에도 알약이 화면상 제자리에 있도록 고정 모서리에 붙인다
+        // Anchor content so the pill stays stationary while its window grows early or shrinks late.
         let corner: Alignment = presentation.anchorsTrailing ? .topTrailing : .topLeading
         Group {
             if Motion.isReduced(systemReduceMotion) {
-                // 컨테이너 안에서는 나타나는 유리를 시스템이 이어 붙여 늘리므로(실측) 크로스페이드는 컨테이너 밖에서 한다
+                // Crossfade outside the container because the system joins appearing glass surfaces inside it.
                 ZStack(alignment: corner) {
                     if presentation.isGlassExpanded {
                         surface(expanded: true).transition(.opacity)
@@ -51,8 +51,8 @@ struct FloatRootView: View {
                     }
                 }
             } else {
-                // 같은 glassEffectID 로 접힘·펼침 뷰를 바꿔 끼우면 유리가 중간 없이 바로 목표 크기가 된다(실측, 보고서 참고).
-                // 유리 하나의 크기·모서리를 spring 으로 바꿔야 같은 유리가 늘어나는 morph 가 된다
+                // Swapping collapsed/expanded views with one glassEffectID jumps directly to the target size.
+                // Spring the size and radius of one glass surface for a continuous morph.
                 GlassEffectContainer {
                     surface(expanded: presentation.isGlassExpanded)
                         .glassEffectID("float", in: glass)
@@ -63,14 +63,14 @@ struct FloatRootView: View {
         .coordinateSpace(.named(RowFrameKey.space))
     }
 
-    /// 접힘 = 캡슐(높이의 절반 반경), 펼침 = 반경 22 둥근 사각형. 요약 줄은 두 상태에서 같은 뷰라 morph 중에 미끄러지지 않는다
+    /// Morph capsule radius (half-height) to 22; reuse the summary view so it cannot slide during the transition.
     private func surface(expanded: Bool) -> some View {
         let radius = expanded ? Layout.panelCornerRadius : Layout.pillHeight / 2
         let style = presentation.glassContrast.style(glass: glassTone)
         return VStack(spacing: 0) {
-            // 끄는 손잡이는 요약 줄뿐이다. 목록까지 손잡이면 줄 클릭이 끌기로 먹힌다 (spec 4.8)
+            // Only the summary is a drag handle; making the list draggable would consume row clicks (spec §4.8).
             SummaryRow(summary: model.summary)
-                // 알약 폭은 이 줄의 이상적 폭으로 정해지므로 전환 중 좁은 폭을 받아도 줄바꿈하지 않게 한다
+                // Pill width comes from this row's ideal width; prevent wrapping during narrow transition frames.
                 .fixedSize()
                 .padding(.horizontal, expanded ? Layout.headerPadding : Layout.pillPadding)
                 .frame(maxWidth: .infinity, alignment: presentation.anchorsTrailing ? .trailing : .leading)
@@ -95,12 +95,12 @@ struct FloatRootView: View {
         .background {
             if let fill = style.fill { RoundedRectangle(cornerRadius: radius).fill(fill.surfaceFill) }
         }
-        // 위의 톤 덮어쓰기 바깥이어야 유리가 고른 톤 그대로를 읽는다
+        // Read the glass tone outside the override above to avoid observing our own painted tone.
         .background(GlassToneProbe { tone in
             withAnimation(Motion.crossfade) { glassTone = tone }
             presentation.onGlassTone?(tone)
         })
-        // 유리가 줄어드는 동안 안쪽 글자가 유리 밖으로 삐져나오지 않게 한다
+        // Clip inner text while the glass shrinks.
         .clipShape(RoundedRectangle(cornerRadius: radius))
         .overlay {
             if let outline = style.outline {
@@ -113,7 +113,7 @@ struct FloatRootView: View {
         .glassEffect(.regular, in: .rect(cornerRadius: radius))
     }
 
-    /// 목록과 답장 화면은 옆으로 밀려 바뀐다. "‹ 목록"과 방향이 맞게 답장은 오른쪽에서, 목록은 왼쪽에서 들어온다 (설계 4.8 움직임)
+    /// Slide replies from the right and the list from the left, matching the back navigation direction (design §4.8).
     @ViewBuilder
     private var expandedContent: some View {
         let reduced = Motion.isReduced(systemReduceMotion)
@@ -147,7 +147,7 @@ struct FloatRootView: View {
         }
     }
 
-    /// 질문을 읽은 대기 줄은 이동할 곳이 없어도(보기만) 답장 화면이 열리므로 눌리는 줄로 보여야 한다
+    /// A waiting row with a readable question opens read-only replies even without a locator; keep its click affordance.
     private func canTap(_ session: AgentSession) -> Bool {
         model.canNavigate(session) || Self.opensReply(session)
     }
@@ -162,9 +162,9 @@ struct FloatRootView: View {
     }
 
     private func activate(_ session: AgentSession) {
-        // 끈 뒤 손을 뗀 자리가 줄 위여도 이동하지 않는다 (spec 4.8)
+        // Do not navigate when a drag ends over a row (spec §4.8).
         guard !presentation.isDragging else { return }
-        // ⌘+클릭은 v1 처럼 바로 이동한다. 실패 표시는 그 세션을 직접 본 것이므로 끈다 (설계 4.7)
+        // Command-click navigates directly as in v1 and acknowledges any failure (design §4.7).
         let commandHeld = NSEvent.modifierFlags.contains(.command)
         if !commandHeld, Self.opensReply(session) || model.failedKeys.contains(session.key) {
             presentation.openReply?(session)
@@ -175,7 +175,7 @@ struct FloatRootView: View {
     }
 }
 
-/// 모드를 바꿀 때만 톤이 생기거나 없어져, 그때 말고는 뷰 정체성이 바뀌지 않는다
+/// Only changing contrast mode alters whether the tone override exists, preserving view identity otherwise.
 struct PaintedText: ViewModifier {
     let tone: GlassTone?
 

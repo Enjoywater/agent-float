@@ -77,7 +77,7 @@ import Testing
         #expect(i.parentPid(of: 1) == nil)
     }
 
-    /// `ps` 와 같은 경로(sysctl)로 읽은 기준값. 다른 사용자 소유 프로세스의 부모도 알려준다
+    /// Reference values use the same sysctl path as ps, including parents owned by other users.
     private static func processTable() -> [(pid: Int32, ppid: Int32, uid: uid_t)] {
         var mib = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
         var size = 0
@@ -89,14 +89,14 @@ import Testing
         return table.prefix(size / stride).map { ($0.kp_proc.p_pid, $0.kp_eproc.e_ppid, $0.kp_eproc.e_ucred.cr_uid) }
     }
 
-    // Ghostty 는 root 소유 /usr/bin/login 을 거쳐 셸을 띄운다(실측). 여기서 끊기면 폴백이 터미널 앱에 닿지 못한다
+    // Ghostty launches through root-owned login; stopping there would prevent terminal-app fallback.
     @Test func ttyOfMissingProcessIsNil() {
         let inspector = DarwinProcessInspector()
         #expect(inspector.tty(pid: 0) == nil)
         #expect(inspector.tty(pid: Int32.max) == nil)
     }
 
-    /// 테스트 실행기가 터미널에 붙어 있는지는 환경마다 달라, 표준 입력의 터미널 이름과 같은지로 맞는지만 본다
+    /// Test runners may lack a tty; compare against stdin's terminal name rather than assuming one exists.
     @Test func ttyOfCurrentProcessMatchesTtyname() {
         let expected = ttyname(STDIN_FILENO).map { String(cString: $0) }
         #expect(DarwinProcessInspector().tty(pid: getpid()) == expected)
@@ -107,12 +107,12 @@ import Testing
         let others = Self.processTable().filter { $0.uid != getuid() && $0.ppid > 1 }
         var checked = 0
         for process in others {
-            // 표를 읽은 뒤 끝났거나 부모를 잃어 launchd 로 옮겨진 프로세스는 nil 이 정답이라 건너뛴다
+            // Processes that exit or are reparented to launchd after enumeration legitimately return nil; skip those comparisons.
             guard let parent = inspector.parentPid(of: process.pid) else { continue }
             #expect(parent == process.ppid, "pid \(process.pid)")
             checked += 1
         }
-        // EPERM 으로 되돌아가면 전부 nil 이 되어 위 비교가 하나도 돌지 않으므로 따로 막는다
+        // Reject an all-nil result from EPERM so the reference comparisons cannot pass vacuously.
         #expect(checked >= 1, "no other-user process could be read out of \(others.count)")
     }
 

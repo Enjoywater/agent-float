@@ -1,16 +1,16 @@
 import AgentFloatCore
 import SwiftUI
 
-/// 줄 안 배치(A)에서 목록이 답장 화면을 그리는 데 필요한 것
+/// State needed for list rendering of inline replies (placement A).
 struct InlineReply {
     let center: ReplyCenter
     let actions: ReplyActions
 }
 
-/// 줄 안에서 펼친 대기 줄. 머리 줄은 접힌 줄과 같은 자리에 두고, 답장 내용은 점이 아니라 제목 첫 글자(10 + 7 + 9 = 26)에 맞춘다 (설계 4.8 A 행)
+/// Keep the header fixed; align reply content to the title's first character, not the dot: 10 + 7 + 9 = 26 (design §4.8 A).
 struct InlineReplyRow: View {
     static let contentLeading: CGFloat = 26
-    /// 접힌 줄의 아래 여백(7)에 더해 머리 → 칩 10 이 되게 한다
+    /// Add to the collapsed row's bottom padding of 7 to make header-to-chip spacing 10.
     static let headerToContent: CGFloat = 3
 
     let session: AgentSession

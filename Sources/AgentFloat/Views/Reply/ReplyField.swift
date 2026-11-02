@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 직접 입력·답장 칸. 5줄까지 늘고 그 뒤 스크롤한다.
-/// ⏎·esc·숫자는 패널의 키 감시가 먼저 받아(`ReplyKeys`) 한글 조합 중인지 보고 처리하므로 여기서는 받지 않는다
+/// Direct-input/reply field grows to five lines, then scrolls.
+/// ReplyKeys handles Return/Escape/numbers first, checking IME composition; do not intercept them here.
 struct ReplyField: View {
     let placeholder: String
     @Binding var text: String
@@ -29,7 +29,7 @@ struct ReplyField: View {
                         .padding(-1.5)
                 }
             }
-            // 끄는 요청도 따른다. 같은 칸이 다른 세션에 다시 쓰일 때 앞 세션의 커서가 남지 않게 한다
+            // Honor focus removal so reused fields do not retain another session's cursor.
             .onChange(of: focus) { isFocused = focus.wanted }
             .onAppear { isFocused = focus.wanted }
     }

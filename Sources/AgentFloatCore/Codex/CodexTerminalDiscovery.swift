@@ -13,7 +13,7 @@ struct CodexPlacement: Sendable {
     let locator: TerminalLocator
 }
 
-/// 서버에 남은 thread 대신 실제 TUI 프로세스와 현재 터미널 제목을 함께 확인한다.
+/// Match real TUI processes and current terminal titles rather than leftover server threads.
 struct CodexTerminalInventory: Sendable {
     let processes: [CodexProcess]
     let ghostty: [GhosttyTerminal]
@@ -39,7 +39,7 @@ struct CodexTerminalInventory: Sendable {
                 let surfaces = ghostty.filter { Self.samePath($0.cwd, cwd) && Self.matches($0.title, title: title, cwd: cwd) }
                 if surfaces.count == 1 {
                     let locator = TerminalLocator.ghostty(title: GhosttyMatcher.strippedTitle(surfaces[0].title), cwd: cwd)
-                    // 여러 프로세스가 같은 경로에 있어도 같은 surface를 중복 후보로 세지 않는다.
+                    // Deduplicate the same surface even when multiple processes share its working directory.
                     if !matches.contains(where: { $0.locator == locator }) { matches.append(CodexPlacement(app: .ghostty, locator: locator)) }
                 }
             case "Orca":
@@ -161,8 +161,8 @@ struct CodexTerminalInventory: Sendable {
     }
 }
 
-/// 동기 provider에서 Swift Task를 만들고 기다리면 협력 실행기 전체가 막힐 수 있다.
-/// 짧은 읽기 전용 조회는 같은 스레드에서 두 출력을 함께 비우고 제한 시간 안에 끝낸다.
+/// Starting and synchronously waiting for Swift Tasks inside providers can exhaust the cooperative executor.
+/// Perform short read-only queries on this thread, draining both outputs within a deadline.
 enum SyncCommand {
     static func run(_ executable: String, _ arguments: [String], timeout: TimeInterval = 2) throws -> String {
         let process = Process()

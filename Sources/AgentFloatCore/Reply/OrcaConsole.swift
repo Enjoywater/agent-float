@@ -1,8 +1,8 @@
 import Foundation
 
-/// Orca 터미널에 키를 보내고 화면을 읽는다. 화살표는 키 이름이 아니라 ESC 시퀀스 글자로 보내야 들어간다 (실측 ⑫)
+/// Orca arrows require literal escape sequences rather than symbolic key names (measurement 12).
 public struct OrcaConsole: TerminalConsole {
-    /// `read --screen` 은 스타일을 주지 않지만, 입력 칸의 실제 글을 화면 줄에서 빼 `draft` 로 따로 준다 (실측 S5 ④)
+    /// read --screen omits styles but returns actual composer text separately as draft (measurement S5, 4).
     public let promptCheck = PromptCheck.beforeTyping
 
     private let runner: any CommandRunning
@@ -33,7 +33,7 @@ public struct OrcaConsole: TerminalConsole {
         var arguments = ["terminal", "send", "--terminal", handle]
         switch input {
         case let .text(text):
-            // `--` 로 시작하는 글을 따로 넘기면 Orca 가 옵션으로 읽어 "값 없음"으로 거절한다(실측). 붙여 넘기면 값으로 받으므로 `-` 로 시작하면 모두 붙인다
+            // Orca rejects separate values beginning with -- as options; join any leading-hyphen text to its option.
             arguments += text.hasPrefix("-") ? ["--text=\(text)"] : ["--text", text]
         case .key(.enter):
             arguments += ["--enter"]
@@ -42,11 +42,11 @@ public struct OrcaConsole: TerminalConsole {
             arguments += ["--text", sequence]
         }
         let output = try await runner.run(OrcaCLI.executable, arguments + ["--json"])
-        // 명령은 성공해도 터미널이 입력을 받지 않았을 수 있다
+        // Command success does not prove the terminal accepted input.
         guard OrcaCLI.sendAccepted(Data(output.utf8)) else { throw NavigationError.commandFailed("orca did not accept the input") }
     }
 
-    /// 넣기 전에 판정하므로 지울 일이 없다. 잘못 불려도 사용자 글을 지우지 않게 글자를 주지 않는다
+    /// Before-typing checks never erase; expose no deletion text to prevent accidental user-text removal.
     private static func sequence(_ key: ConsoleKey) -> String? {
         switch key {
         case .up: "\u{1b}[A"
@@ -60,7 +60,7 @@ public struct OrcaConsole: TerminalConsole {
         }
     }
 
-    /// handle 은 argv 로만 넘기지만, 형식이 다른 값은 Orca 가 만든 것이 아니므로 쓰지 않는다
+    /// Pass handles only as argv, but reject formats Orca could not have generated.
     private func handle(of session: AgentSession) -> String? {
         guard case let .orca(_, _, handle?) = session.locator, !handle.isEmpty,
               handle.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") })

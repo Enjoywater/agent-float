@@ -1,9 +1,9 @@
 import Foundation
 
-/// 에이전트별 저장 형식을 `AgentSession` 뒤에 가두는 경계. 다른 AI 에이전트를 붙여도 화면 쪽은 바뀌지 않게 한다
+/// Hide agent-specific storage behind AgentSession so adding providers does not change rendering.
 public protocol AgentProvider: Sendable {
     var id: String { get }
-    /// 에이전트마다 상태가 쌓이는 위치가 달라 감시 대상은 provider 가 알려준다
+    /// Providers expose their own watch directories because agent storage layouts differ.
     var watchedDirectories: [URL] { get }
     func snapshot(now: Date) throws -> [AgentSession]
 }

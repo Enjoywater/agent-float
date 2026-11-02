@@ -15,8 +15,8 @@ public struct GhosttyTerminal: Equatable, Sendable {
 public enum GhosttyScripts {
     static let osascript = "/usr/bin/osascript"
 
-    /// 줄마다 `id<TAB>title<TAB>cwd`.
-    /// tell 블록 안의 `tab` 은 Ghostty 사전의 tab 클래스로 해석되어 구분자가 빈 문자열이 되므로 블록 밖에서 탭 문자를 만든다
+    /// Each row is id<TAB>title<TAB>cwd.
+    /// Create the separator outside tell: inside it, tab resolves to Ghostty's tab class instead of a tab character.
     public static let listTerminals = """
     set sep to character id 9
     tell application "Ghostty"
@@ -36,7 +36,7 @@ public enum GhosttyScripts {
     tell application "Ghostty" to get id of focused terminal of selected tab of front window
     """
 
-    /// 목록과 같은 순회로 id 를 다시 찾는다. 목록을 읽은 사이 탭이 닫혔을 수 있어 못 찾으면 "missing" 을 돌려준다
+    /// Repeat enumeration by ID; return missing if the tab closed after listing.
     public static func focus(terminalId: String) -> String {
         """
         tell application "Ghostty"
@@ -56,7 +56,7 @@ public enum GhosttyScripts {
         """
     }
 
-    /// `<창 id>\t<창 제목>\t<탭 선택 여부>\t<탭 안 터미널 수>` 또는 "missing". 화면은 그 탭이 선택돼 있고 나뉘지 않았을 때만 읽을 수 있다
+    /// Return window-id, title, selected state, and surface count separated by tabs, or missing; only selected unsplit tabs are readable.
     public static func terminalPlacement(terminalId: String) -> String {
         """
         set sep to character id 9
@@ -75,7 +75,7 @@ public enum GhosttyScripts {
         """
     }
 
-    /// 붙여넣기처럼 들어가므로 글자가 키로 해석되지 않는다 (sdef)
+    /// Text input behaves like paste rather than interpreting characters as keys (sdef).
     public static func inputText(_ text: String, terminalId: String) -> String {
         onTerminal(terminalId, command: "input text \"\(escape(text))\" to s")
     }
@@ -84,7 +84,7 @@ public enum GhosttyScripts {
         onTerminal(terminalId, command: "send key \"\(escape(name))\" to s")
     }
 
-    /// 앱을 앞으로 올리지 않고 그 터미널에만 보낸다. 보이지 않는 창의 터미널에도 들어간다(실측)
+    /// Send only to the target terminal without raising the app, including terminals in hidden windows.
     private static func onTerminal(_ terminalId: String, command: String) -> String {
         """
         tell application "Ghostty"
@@ -118,7 +118,7 @@ public enum GhosttyScripts {
         """
     }
 
-    /// 역슬래시를 먼저 바꿔야 따옴표 앞에 붙인 역슬래시가 다시 이스케이프되지 않는다
+    /// Escape backslashes first so quote-escaping backslashes are not escaped again.
     private static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
     }
@@ -127,7 +127,7 @@ public enum GhosttyScripts {
 public enum GhosttyMatcher {
     private static let claudeGlyphs: Set<Character> = ["◐", "◑", "✳"]
 
-    /// 제목 앞에 붙는 상태 기호와 그 뒤 공백을 걷어 낸다. 세션 제목은 기호 없이 저장되어 있다
+    /// Strip leading status glyphs and whitespace; stored session titles omit them.
     public static func strippedTitle(_ raw: String) -> String {
         let codexSpinner = raw.first?.unicodeScalars.first.map { (0x2800...0x28FF).contains($0.value) } ?? false
         guard startsWithClaudeGlyph(raw) || codexSpinner else { return raw }
@@ -138,7 +138,7 @@ public enum GhosttyMatcher {
         output.split(separator: "\n").compactMap { line in
             let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
             guard fields.count >= 3, let id = fields.first, !id.isEmpty, let cwd = fields.last else { return nil }
-            // 제목에 탭이 섞여도 앞뒤 필드는 고정이므로 가운데를 모두 제목으로 본다
+            // Preserve embedded title tabs by treating the first/last columns as fixed fields.
             let title = fields.dropFirst().dropLast().joined(separator: "\t")
             return GhosttyTerminal(id: String(id), title: title, cwd: String(cwd))
         }
@@ -148,16 +148,16 @@ public enum GhosttyMatcher {
         if let title, !title.isEmpty {
             let candidates = terminals.filter { strippedTitle($0.title) == title }
             if let first = candidates.first {
-                // 제목이 겹치면 같은 작업 디렉터리를 우선하고, 그래도 가를 수 없으면 목록 순서를 따른다
+                // For duplicate titles, prefer matching cwd; if still ambiguous, preserve list order.
                 return candidates.first { $0.cwd == cwd } ?? first
             }
         }
-        // 제목이 없거나 바뀌어 짝이 없을 때의 마지막 수단. 같은 디렉터리의 에이전트 탭이 하나뿐일 때만 확신할 수 있다
+        // Fallback only when exactly one agent tab shares cwd after title matching fails.
         let agentTabs = terminals.filter { $0.cwd == cwd && startsWithClaudeGlyph($0.title) }
         return agentTabs.count == 1 ? agentTabs[0] : nil
     }
 
-    /// 보내기용. 이동은 가장 그럴듯한 탭으로 가도 되지만, 보내기는 엉뚱한 탭에 키가 들어가면 안 되므로 정확히 하나일 때만 고른다 (v1.2 설계 4.1)
+    /// Sending requires a unique match to prevent typing into another tab; navigation may use a best match (v1.2 design §4.1).
     public static func uniqueMatch(title: String?, cwd: String, in terminals: [GhosttyTerminal]) -> GhosttyTerminal? {
         if let title, !title.isEmpty {
             let candidates = terminals.filter { strippedTitle($0.title) == title }
@@ -171,7 +171,7 @@ public enum GhosttyMatcher {
         return agentTabs.count == 1 ? agentTabs[0] : nil
     }
 
-    /// 창 제목을 손쉬운 사용 API 쪽 제목과 견줄 열쇠. 진행 기호는 수시로 바뀌고, 한글은 두 API 가 다른 정규화로 줄 수 있다(실측)
+    /// Normalize titles across Accessibility/AppleScript: progress glyphs vary and Korean Unicode forms may differ.
     public static func windowKey(_ title: String) -> String {
         strippedTitle(title).precomposedStringWithCanonicalMapping.trimmingCharacters(in: .whitespaces)
     }
@@ -194,13 +194,13 @@ public struct GhosttyFocusProbe: FocusProbe {
         return false
     }
 
-    /// 클릭 이동과 같은 짝짓기를 써야, 줄을 눌러 가게 되는 탭과 직접 골랐다고 보는 탭이 어긋나지 않는다
+    /// Use the same matching as click navigation so manual-selection acknowledgment identifies the same tab.
     public func focusedSessions(among sessions: [AgentSession]) async throws -> Set<SessionKey> {
         let candidates = sessions.compactMap { session -> (key: SessionKey, title: String?, cwd: String)? in
             guard case let .ghostty(title, cwd) = session.locator else { return nil }
             return (session.key, title, cwd)
         }
-        // 감시 주기마다 불리므로 짝지을 세션이 없으면 osascript 를 띄우지 않는다
+        // Skip osascript when no sessions can match during this polling tick.
         guard !candidates.isEmpty else { return [] }
         let focused = try await runner.run(GhosttyScripts.osascript, ["-e", GhosttyScripts.focusedTerminalId])
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -243,7 +243,7 @@ public struct GhosttyNavigator: TerminalNavigator {
             throw NavigationError.terminalNotFound
         }
         let outcome = try await runScript(GhosttyScripts.focus(terminalId: target.id))
-        // "ok" 외의 출력은 탭이 사라졌거나 스크립트가 기대와 다르게 끝난 것이라 성공으로 치지 않는다
+        // Only ok proves focus; other output means a missing tab or unexpected script result.
         guard outcome.trimmingCharacters(in: .whitespacesAndNewlines) == "ok" else {
             throw NavigationError.terminalNotFound
         }
@@ -257,8 +257,8 @@ public struct GhosttyNavigator: TerminalNavigator {
         try await runner.run(GhosttyScripts.osascript, ["-e", script])
     }
 
-    /// jobId 는 세션 파일에서 오고 셸에 그대로 입력되므로, 알려진 id 형태가 아니면 실행하지 않는다.
-    /// `-` 로 시작하면 `claude attach` 가 옵션으로 읽으므로 첫 글자는 영숫자여야 한다
+    /// Session-sourced jobId is typed into a shell; accept only known-safe identifier forms.
+    /// Require an alphanumeric first character so claude attach cannot parse it as an option.
     private static func isSafeJobId(_ jobId: String) -> Bool {
         guard let first = jobId.first, first.isASCII, first.isLetter || first.isNumber else { return false }
         return jobId.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }

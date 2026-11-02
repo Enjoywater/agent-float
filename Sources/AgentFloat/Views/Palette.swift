@@ -2,25 +2,25 @@ import AgentFloatCore
 import AppKit
 import SwiftUI
 
-/// 상태 점·알림의 시스템 색. 에이전트 구분은 AgentBadge의 이름과 별도 배경색으로 표시한다.
+/// System colors represent status and alerts; AgentBadge names/backgrounds distinguish agents.
 enum Palette {
     static let running = Color(nsColor: .systemBlue)
     static let waiting = Color(nsColor: .systemOrange)
     static let done = Color(nsColor: .systemGreen)
     static let gray = Color(nsColor: .systemGray)
 
-    // 라이트 모드의 systemOrange·systemGreen 글자는 유리 위에서 대비가 낮아 같은 계열의 진한 톤으로 바꾼다
+    // Use darker orange/green text in light mode to improve contrast on glass.
     private static let askLight = NSColor(srgbRed: 0xC9 / 255, green: 0x34 / 255, blue: 0, alpha: 1)
     private static let newLight = NSColor(srgbRed: 0x24 / 255, green: 0x8A / 255, blue: 0x3D / 255, alpha: 1)
     static let askText = Color(nsColor: dynamic(light: askLight, dark: .systemOrange))
     static let failed = Color(nsColor: .systemRed)
-    // 라이트 모드의 systemRed 글자도 유리 위에서 옅어 같은 계열의 진한 톤을 쓴다
+    // Use a darker related red for light-mode text contrast on glass.
     private static let failLight = NSColor(srgbRed: 0xD7 / 255, green: 0, blue: 0x15 / 255, alpha: 1)
     static let failText = Color(nsColor: dynamic(light: failLight, dark: .systemRed))
     static let newText = Color(nsColor: dynamic(light: newLight, dark: .systemGreen))
 
-    /// 알약을 뒤와 반대 톤으로 칠하면 동적 색이 SwiftUI 의 톤이 아니라 유리가 고른 톤으로 풀려 면과 같은 톤이 된다(실측).
-    /// 칠한 톤이 있으면 그 톤의 색으로 고정한다
+    /// Dynamic colors can resolve to the glass tone instead of SwiftUI's override and disappear into an inverse-painted pill.
+    /// When painted, pin colors to the painted tone.
     static func askText(on painted: GlassTone?) -> Color {
         switch painted {
         case nil: askText

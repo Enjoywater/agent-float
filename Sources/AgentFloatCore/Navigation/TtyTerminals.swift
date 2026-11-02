@@ -1,7 +1,7 @@
 import Foundation
 
 public enum TtyFormat {
-    /// 스크립트 문자열 안에 그대로 들어가므로 macOS 의사 터미널 경로 형태만 받는다
+    /// Restrict tty paths to macOS pseudo-terminal devices because they are embedded in scripts.
     public static func isDevicePath(_ tty: String) -> Bool {
         let prefix = "/dev/ttys"
         guard tty.hasPrefix(prefix) else { return false }
@@ -10,7 +10,7 @@ public enum TtyFormat {
     }
 }
 
-/// 앱 이름이 `iTerm`·`iTerm2` 처럼 설치마다 달라도 맞도록 번들 id 로 부른다
+/// Address iTerm by bundle ID to tolerate installation names such as iTerm/iTerm2.
 public enum AppleTerminalScripts {
     public static func select(tty: String) -> String {
         """
@@ -36,7 +36,7 @@ public enum AppleTerminalScripts {
 }
 
 public enum ITermScripts {
-    /// 세션 `select` 는 그 탭 안의 분할 창만 고르므로 창과 탭도 따로 고른다 (iTerm2 스크립팅 문서)
+    /// Session select chooses only a split; explicitly select its window and tab too (iTerm2 scripting documentation).
     public static func select(tty: String) -> String {
         """
         tell application id "\(TerminalBundle.iTerm)"
@@ -63,7 +63,7 @@ public enum ITermScripts {
     """
 }
 
-/// tty 로 탭을 고르는 터미널의 공통 이동. 앱마다 다른 것은 스크립트뿐이다
+/// Shared tty-based navigation differs only in each app's script.
 struct TtyTabSelector: Sendable {
     let runner: any CommandRunning
     let script: @Sendable (String) -> String
@@ -71,7 +71,7 @@ struct TtyTabSelector: Sendable {
     func select(tty: String) async throws {
         guard TtyFormat.isDevicePath(tty) else { throw NavigationError.terminalNotFound }
         let outcome = try await runner.run(GhosttyScripts.osascript, ["-e", script(tty)])
-        // 목록을 읽은 뒤 탭이 닫혔으면 "missing" 이 온다. "ok" 외에는 그 탭을 보여 주지 못한 것이다
+        // Only ok proves selection; missing indicates the tab closed since listing.
         guard outcome.trimmingCharacters(in: .whitespacesAndNewlines) == "ok" else {
             throw NavigationError.terminalNotFound
         }
@@ -95,7 +95,7 @@ public struct AppleTerminalNavigator: TerminalNavigator {
         try await selectTab(tty: tty)
     }
 
-    /// tmux 의 바깥 터미널처럼 세션 위치 정보 없이 tty 만 아는 경우에도 쓴다
+    /// Also used when only the outer tty is known, such as tmux clients.
     public func selectTab(tty: String) async throws {
         try await selector.select(tty: tty)
     }
@@ -123,7 +123,7 @@ public struct ITermNavigator: TerminalNavigator {
     }
 }
 
-/// 맨 앞 창에서 선택된 탭의 tty 와 같은 세션을 사용자가 보고 있는 것으로 본다
+/// Match the selected front-window tab tty to identify the session being viewed.
 struct TtyFocusReader: Sendable {
     let runner: any CommandRunning
     let script: String
@@ -131,7 +131,7 @@ struct TtyFocusReader: Sendable {
 
     func focusedSessions(among sessions: [AgentSession]) async throws -> Set<SessionKey> {
         let candidates = sessions.compactMap { session in ttyOf(session.locator).map { (key: session.key, tty: $0) } }
-        // 감시 주기마다 불리므로 짝지을 세션이 없으면 osascript 를 띄우지 않는다
+        // Skip osascript when no sessions can match during this polling tick.
         guard !candidates.isEmpty else { return [] }
         let selected = try await runner.run(GhosttyScripts.osascript, ["-e", script])
             .trimmingCharacters(in: .whitespacesAndNewlines)

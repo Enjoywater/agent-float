@@ -1,6 +1,6 @@
 import Foundation
 
-/// `~/.claude/sessions/<pid>.json` 한 개. Claude Code 가 버전마다 필드를 바꾸므로 식별자(pid·sessionId) 외에는 모두 선택값이다
+/// One ~/.claude/sessions/<pid>.json file; only pid/sessionId are required because fields vary by Claude Code version.
 public struct ClaudeSessionFile: Decodable, Equatable, Sendable {
     public let pid: Int32
     public let sessionId: String
@@ -25,7 +25,7 @@ public struct ClaudeSessionFile: Decodable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         pid = try container.decode(Int32.self, forKey: .pid)
         sessionId = try container.decode(String.self, forKey: .sessionId)
-        // 선택 필드의 타입이 어긋났다고 세션 전체를 버리면 실행 중인 에이전트가 목록에서 사라진다
+        // A malformed optional field must not hide an otherwise live agent.
         cwd = try? container.decodeIfPresent(String.self, forKey: .cwd)
         kind = try? container.decodeIfPresent(String.self, forKey: .kind)
         status = try? container.decodeIfPresent(String.self, forKey: .status)
@@ -36,7 +36,7 @@ public struct ClaudeSessionFile: Decodable, Equatable, Sendable {
         jobId = try? container.decodeIfPresent(String.self, forKey: .jobId)
     }
 
-    // 사용자 정의 init(from:) 가 있으면 memberwise init 이 사라지므로 테스트·상위 계층용으로 따로 둔다
+    // Provide explicit construction for tests/callers because custom decoding suppresses the memberwise initializer.
     public init(
         pid: Int32,
         sessionId: String,

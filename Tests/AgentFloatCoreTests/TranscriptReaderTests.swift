@@ -13,7 +13,7 @@ import Testing
         try #require(Bundle.module.url(forResource: name, withExtension: "jsonl", subdirectory: "Fixtures"))
     }
 
-    /// 꼬리 창(256KB)보다 큰 파일을 만들기 위한 한 줄 잡음. 줄 하나가 약 1KB
+    /// About 1 KB of line noise to create transcripts larger than the 256 KB tail window.
     private func noise(bytes: Int) -> String {
         let line = #"{"type":"system","subtype":"filler","content":""# + String(repeating: "x", count: 1_000) + #""}"# + "\n"
         return String(repeating: line, count: bytes / line.utf8.count + 1)
@@ -28,7 +28,7 @@ import Testing
 
     private let aiTitleFront = #"{"type":"ai-title","aiTitle":"앞쪽 제목","sessionId":"00000000-0000-4000-8000-000000000001"}"# + "\n"
 
-    // MARK: 제목
+    // MARK: Titles
 
     @Test func titleIsLastAITitle() throws {
         let tail = try TranscriptReader.read(url: fixture("transcript-titles"))
@@ -70,7 +70,7 @@ import Testing
         #expect(try TranscriptReader.read(url: url).aiTitle == "앞쪽 제목")
     }
 
-    // MARK: 마지막 답변과 사용자 입력
+    // MARK: Last assistant reply and user input
 
     @Test func lastAssistantTextAndNoPromptAfter() {
         let tail = parse([
@@ -148,7 +148,7 @@ import Testing
         #expect(parse([assistant, Self.effortCommand, skillBody]).userPromptAfterLastAssistant == true)
     }
 
-    // MARK: 백그라운드 작업
+    // MARK: Background jobs
 
     @Test func backgroundBashPendingUntilNotified() {
         var lines = [
@@ -210,7 +210,7 @@ import Testing
         #expect(tail.pendingBackgroundTaskIds.isEmpty)
     }
 
-    // MARK: 예약된 재개
+    // MARK: Scheduled wakeups
 
     @Test func scheduleWakeupAfterLastPromptIsPending() {
         let prompt = #"{"type":"user","message":{"role":"user","content":"주기적으로 확인해줘"}}"#
@@ -233,7 +233,7 @@ import Testing
 
     // MARK: cron
 
-    /// 2.1.302 실측 CronCreate 결과 문구. 반복은 "recurring job", 한 번은 "one-shot task"
+    /// Observed CronCreate 2.1.302 result labels: recurring job versus one-shot task.
     private func cronScheduled(_ id: String, recurring: Bool = true, at timestamp: String? = "2026-10-17T04:24:11Z") -> String {
         let kind = recurring ? "recurring job" : "one-shot task"
         return #"{"type":"user""# + stamped(timestamp)
@@ -289,7 +289,7 @@ import Testing
         #expect(tail.cronLiveUntil == nil)
     }
 
-    // MARK: 앞 프로세스가 남긴 일 (--resume)
+    // MARK: Work left by a previous process (--resume)
 
     private static let processStart = Date(timeIntervalSince1970: 1_792_123_930)
     private static let beforeStart = "2026-10-16T04:12:09.900Z"
@@ -367,7 +367,7 @@ import Testing
         #expect(try TranscriptReader.read(url: url).pendingBackgroundTaskIds == ["bgold01", "bgnew01"])
     }
 
-    // MARK: 끝부분 읽기
+    // MARK: Tail reads
 
     @Test func truncatedFirstLineIsIgnored() throws {
         let tail = try TranscriptReader.read(url: fixture("transcript-truncated-head"))
@@ -394,7 +394,7 @@ import Testing
         #expect(tail.userPromptAfterLastAssistant == false)
     }
 
-    // MARK: 열린 질문과 기록된 답
+    // MARK: Pending questions and recorded replies
 
     private static let askLine = #"{"type":"assistant","uuid":"a-q","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_01","name":"AskUserQuestion","input":{"questions":[{"question":"만료 방식을 어떻게 할까요?","header":"만료 방식","multiSelect":false,"options":[{"label":"읽은 때부터 다시 세기 (Recommended)","description":"읽을 때마다 만료가 10분 늘어남"},{"label":"고정 10분 유지"}]}]}}]}}"#
     private static let askResultLine = #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_01","content":"The user answered"}]},"toolUseResult":{"answers":{"만료 방식을 어떻게 할까요?":"고정 10분 유지"}}}"#

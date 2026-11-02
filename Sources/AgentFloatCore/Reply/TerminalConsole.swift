@@ -1,7 +1,7 @@
 import Foundation
 
-/// 터미널에 보낼 수 있는 키 전부. Esc·Ctrl 조합은 질문을 거절하거나 세션을 끝낼 수 있어 아예 표현할 수 없게 둔다 (v1.2 설계 4.3).
-/// 지우기는 넣어 보고 확인하는 콘솔이 자기가 방금 넣은 글자 하나를 되돌릴 때만 쓴다 (R78)
+/// Represent only permitted terminal keys; omit Escape/Ctrl combinations that could reject questions or terminate sessions (v1.2 design §4.3).
+/// Deletion may undo only the console's own just-inserted probe character (R78).
 public enum ConsoleKey: String, CaseIterable, Sendable {
     case enter, up, down, left, right, tab, space, backspace
 }
@@ -11,12 +11,12 @@ public enum ConsoleInput: Equatable, Sendable {
     case key(ConsoleKey)
 }
 
-/// 터미널에 지금 그려진 글자. 흐림(SGR 2)은 빈 입력 칸에 뜨는 안내·제안 문구를 쓰다 만 글과 가르는 유일한 단서다 (R57)
+/// Rendered terminal text; faint SGR 2 is the only cue distinguishing hints from existing drafts (R57).
 public struct ConsoleScreen: Equatable, Sendable {
     public let lines: [String]
-    /// 줄마다 흐리게 그려진 글자의 위치(Character 오프셋). 스타일을 읽지 못하는 콘솔은 nil
+    /// Per-line faint Character offsets; nil when styling is unavailable.
     public let faint: [Set<Int>]?
-    /// Orca 처럼 터미널 밖에 따로 있는 입력창의 글
+    /// Text from a separate external composer such as Orca's.
     public let composerDraft: String?
 
     public init(lines: [String], faint: [Set<Int>]?, composerDraft: String?) {
@@ -25,7 +25,7 @@ public struct ConsoleScreen: Equatable, Sendable {
         self.composerDraft = composerDraft
     }
 
-    /// `tmux capture-pane -e` 처럼 SGR 이 섞인 글에서 글자와 흐림 위치를 뽑는다. 흐림은 실제 터미널처럼 줄을 넘어 이어진다
+    /// Extract text and faint offsets from SGR output such as tmux capture-pane -e; faint state persists across lines.
     public static func ansi(_ text: String, composerDraft: String? = nil) -> ConsoleScreen {
         let characters = Array(text)
         var lines: [String] = []
@@ -63,7 +63,7 @@ public struct ConsoleScreen: Equatable, Sendable {
         return ConsoleScreen(lines: lines, faint: faint, composerDraft: composerDraft)
     }
 
-    /// ESC 로 시작하는 시퀀스 하나를 건너뛰고 다음 위치를 돌려준다. SGR(`m`)만 흐림 상태를 바꾼다
+    /// Skip one escape sequence; only SGR m changes faint state.
     private static func skipEscape(_ characters: [Character], from start: Int, faint: inout Bool) -> Int {
         let next = start + 1
         guard next < characters.count else { return characters.count }
@@ -79,7 +79,7 @@ public struct ConsoleScreen: Equatable, Sendable {
             if characters[end] == "m" { applySGR(parameters, faint: &faint) }
             return end + 1
         case "]":
-            // OSC 는 BEL 이나 ESC \ 로 끝난다
+            // OSC terminates with BEL or ESC followed by a backslash.
             var end = next + 1
             while end < characters.count {
                 if characters[end] == "\u{7}" { return end + 1 }
@@ -92,7 +92,7 @@ public struct ConsoleScreen: Equatable, Sendable {
         }
     }
 
-    /// 색 지정(38·48·58)은 뒤따르는 값에 2 가 들어갈 수 있어(`38;2;r;g;b`) 그 값들을 흐림으로 읽지 않게 건너뛴다
+    /// Skip extended color parameters (38/48/58) so RGB component 2 is not mistaken for faint.
     private static func applySGR(_ parameters: String, faint: inout Bool) {
         let values = parameters.split(separator: ";", omittingEmptySubsequences: false).map { Int($0) ?? 0 }
         var index = 0
@@ -114,12 +114,12 @@ public struct ConsoleScreen: Equatable, Sendable {
     }
 }
 
-/// 답장 화면을 처음부터 "보기만"으로 여는 이유. 쓰고 나서 막히지 않게 쓰기 전에 알려 준다 (v1.2 설계 4.4 G0)
+/// Explain read-only status before users type, rather than blocking afterward (v1.2 design §4.4 G0).
 public enum ReadOnlyReason: Equatable, Sendable {
-    /// 보낼 수 없는 터미널. 값은 화면에 쓸 앱 이름
+    /// Unsupported terminal; associated value is the display app name.
     case unsupportedTerminal(String)
     case hiddenTab
-    /// 다른 데스크탑까지 찾아도 이 세션의 탭이 없음(제목이 바뀌었거나 탭이 닫힘)
+    /// No matching session tab even across Spaces, possibly renamed or closed.
     case tabNotFound
     case accessibilityNeeded
     case ambiguousTab
@@ -128,11 +128,11 @@ public enum ReadOnlyReason: Equatable, Sendable {
     case permissionPrompt
 }
 
-/// 본문 질문에서 입력 칸이 비었는지 언제 알 수 있는지 (R57·R78)
+/// When composer emptiness can be established for text questions (R57, R78).
 public enum PromptCheck: Equatable, Sendable {
-    /// 넣기 전에 화면만 보고 안다. 흐림(tmux)이나 입력 칸의 실제 글(Orca `draft`)을 따로 읽는다
+    /// Before typing, using faint styling (tmux) or separate actual composer text (Orca draft).
     case beforeTyping
-    /// 안내 문구가 글로 읽혀 첫 글자를 넣어 본 뒤에야 안다. 쓰던 글 뒤에 붙었으면 그 글자를 지우고 멈춘다 (Ghostty)
+    /// After a character probe when hints look like text; erase and stop if appended to an existing draft (Ghostty).
     case afterTyping
 }
 
@@ -141,7 +141,7 @@ public enum ConsoleAvailability: Equatable, Sendable {
     case readOnly(ReadOnlyReason)
 }
 
-/// 터미널 하나에 키를 보내고 화면을 읽는 담당. 위치 정보(`TerminalLocator`) 종류마다 하나다
+/// One input/screen transport per TerminalLocator kind.
 public protocol TerminalConsole: Sendable {
     var promptCheck: PromptCheck { get }
     func handles(_ session: AgentSession) -> Bool
@@ -151,7 +151,7 @@ public protocol TerminalConsole: Sendable {
 }
 
 extension TerminalConsole {
-    /// 제어 문자는 키로 해석되어 글과 다른 동작을 일으킨다. 화면 쪽 검사와 겹치는 두 번째 방어선이다
+    /// Control characters perform actions instead of inserting text; this is a second check beyond UI validation.
     func requireSafeText(_ input: ConsoleInput) throws {
         guard case let .text(text) = input else { return }
         if text.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
@@ -171,7 +171,7 @@ public struct ConsoleRegistry: Sendable {
         consoles.first { $0.handles(session) }
     }
 
-    /// 질문 쪽 이유를 먼저 본다. 터미널을 건드리지 않고 정할 수 있고, 터미널이 되더라도 답할 수 없는 질문이기 때문이다
+    /// Assess prompt restrictions first: they need no terminal access and apply even to supported transports.
     public func availability(of session: AgentSession) async -> ConsoleAvailability {
         switch session.prompt {
         case .permission?:
@@ -194,7 +194,7 @@ public struct ConsoleRegistry: Sendable {
         case .other("Apple_Terminal"): "Terminal"
         case .other("iTerm.app"): "iTerm2"
         case let .other(name): name
-        // "이 터미널에는 …" 문장에 그대로 들어간다
+        // Inserted directly into the generic terminal sentence.
         case .unknown: "이"
         }
     }

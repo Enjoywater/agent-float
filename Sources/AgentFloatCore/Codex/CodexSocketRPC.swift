@@ -11,8 +11,8 @@ enum CodexRPCError: Error {
     case unavailable, timeout, invalidResponse, server(Int)
 }
 
-/// Codex의 기존 Unix control socket에만 연결한다. 서버 실행·세션 resume·이벤트 구독은 하지 않는다.
-/// 동기 snapshot은 메인 밖에서 실행된다. 연결 전체에 3초, 응답 크기에 16MiB 제한을 둔다.
+/// Connect only to Codex's existing Unix control socket; do not start servers, resume sessions, or subscribe to events.
+/// Run synchronous snapshots off-main; bound connections to 3 seconds and responses to 16 MiB.
 final class CodexSocketRPC: CodexRPC {
     private let descriptor: Int32
     private let deadline: TimeInterval
@@ -65,7 +65,7 @@ final class CodexSocketRPC: CodexRPC {
             guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 throw CodexRPCError.invalidResponse
             }
-            // 다른 세션의 알림은 요청한 응답과 섞지 않는다.
+            // Ignore other sessions' notifications while awaiting this request's response.
             guard object["id"] as? Int == id else { continue }
             if let error = object["error"] as? [String: Any] {
                 throw CodexRPCError.server(error["code"] as? Int ?? 0)

@@ -5,7 +5,7 @@ import Testing
 
 private struct ProviderFailure: Error {}
 
-/// 호출마다 지정된 결과를 돌려주거나 던진다. 던진 뒤에도 직전 결과가 살아남는지 확인하려면 결과를 중간에 바꿀 수 있어야 한다
+/// Change configured results between calls to verify previous results survive later failures.
 private final class ScriptedProvider: AgentProvider, Sendable {
     let id: String
     let watchedDirectories: [URL]
@@ -26,7 +26,7 @@ private final class ScriptedProvider: AgentProvider, Sendable {
     }
 }
 
-/// 기록된 답을 돌려주고 누가 무엇을 물었는지 남긴다
+/// Return recorded answers and track which provider was queried for which ID.
 private final class AnsweringProvider: AgentProvider, AnswerRecordReading, Sendable {
     let id: String
     let watchedDirectories: [URL] = []

@@ -97,7 +97,7 @@ import Testing
         }
     }
 
-    // MARK: 제한 시간 (R23)
+    // MARK: Timeouts (R23)
 
     @Test func timeoutCancelsAHangingNavigation() async {
         let sawCancellation = CallLog<Void>()

@@ -2,7 +2,7 @@ APP := build/Agent Float.app
 INSTALL_DIR ?= /Applications
 INSTALLED := $(INSTALL_DIR)/Agent Float.app
 BUNDLE_ID := dev.enjoywater.agent-float
-# 같은 인증서로 서명해야 다시 빌드해도 손쉬운 사용·자동화 권한이 유지된다 (scripts/create-signing-identity.sh)
+# Keep the signing identity stable to preserve Accessibility and Automation permissions after rebuilds (scripts/create-signing-identity.sh).
 SIGN_IDENTITY ?= Agent Float Local Signing
 
 .PHONY: build test clean bundle run install
@@ -30,7 +30,7 @@ bundle: build
 run: bundle
 	open "$(APP)"
 
-# 빌드가 실패하면 쓰던 앱이 그대로 남도록 먼저 조립한다. 위치 저장(R28)이 끝나도록 강제 종료 대신 quit 을 보낸다
+# Assemble first so build failures preserve the installed app; quit gracefully to save position (R28).
 install: bundle
 	@if pgrep -x AgentFloat >/dev/null; then \
 		osascript -e 'tell application id "$(BUNDLE_ID)" to quit'; \

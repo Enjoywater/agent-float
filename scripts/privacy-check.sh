@@ -1,6 +1,6 @@
 #!/bin/sh
-# 회사·개인 정보가 저장소에 들어가지 않게 커밋 전에 검사한다.
-# 검사할 단어 목록은 커밋되지 않는 .git/info 아래에 두어, 검사 도구가 그 정보를 저장소에 퍼뜨리지 않게 한다
+# Check before committing to prevent organizational or personal information entering the repository.
+# Keep private terms under untracked .git/info so the checker cannot publish the information it protects.
 set -eu
 
 words=$(git rev-parse --git-path info/privacy-words)
@@ -21,7 +21,7 @@ names=$(git ls-files | grep -i -F -f "$words" || true)
 contents=$(git ls-files -z | xargs -0 grep -n -i -I -F -f "$words" -- 2>/dev/null || true)
 [ -z "$contents" ] || report "$contents"
 
-# 작업 트리에서 이미 지운 단어라도 스테이징된 내용에 남아 있으면 그대로 커밋된다
+# Inspect staged contents too: removed working-tree terms may still be present in the index.
 staged=$(git diff --cached -U0 | grep '^+' | grep -i -F -f "$words" || true)
 [ -z "$staged" ] || report "스테이징된 변경: $staged"
 

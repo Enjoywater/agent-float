@@ -43,19 +43,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         statusItem.menu = makeMenu(includesQuit: true)
     }
 
-    /// 메뉴바 아이콘을 숨기면 설정 메뉴는 Dock 아이콘의 우클릭 메뉴에만 남는다
+    /// When the menu bar icon is hidden, settings remain available only in the Dock context menu.
     func setStatusItemVisible(_ visible: Bool) {
         statusItem.isVisible = visible
     }
 
-    /// Dock 아이콘 우클릭 메뉴. 종료는 Dock 이 스스로 붙이므로 뺀다
+    /// Omit Quit from the Dock context menu because the Dock adds it automatically.
     func dockMenu() -> NSMenu {
         let menu = makeMenu(includesQuit: false)
         refreshStates(of: menu)
         return menu
     }
 
-    /// 사용자가 시스템 설정에서 로그인 항목을 직접 끄거나 켤 수 있어 열 때마다 실제 상태를 다시 읽는다
+    /// Refresh login-item state whenever opening the menu because users can change it in System Settings.
     func menuNeedsUpdate(_ menu: NSMenu) {
         refreshStates(of: menu)
     }
@@ -65,7 +65,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.delegate = self
         menu.addItem(makeItem("위치 초기화", action: #selector(resetPosition)))
         menu.addItem(makeChoiceMenu("가장자리 대비", id: Self.contrastId, GlassContrast.allCases, title: Self.title(of:), action: #selector(selectContrast(_:))))
-        // 답장 화면을 어디에 띄울지 (v1.2 설계 4.5)
+        // Choose where to show the reply view (v1.2 design §4.5).
         menu.addItem(makeChoiceMenu("답장 화면", id: Self.placementId, ReplyPlacement.allCases, title: Self.title(of:), action: #selector(selectPlacement(_:))))
         menu.addItem(makeChoiceMenu("아이콘 위치", id: Self.presenceId, IconPresence.allCases, title: Self.title(of:), action: #selector(selectPresence(_:))))
         let launchAtLogin = makeItem("로그인 시 실행", action: #selector(toggleLaunchAtLogin))
@@ -78,7 +78,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return menu
     }
 
-    /// 고르는 항목은 원래 값(rawValue)을 달고 있어, 그 묶음의 지금 값과 같은 것에 체크한다
+    /// Choice items carry raw values; check the one matching the group's current value.
     private func refreshStates(of menu: NSMenu) {
         let current: [NSUserInterfaceItemIdentifier: String] = [
             Self.contrastId: contrast().rawValue,
@@ -94,7 +94,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             guard item.identifier == Self.launchAtLoginId else { continue }
             item.state = switch SMAppService.mainApp.status {
             case .enabled: .on
-            // 등록은 됐지만 사용자가 시스템 설정에서 막아 둔 상태라 켜짐도 꺼짐도 아니다
+            // Registered but blocked in System Settings is neither fully enabled nor disabled.
             case .requiresApproval: .mixed
             default: .off
             }
@@ -116,7 +116,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return parent
     }
 
-    /// 색이 있는 아이콘이라 템플릿으로 두지 않는다(템플릿은 단색으로 칠해짐). 앱 묶음 밖에서 실행하면 리소스가 없어 기호로 대신한다
+    /// Keep the colored icon non-template; use a symbol when running outside the resource bundle.
     private static func statusIcon() -> NSImage? {
         guard let icon = Bundle.main.image(forResource: "MenuBarIcon") else {
             return NSImage(systemSymbolName: "capsule.on.rectangle", accessibilityDescription: "Agent Float")
@@ -138,7 +138,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private static func title(of mode: GlassContrast) -> String {
         switch mode {
-        // 기본값은 윤곽선이라 "기본"이라고 부르면 헷갈린다
+        // The default is Outline, so calling another option Default would be misleading.
         case .standard: "유리 그대로"
         case .outline: "윤곽선"
         case .inverse: "뒤 화면과 반대"
@@ -183,8 +183,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             case .enabled:
                 try service.unregister()
             case .requiresApproval:
-                // 사용자가 시스템 설정에서 막은 항목은 다시 register 해도 켜지지 않는다(R29).
-                // 켜려면 설정 화면에서 승인해야 하고, Option 을 누른 채 고르면 등록 자체를 지워 깨끗한 꺼짐으로 되돌린다
+                // Registering again cannot enable an item blocked in System Settings (R29).
+                // Open approval settings, or hold Option to unregister and restore a clean disabled state.
                 if NSEvent.modifierFlags.contains(.option) {
                     try service.unregister()
                 } else {
@@ -198,7 +198,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             Self.log.error("login item toggle failed: \(error.localizedDescription, privacy: .public)")
             NSSound.beep()
         }
-        // 처음 켤 때도 시스템이 승인을 요구할 수 있어 바로 승인 화면을 연다
+        // Initial registration may require approval too; open the approval settings immediately.
         if service.status == .requiresApproval {
             SMAppService.openSystemSettingsLoginItems()
         }

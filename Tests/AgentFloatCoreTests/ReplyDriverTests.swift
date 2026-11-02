@@ -49,7 +49,7 @@ import Testing
         ReplyDriver.nextMove(prompt: prompt, draft: draft, progress: &progress, screen: screen)
     }
 
-    /// 화면 하나를 포커스만 바꿔 다시 쓰기 위한 도우미
+    /// Reuse one screen with different focus.
     private func focused(_ screen: ScreenState, at index: Int) -> ScreenState {
         guard case let .choiceDialog(dialog) = screen else { return screen }
         let rows = dialog.rows.enumerated().map { offset, row in
@@ -58,7 +58,7 @@ import Testing
         return .choiceDialog(ChoiceDialog(questionText: dialog.questionText, rows: rows, otherDraft: dialog.otherDraft))
     }
 
-    // MARK: 시작 확인 (G2)
+    // MARK: Initial checks (G2)
 
     @Test func startRequiresFirstQuestionAndEmptyFields() throws {
         #expect(ReplyDriver.startCheck(prompt: Self.single, screen: try state("choice-single-focus0.txt")) == .ready)
@@ -82,7 +82,7 @@ import Testing
         #expect(ReplyDriver.startCheck(prompt: prompt, screen: try state("prompt-empty.txt")) == .unexpected)
     }
 
-    // MARK: 하나 고르기
+    // MARK: Single selection
 
     @Test func movesFocusThenSelects() throws {
         var progress = ReplyProgress()
@@ -141,7 +141,7 @@ import Testing
         }
     }
 
-    // MARK: 여러 개 고르기
+    // MARK: Multiple selection
 
     @Test func multiSelectTogglesOnlyDifference() throws {
         let prompt = PendingPrompt.choices(id: "toolu_03", questions: [Self.fieldsQuestion])
@@ -170,7 +170,7 @@ import Testing
         }
     }
 
-    // MARK: 질문 여러 개
+    // MARK: Multiple questions
 
     @Test func secondQuestionFollowsFirst() throws {
         var progress = ReplyProgress()
@@ -181,7 +181,7 @@ import Testing
         #expect(progress.question == 1)
     }
 
-    /// 앞 24자와 선택지가 같은 두 질문. 앞 질문에서 Enter 를 보낸 뒤 나온 화면은 다음 질문으로 봐야 한다 (최종 리뷰 I3)
+    /// After Enter, identical 24-character prefixes/options must match the next question, not the previous one (final review I3).
     @Test func lookalikeSecondQuestionGetsItsOwnAnswer() {
         let first = Self.yesNo("다음 단계를 지금 그대로 진행해도 될까요? — 캐시 만료 쪽")
         let second = Self.yesNo("다음 단계를 지금 그대로 진행해도 될까요? — 검색 색인 쪽")
@@ -194,7 +194,7 @@ import Testing
         #expect(move(prompt, draft, &progress, Self.dialog(second, focus: 1)) == .send(.key(.enter)))
     }
 
-    /// 제출 Enter 뒤 Claude 가 곧바로 다음 질문 창을 띄우는 흐름. 키는 더 보내지 않고 기록(G4)으로 넘긴다 (최종 리뷰 I4)
+    /// Claude may immediately show a new dialog after submission; send no further keys and verify G4 (final review I4).
     @Test func followUpDialogAfterSubmitHandsOverToRecord() throws {
         let followUp = Self.dialog(Self.yesNo("이어서 테스트도 돌릴까요?"), focus: 0)
         var progress = ReplyProgress(question: 0, typedText: false, pressedSubmit: true)
@@ -217,7 +217,7 @@ import Testing
         }
     }
 
-    // MARK: 끝남과 막힘
+    // MARK: Completion and blocking
 
     @Test func dialogGoneMeansFinished() throws {
         var progress = ReplyProgress(question: 0, typedText: false, pressedSubmit: true)
@@ -248,7 +248,7 @@ import Testing
         }
     }
 
-    // MARK: 본문 질문
+    // MARK: Text questions
 
     @Test func promptReplyTypesThenSubmits() throws {
         var progress = ReplyProgress()
@@ -271,7 +271,7 @@ import Testing
         }
     }
 
-    // MARK: 넣어 보고 확인 (Ghostty, R78)
+    // MARK: Probe-based checks (Ghostty, R78)
 
     private static let hint = ScreenState.prompt(draft: "Try \"안내 문구\"")
 
@@ -307,7 +307,7 @@ import Testing
         #expect(probe(.text("응"), &progress, .prompt(draft: "쓰던 글")) == .restored)
     }
 
-    /// 사용자가 커서를 글 가운데로 옮겨 두었으면 탐침 글자가 그 자리에 들어간다. 지우기는 커서 앞 글자 하나라 그대로 맞다
+    /// A probe inserts at the user's cursor even mid-draft; backward deletion still correctly restores it.
     @Test func probeInsideTerminalDraftIsErased() {
         var progress = ReplyProgress()
         _ = probe(.text("응"), &progress, .prompt(draft: "쓰던 글"))
@@ -333,7 +333,7 @@ import Testing
         }
     }
 
-    /// 결합 문자로 된 첫 글자는 지우기 한 번에 다 지워진다는 보장이 없다
+    /// One deletion may not remove an entire combining first character.
     @Test func probeNeedsASingleScalarFirstCharacter() {
         var progress = ReplyProgress()
         guard case .stuck = probe(.text("e\u{301}는 그대로"), &progress, .prompt(draft: "")) else {
@@ -356,14 +356,14 @@ import Testing
         #expect(!ReplyDriver.isExpected(after: .key(.enter), from: .prompt(draft: "응"), to: hint, check: .beforeTyping))
     }
 
-    /// 탐침 뒤 나머지를 넣는 도중의 화면은 앞 글자까지 이어 보아야 덜 그려진 것으로 알아본다
+    /// Partial paste recognition must include the probe character already in the field.
     @Test func restOfReplyStillRenderingIsPartial() {
         #expect(ReplyDriver.isPartial(after: .text(", 진행해 줘"), from: .prompt(draft: "응"), state: .prompt(draft: "응, 진")))
         #expect(!ReplyDriver.isPartial(after: .text("응"), from: Self.hint, state: .prompt(draft: "응")))
         #expect(ReplyDriver.isPartial(after: .text("응, 진행해 줘"), from: .prompt(draft: ""), state: .prompt(draft: "응, 진")))
     }
 
-    // MARK: 기대 기록 (G4)
+    // MARK: Expected transcript (G4)
 
     @Test func expectedRecordForChoices() {
         #expect(ReplyDriver.expectedRecord(prompt: Self.single, draft: .choices([.option(0)]))

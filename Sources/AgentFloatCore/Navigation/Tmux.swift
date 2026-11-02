@@ -15,7 +15,7 @@ public struct TmuxClient: Equatable, Sendable {
 }
 
 public enum TmuxCLI {
-    /// 앱은 로그인 셸의 PATH 를 물려받지 않으므로 흔한 설치 위치를 직접 찾는다
+    /// GUI apps do not inherit login-shell PATH; search common installation locations directly.
     public static let candidatePaths = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"]
     static let clientFormat = "#{client_tty}\t#{client_pid}\t#{client_session}\t#{client_activity}"
 
@@ -23,19 +23,19 @@ public enum TmuxCLI {
         candidatePaths.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
-    /// pane id 는 `%` 뒤 숫자다. 명령 인자와 새 탭 입력에 그대로 들어가므로 이 형태만 받는다
+    /// Accept only percent-prefixed numeric pane IDs, which are reused in command arguments and new-tab input.
     public static func isPaneId(_ text: String) -> Bool {
         guard text.first == "%", text.count > 1 else { return false }
         return text.dropFirst().allSatisfy { $0.isASCII && $0.isNumber }
     }
 
-    /// 분리된 세션은 새 탭의 셸에 소켓 경로를 입력해 붙이므로, 셸이 따로 해석하는 문자가 없는 경로만 받는다
+    /// Detached attachment types the socket path into a shell; reject paths containing shell metacharacters.
     public static func isSafeSocketPath(_ path: String) -> Bool {
         guard path.hasPrefix("/") else { return false }
         return path.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "/._-".contains($0)) }
     }
 
-    /// 형식이 다른 줄은 버린다. 세션 이름에 탭이 들어간 드문 경우도 함께 버려진다
+    /// Discard malformed rows, including rare session names containing tabs.
     public static func parseClients(_ output: String) -> [TmuxClient] {
         output.split(separator: "\n").compactMap { line in
             let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
@@ -44,7 +44,7 @@ public enum TmuxCLI {
         }
     }
 
-    /// 그 세션을 이미 보고 있는 클라이언트를 먼저 쓴다. 없으면 사용자가 가장 최근에 만진 클라이언트로 데려간다
+    /// Prefer an existing client viewing this session; otherwise choose the most recently active client.
     public static func chooseClient(for paneSession: String, among clients: [TmuxClient]) -> TmuxClient? {
         let watching = clients.filter { $0.session == paneSession }
         let pool = watching.isEmpty ? clients : watching
@@ -52,7 +52,7 @@ public enum TmuxCLI {
     }
 }
 
-/// pane 으로 옮긴 뒤 바깥 터미널을 앞으로 올린다. 바깥 앱을 고르고 올리는 일은 AppKit 이 필요해 앱 타깃이 `outer` 로 맡는다
+/// Select the tmux pane then raise its outer terminal; inject AppKit-dependent behavior through outer.
 public struct TmuxNavigator: TerminalNavigator {
     public typealias Outer = @Sendable (_ sessionPid: Int32, _ clientChain: [Int32], _ clientTty: String) async throws -> Void
 
@@ -81,19 +81,19 @@ public struct TmuxNavigator: TerminalNavigator {
         let paneSession = try await sessionName(of: pane, executable: executable, socket: socket)
         let clients = TmuxCLI.parseClients(try await tmux(executable, socket, ["list-clients", "-F", TmuxCLI.clientFormat]))
         if let client = TmuxCLI.chooseClient(for: paneSession, among: clients) {
-            // pane 을 대상으로 주면 세션·창·pane 이 함께 바뀐다 (tmux 3.6 man switch-client)
+            // Targeting a pane switches session, window, and pane together (tmux 3.6 switch-client manual).
             _ = try await tmux(executable, socket, ["switch-client", "-c", client.tty, "-t", pane])
             try await outer(pid, ProcessAncestry.chain(from: client.pid, inspector: inspector), client.tty)
             return
         }
-        // attach 는 세션만 열고 그 세션의 현재 창·pane 을 바꾸지 않으므로 붙기 전에 골라 둔다
+        // Select window/pane before attaching, because attach selects only the session.
         _ = try await tmux(executable, socket, ["select-window", "-t", pane])
         _ = try await tmux(executable, socket, ["select-pane", "-t", pane])
         let attach = "\(executable) -S \(socket) attach -t \(pane)"
         _ = try await runner.run(GhosttyScripts.osascript, ["-e", GhosttyScripts.newTab(initialInput: attach)])
     }
 
-    /// pane 이 닫혔거나 서버가 없으면 여기서 실패한다. 갈 곳이 없는 것이므로 명령 실패 대신 찾지 못함으로 올린다
+    /// Missing panes/servers mean no destination; report terminalNotFound instead of generic command failure.
     private func sessionName(of pane: String, executable: String, socket: String) async throws -> String {
         let output: String
         do {

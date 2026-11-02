@@ -3,7 +3,7 @@ import Synchronization
 import Testing
 @testable import AgentFloatCore
 
-/// 창 제목별로 정해 둔 화면을 돌려준다
+/// Return predetermined screens by window title.
 private struct FakeScreenReader: GhosttyScreenReading {
     let isTrusted: Bool
     let screens: [String: [String]]
@@ -34,7 +34,7 @@ private func session(title: String? = "캐시 만료 정책 정리") -> AgentSes
     )
 }
 
-/// 스크립트 종류로 응답을 고른다. 목록·위치·입력 스크립트는 내용으로 구분된다
+/// Choose responses by script contents, distinguishing listing, placement, and input.
 private func runner(listing: String = listing, placement: String, input: String = "ok") -> FakeCommandRunner {
     FakeCommandRunner { call in
         let script = call.arguments.last ?? ""
@@ -67,7 +67,7 @@ private func runner(listing: String = listing, placement: String, input: String 
         #expect(await console.availability(of: session()) == .readOnly(.hiddenTab))
     }
 
-    /// 목록은 다른 데스크탑의 창까지 담는다. 거기서도 짝이 없으면 가려진 것이 아니라 탭을 못 찾은 것이다(제목이 바뀌었거나 닫힘) (최종 리뷰 M6)
+    /// Listings include other Spaces; no match means a renamed/closed tab rather than a hidden window (final review M6).
     @Test func missingTabIsNotCalledHidden() async {
         let console = GhosttyConsole(runner: runner(placement: "w1\t✳ 캐시 만료 정책 정리\ttrue\t1"), screenReader: reader())
         #expect(await console.availability(of: session(title: "이름이 바뀐 탭")) == .readOnly(.tabNotFound))
@@ -132,7 +132,7 @@ private func runner(listing: String = listing, placement: String, input: String 
         #expect(await fake.calls.isEmpty)
     }
 
-    /// 손쉬운 사용 값에는 흐림도 커서도 없어 넣어 본 뒤에야 빈 칸인지 안다 (실측 S6 ②·③)
+    /// Accessibility lacks faint/cursor information; emptiness requires probing (S6, 2–3).
     @Test func ghosttyChecksPromptAfterTyping() {
         #expect(GhosttyConsole(runner: runner(placement: ""), screenReader: reader()).promptCheck == .afterTyping)
     }

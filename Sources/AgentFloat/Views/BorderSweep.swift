@@ -3,14 +3,14 @@ import AppKit
 import QuartzCore
 import SwiftUI
 
-/// "봐야 할 게 있음" 하나만 뜻하는 테두리 빛. 무엇인지는 ASK·NEW 글자가 말한다 (spec 4.6).
-/// 글자색(label)을 써야 다크에서는 흰빛, 라이트에서는 먹색으로 바뀌어 밝은 배경에서도 보인다 (light-border.html A안)
+/// The border means something needs attention; ASK/NEW specifies what (spec §4.6).
+/// Use label color for white in dark mode and dark ink in light mode, preserving contrast (light-border.html A).
 struct BorderSweep: View {
-    /// 높이의 절반 이상이면 캡슐이 된다. 유리와 같은 값을 받아야 morph 중에도 빛이 유리 가장자리를 따른다
+    /// At half-height the shape becomes a capsule; share the glass radius so the border follows its morph.
     let cornerRadius: CGFloat
-    /// 가장자리에서 안쪽으로 들이는 거리. 알약을 뒤와 반대 톤으로 칠할 때 빛이 바깥 배경에 녹지 않게 한다
+    /// Inset from the edge so inverse-tone pill highlights do not blend into the background.
     var inset: CGFloat = 0
-    /// 알약을 직접 칠했을 때 그 면과 대비되는 톤. nil 이면 유리가 고른 톤을 따른다
+    /// Contrast with a painted pill; nil follows the glass's sampled tone.
     var tone: GlassTone?
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -18,7 +18,7 @@ struct BorderSweep: View {
     var body: some View {
         Group {
             if Motion.isReduced(systemReduceMotion) {
-                // 돌지 않으면 빛이 지나가는 순간이 없어 평소 밝기로는 눈에 덜 띄므로 더 진하게 둔다
+                // A stationary highlight has no passing sweep to attract attention, so increase its intensity.
                 staticBorder
             } else {
                 SweepLayer(cornerRadius: cornerRadius, inset: inset, tone: tone)
@@ -34,14 +34,14 @@ struct BorderSweep: View {
     }
 }
 
-/// SwiftUI 로 각도를 매 프레임 바꾸면 앱이 계속 다시 그려 CPU 5~10%를 쓴다(실측).
-/// NEW 는 확인할 때까지 몇 시간이고 켜져 있을 수 있어, 회전은 Core Animation 에 맡겨 앱 밖(렌더 서버)에서 돌게 한다
+/// Updating SwiftUI angles each frame redraws continuously and measured 5–10% CPU.
+/// NEW can remain for hours; run rotation through Core Animation in the render server.
 private struct SweepLayer: NSViewRepresentable, Animatable {
     nonisolated var cornerRadius: CGFloat
     let inset: CGFloat
     let tone: GlassTone?
 
-    // 유리의 모서리 반경이 spring 으로 바뀌는 동안 빛의 경로도 같은 중간값을 받게 한다
+    // Interpolate the border path with the glass radius during the spring.
     nonisolated var animatableData: CGFloat {
         get { cornerRadius }
         set { cornerRadius = newValue }
@@ -56,7 +56,7 @@ private struct SweepLayer: NSViewRepresentable, Animatable {
     func updateNSView(_ view: SweepLayerView, context: Context) {
         view.cornerRadius = cornerRadius
         view.inset = inset
-        // SwiftUI 의 colorScheme 은 이 레이어까지 오지 않아 AppKit 모양을 직접 정한다. nil 이면 유리가 고른 모양을 물려받는다
+        // SwiftUI colorScheme does not reach this layer; set AppKit appearance explicitly or inherit the glass tone.
         let appearance = tone?.appearance
         if view.appearance != appearance { view.appearance = appearance }
     }
@@ -73,7 +73,7 @@ final class SweepLayerView: NSView {
     private let gradient = CAGradientLayer()
     private let mask = CAShapeLayer()
 
-    /// CSS 시안 `conic-gradient(transparent 0 66%, label 35% 80%, label 86%, transparent 96%)` 과 같은 정지점
+    /// Match the CSS draft stops: conic-gradient(transparent 0 66%, label 35% 80%, label 86%, transparent 96%).
     private static let locations: [NSNumber] = [0, 0.66, 0.80, 0.86, 0.96, 1]
     private static let alphas: [CGFloat] = [0, 0, 0.35, 1, 0, 0]
 
@@ -108,12 +108,12 @@ final class SweepLayerView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         let bounds = self.bounds
-        // 회전해도 모서리가 비지 않도록 대각선 길이의 정사각형을 가운데 둔다
+        // Center a diagonal-sized square so rotation never exposes empty corners.
         let side = hypot(bounds.width, bounds.height)
         gradient.bounds = CGRect(x: 0, y: 0, width: side, height: side)
         gradient.position = CGPoint(x: bounds.midX, y: bounds.midY)
         mask.frame = bounds
-        // strokeBorder 처럼 선 전체가 모양 안쪽에 들어오게 선 두께의 절반만큼 들인다
+        // Inset by half the stroke width to keep the full line inside, like strokeBorder.
         let offset = inset + Layout.borderWidth / 2
         let path = bounds.insetBy(dx: offset, dy: offset)
         let radius = min(max(0, cornerRadius - offset), path.width / 2, path.height / 2)
@@ -121,8 +121,8 @@ final class SweepLayerView: NSView {
         CATransaction.commit()
     }
 
-    /// SwiftUI 의 allowsHitTesting(false) 는 AppKit 뷰의 hitTest 까지 보장하지 않는다.
-    /// 빛이 켜진 동안 이 뷰가 클릭을 받으면 끌기와 줄 클릭이 먹통이 되므로 아예 받지 않는다
+    /// SwiftUI allowsHitTesting(false) does not guarantee AppKit hitTest behavior.
+    /// Reject clicks explicitly so the highlight cannot disable dragging or row selection.
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }
@@ -132,7 +132,7 @@ final class SweepLayerView: NSView {
         updateColors()
     }
 
-    /// 창이 화면에서 내려갔다 다시 붙으면 Core Animation 이 반복 애니메이션을 떼어 내므로 다시 건다
+    /// Core Animation drops repeating animations when a window leaves the screen; reinstall on return.
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         startSpinning()
@@ -153,7 +153,7 @@ final class SweepLayerView: NSView {
         guard gradient.animation(forKey: "spin") == nil else { return }
         let spin = CABasicAnimation(keyPath: "transform.rotation.z")
         spin.fromValue = 0
-        // 화면 좌표가 위쪽으로 늘어나는 레이어라 음수 회전이 시계 방향이다 (시안과 같은 방향)
+        // Layer coordinates increase upward, so negative rotation is clockwise, matching the draft.
         spin.toValue = -2 * Double.pi
         spin.duration = Motion.sweepPeriod
         spin.repeatCount = .infinity

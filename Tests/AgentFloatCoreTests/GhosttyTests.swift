@@ -9,7 +9,7 @@ import Testing
         GhosttyTerminal(id: id, title: title, cwd: cwd)
     }
 
-    // MARK: 제목 정리·목록 해석
+    // MARK: Title normalization and list parsing
 
     @Test func stripsClaudeGlyphs() {
         #expect(GhosttyMatcher.strippedTitle("◐ 플로팅 위젯") == "플로팅 위젯")
@@ -40,7 +40,7 @@ import Testing
         ])
     }
 
-    // MARK: 매칭
+    // MARK: Matching
 
     @Test func uniqueTitleWinsEvenWhenCwdDiffers() {
         let terminals = [terminal("A", "✳ 위젯", "/a"), terminal("B", "✳ 다른 일", "/b")]
@@ -54,7 +54,7 @@ import Testing
             terminal("C", "위젯", "/b"),
         ]
         #expect(GhosttyMatcher.match(title: "위젯", cwd: "/b", in: terminals)?.id == "B")
-        // cwd 가 하나도 맞지 않으면 후보의 첫 번째로 물러선다
+        // If no cwd matches, fall back to the first candidate.
         #expect(GhosttyMatcher.match(title: "위젯", cwd: "/zzz", in: terminals)?.id == "A")
     }
 
@@ -78,7 +78,7 @@ import Testing
         #expect(GhosttyMatcher.match(title: nil, cwd: "/w", in: []) == nil)
     }
 
-    // MARK: 스크립트
+    // MARK: Scripts
 
     @Test func escapesQuotesInScripts() {
         #expect(GhosttyScripts.focus(terminalId: "a\"b").contains("a\\\"b"))
@@ -92,7 +92,7 @@ import Testing
         let list = GhosttyScripts.listTerminals
         #expect(list.contains("terminals of t"))
         #expect(list.contains("(id of s) & sep & (name of s) & sep & (working directory of s) & linefeed"))
-        // tell 안에서 `tab` 을 쓰면 Ghostty 의 tab 클래스로 읽혀 실물에서 구분자가 사라졌다
+        // Inside tell, tab resolves to Ghostty's tab class and loses the separator on real installations.
         #expect(!list.contains("& tab &"))
         #expect(list.hasPrefix("set sep to character id 9"))
         let focus = GhosttyScripts.focus(terminalId: "X")
@@ -107,7 +107,7 @@ import Testing
         #expect(newTab.contains("new window with configuration cfg"))
     }
 
-    // MARK: 이동
+    // MARK: Navigation
 
     private static let listing = "A\t✳ 위젯\t/w\nB\tzsh\t/x\n"
 
@@ -197,7 +197,7 @@ import Testing
         #expect(navigator.canNavigate(makeSession(locator: .background(jobId: jobId))))
     }
 
-    // MARK: 직접 선택 감지 (spec 4.6 해제 조건 2)
+    // MARK: Manual-selection detection (spec §4.6, clearing condition 2)
 
     private static let watchListing = "A\t✳ 위젯\t/w\nB\t◐ 리뷰\t/w\nC\tzsh\t/x\n"
 
@@ -270,7 +270,7 @@ import Testing
         #expect(!navigator.canNavigate(makeSession(locator: .none)))
     }
 
-    // MARK: 보내기용 엄격한 짝짓기 (v1.2 설계 4.1)
+    // MARK: Strict delivery matching (v1.2 design §4.1)
 
     @Test func uniqueMatchRefusesTitleTwins() {
         let terminals = [terminal("A", "✳ 캐시 만료 정책 정리", "/Users/me/work"), terminal("B", "◐ 캐시 만료 정책 정리", "/Users/me/work")]

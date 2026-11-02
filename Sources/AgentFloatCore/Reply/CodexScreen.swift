@@ -1,6 +1,6 @@
 import Foundation
 
-/// Codex 0.165.0의 실제 TUI로 검증한 질문 창·notes·본문 입력 칸.
+/// Question dialogs, notes, and composer validated against the actual Codex 0.165.0 TUI.
 public enum CodexScreen {
     public static func interpret(_ screen: ConsoleScreen) -> ScreenState {
         let lines = screen.lines
@@ -13,7 +13,7 @@ public enum CodexScreen {
             return .unrecognized
         }
         var draft = promptText(screen, index: index)
-        // 입력 줄은 감길 수 있다. 상태 줄 앞의 빈 줄에서 멈춘다.
+        // Composer text can wrap; stop at the blank line before the status row.
         var next = index + 1
         while next < lines.count, !lines[next].trimmingCharacters(in: .whitespaces).isEmpty {
             draft += lines[next].trimmingCharacters(in: .whitespaces)

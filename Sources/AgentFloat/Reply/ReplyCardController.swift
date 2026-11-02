@@ -3,7 +3,7 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// 옆 카드(B)가 그리는 데 필요한 값. 나타나는 전환은 창을 띄운 뒤 SwiftUI 안에서만 일어난다
+/// Side-card rendering state; animate appearance inside SwiftUI after opening the window.
 @MainActor @Observable
 final class ReplyCardState {
     var isShown = false
@@ -12,11 +12,11 @@ final class ReplyCardState {
     @ObservationIgnored var actions = ReplyActions()
 }
 
-/// 패널 옆에 뜨는 두 번째 유리 창. 패널과 같은 레벨·데스크탑 동작을 쓰고, 답하는 동안 키 입력은 이 창이 받는다 (v1.2 설계 4.5 B)
+/// A second glass window sharing panel level/Space behavior; it receives keyboard input while replying (v1.2 design §4.5 B).
 @MainActor
 final class ReplyCardController {
     static let padding: CGFloat = 6
-    /// 나타날 때 크기·투명도 전환 (설계 4.5 B: 0.96 → 1, 0.22초)
+    /// Animate appearance scale and opacity: 0.96 to 1 over 0.22 seconds (design §4.5 B).
     static let appear = Animation.easeOut(duration: 0.22)
 
     let panel: FloatingPanel
@@ -37,8 +37,8 @@ final class ReplyCardController {
         state.glassContrast = contrast
     }
 
-    /// 카드는 패널 바로 옆이라 뒤 화면도 비슷하다고 보고 메인 유리의 톤을 그대로 쓴다.
-    /// 그대로 두면 시스템 설정 톤에 고정돼 흰 화면 위에서도 어두운 카드가 밝은 패널 옆에 남는다(실측)
+    /// Adjacent windows likely share a background, so reuse the main glass's sampled tone.
+    /// Otherwise the card stays system-dark beside a light panel over a white background.
     func setTone(_ tone: GlassTone) {
         panel.appearance = tone.appearance
     }
@@ -61,7 +61,7 @@ final class ReplyCardController {
         panel.orderOut(nil)
     }
 
-    /// 카드 안 내용의 높이. 패널과 같은 방식으로 화면 밖에서 잰다
+    /// Measure card content offscreen using the same approach as the panel.
     func measureHeight(for session: AgentSession) -> CGFloat {
         let measurer = NSHostingView(rootView: ReplyCardMeasure(center: replies, session: session))
         return ceil(measurer.fittingSize.height) + Self.padding * 2

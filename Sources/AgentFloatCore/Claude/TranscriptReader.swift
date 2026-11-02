@@ -6,14 +6,14 @@ public struct TranscriptTail: Equatable, Sendable {
     public var userPromptAfterLastAssistant: Bool
     public var pendingBackgroundTaskIds: Set<String>
     public var pendingWake: Bool
-    /// 살아 있는 cron 이 모두 만료되는 시각. 만료는 시간이 흐르며 생기므로 꼬리 내용만으로 판정하지 않고 시각으로 남겨 판정 쪽이 `now` 와 비교한다
+    /// Store when all live cron jobs expire; derive expiry against now rather than frozen tail contents.
     public var cronLiveUntil: Date?
     public var modifiedAt: Date
-    /// 아직 답이 기록되지 않은 마지막 질문 창. 질문 입력을 온전히 읽지 못했으면 nil
+    /// The latest unanswered dialog; nil if its complete question input could not be parsed.
     public var openQuestion: PendingPrompt? = nil
-    /// 결과가 기록되지 않은 마지막 도구 호출. 승인 창이 무엇을 묻는지 보여 줄 때 쓴다
+    /// The last tool call without a result, used to explain pending approval.
     public var openToolUse: OpenToolUse? = nil
-    /// `lastAssistantText` 가 들어 있던 레코드의 uuid. 본문 질문의 식별자다
+    /// UUID of the record containing lastAssistantText, identifying the text question.
     public var lastAssistantId: String? = nil
 
     public func hasLiveCron(at now: Date) -> Bool {
@@ -36,14 +36,14 @@ public struct OpenToolUse: Equatable, Sendable {
 public enum TranscriptReader {
     public static let tailBytes = 262_144
     public static let titleScanLimit = 8_388_608
-    /// CronCreate 결과 문구의 "Auto-expires after 7 days" (2.1.302 실측)
+    /// CronCreate result marker: Auto-expires after 7 days (2.1.302).
     public static let recurringCronLifetime: TimeInterval = 7 * 24 * 3600
 
-    /// 제목을 이미 아는 호출자는 `scanHeadForTitle: false` 로 최대 8MB 앞부분 재탐색을 피한다.
-    /// 제목 기록은 한 번 쓰이면 거의 안 바뀌는데 꼬리 창은 파일이 자랄 때마다 밀려, 큰 transcript 는 매번 헛수고가 된다.
-    /// `since` 는 지금 프로세스의 시작 시각이다. `--resume` 한 세션은 앞 프로세스가 벌여 둔 백그라운드 작업·ScheduleWakeup 을 이어받지 않아
-    /// 그 시작 기록을 남은 일로 세면 끝 알림이 영영 오지 않아 진행 중으로 굳는다. cron 은 resume 하면 되살아나 다시 울리고(2.1.302 실측),
-    /// 질문 판정은 앞 프로세스의 마지막 답변도 봐야 해서 둘 다 제한하지 않는다
+    /// Callers with a known title disable scanHeadForTitle to avoid rescanning up to 8 MB.
+    /// Titles rarely change, while the moving tail window would otherwise trigger redundant head scans of large transcripts.
+    /// Since is the current process start; resumed sessions do not inherit previous background jobs or ScheduleWakeup calls.
+    /// Counting old jobs would leave sessions running forever. Cron jobs do revive on resume (2.1.302),
+    /// and questions must consider the previous process's final reply, so neither is restricted by since.
     public static func read(url: URL, scanHeadForTitle: Bool = true, since: Date? = nil) throws -> TranscriptTail {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
@@ -61,7 +61,7 @@ public enum TranscriptReader {
         return tail
     }
 
-    /// 보낸 답이 기록됐는지 보는 용도라 방금 쓰인 꼬리 창만 읽는다
+    /// Read only the recent tail when verifying recorded delivery.
     public static func recordedAnswer(to promptId: String, url: URL) throws -> RecordedAnswer? {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
@@ -74,7 +74,7 @@ public enum TranscriptReader {
         try handle.seek(toOffset: offset)
         let chunk = try handle.readToEnd() ?? Data()
 
-        // 창 시작이 줄 중간일 수 있어 첫 줄은 온전하다고 볼 수 없다
+        // The window may start mid-line, so the first line is not necessarily complete.
         var lines = splitLines(chunk)
         if offset > 0, !lines.isEmpty { lines.removeFirst() }
         return (lines, offset)
@@ -100,7 +100,7 @@ public enum TranscriptReader {
         )
     }
 
-    /// 질문 창은 `tool_result`(+ `toolUseResult.answers`), 본문 질문은 그 답변 뒤 첫 사용자 입력이 답이다
+    /// Dialogs answer via tool_result/toolUseResult.answers; text questions use the first subsequent real user input.
     static func recordedAnswer(to promptId: String, lines: [Substring]) -> RecordedAnswer? {
         var afterPrompt = false
         for line in lines {
@@ -128,10 +128,10 @@ public enum TranscriptReader {
         return nil
     }
 
-    /// 사용자가 쓰지 않았는데 사용자 레코드로 들어오는 글. 답으로 세면 보낸 답과 다르다는 잘못된 경고가 난다
+    /// These user records are not typed replies; counting them would produce false delivery-mismatch warnings.
     private static let injectedPrefixes = ["<task-notification>", "<local-command", "<command-name>", "<system-reminder>"]
 
-    /// 질문 하나라도 읽지 못하면 화면의 질문 창과 짝이 맞지 않으므로 질문 전체를 읽지 못한 것으로 본다
+    /// Reject the whole dialog if any question is unreadable, preventing partial screen matching.
     private static func question(from tool: Scan.OpenTool) -> PendingPrompt? {
         guard let entries = tool.input["questions"] as? [[String: Any]], !entries.isEmpty else { return nil }
         var questions: [ChoiceQuestion] = []
@@ -159,7 +159,7 @@ public enum TranscriptReader {
         return .choices(id: tool.id, questions: questions)
     }
 
-    /// 승인 창이 무엇을 실행하려는지 한 줄로 보여 줄 값
+    /// One-line explanation of the command awaiting approval.
     private static func summary(of input: [String: Any]) -> String {
         for key in ["command", "file_path", "path", "url"] {
             if let value = input[key] as? String, !value.isEmpty { return value }
@@ -168,7 +168,7 @@ public enum TranscriptReader {
     }
 
     private static func splitLines(_ data: Data) -> [Substring] {
-        // 잘린 멀티바이트 문자가 청크 전체를 nil로 만들지 않도록 lossy 디코딩
+        // Decode lossily so a split multibyte character does not discard the entire chunk.
         let text = String(decoding: data, as: UTF8.self)
         return text.utf8.split(separator: UInt8(ascii: "\n")).map { Substring($0) }
     }
@@ -177,7 +177,7 @@ public enum TranscriptReader {
         (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
-    /// 앞쪽 8MB 에서 제목 줄만 골라 읽는다. 뒤에서부터 찾으므로 한도에서 잘린 마지막 줄은 파싱 실패로 건너뛴다
+    /// Scan only title records in the first 8 MB, backward; skip a truncated final line on parse failure.
     private static func lastTitle(inHead head: Data) -> String? {
         let marker = Data(#""ai-title""#.utf8)
         let newline = UInt8(ascii: "\n")
@@ -199,7 +199,7 @@ public enum TranscriptReader {
         return title
     }
 
-    // 실측 기록은 "2026-10-16T04:12:12.221Z" 처럼 밀리초가 붙지만, 형식이 바뀌어도 시각을 잃지 않도록 초 단위도 받는다
+    // Accept timestamps with or without milliseconds to tolerate transcript-format changes.
     private static let fractionalTimestamp = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
     private static let wholeSecondTimestamp = Date.ISO8601FormatStyle()
 
@@ -229,13 +229,13 @@ public enum TranscriptReader {
         var aiTitle: String?
         var lastAssistantText: String?
         var lastAssistantId: String?
-        /// 결과가 아직 없는 도구 호출을 호출 순서대로
+        /// Unresolved tool calls in invocation order.
         var openTools: [OpenTool] = []
         var promptAfterAssistant = false
         var wakeAfterPrompt = false
-        // 하나만 지워도 나머지는 계속 울리므로 하나의 참·거짓이 아니라 id 별로 둔다
+        // Track cron jobs by ID: deleting one does not stop the others.
         var cronJobs: [String: CronJob] = [:]
-        // /effort 같은 로컬 명령은 `<command-name>` 이 먼저 기록되고 stdout 이 뒤따라야 로컬 명령임을 알 수 있어, 입력으로 센 효과를 되돌릴 기준점을 둔다
+        // Local commands such as /effort are identified only after their stdout follows command-name; retain a rollback point.
         private var beforeCommandName: (promptAfterAssistant: Bool, wakeAfterPrompt: Bool)?
         var startedTaskIds: Set<String> = []
         var finishedTaskIds: Set<String> = []
@@ -245,7 +245,7 @@ public enum TranscriptReader {
             self.since = since
         }
 
-        /// 시각이 없거나 읽히지 않는 기록은 지금 프로세스 것으로 본다. 형식이 한 번 바뀌었다고 남은 일을 통째로 놓치지 않기 위함
+        /// Treat missing/unreadable timestamps as current-process records to avoid losing all pending work after format changes.
         private func isBeforeSince(_ record: [String: Any]) -> Bool {
             guard let since, let recordedAt = TranscriptReader.timestamp(of: record) else { return false }
             return recordedAt < since
@@ -266,7 +266,7 @@ public enum TranscriptReader {
                     collectFinished(in: prompt)
                 }
             case "system":
-                // 한 번짜리 cron 은 울린 뒤 CronDelete 기록 없이 저절로 지워진다
+                // One-shot cron jobs expire after firing without an explicit CronDelete record.
                 if record["subtype"] as? String == "scheduled_task_fire",
                    let id = record["taskId"] as? String, cronJobs[id]?.isRecurring == false {
                     cronJobs[id] = nil
@@ -343,12 +343,12 @@ public enum TranscriptReader {
             if isPrompt {
                 promptAfterAssistant = true
                 wakeAfterPrompt = false
-                // 사용자가 새로 입력했다면 그 전에 떠 있던 질문·승인 창은 더 이상 답을 기다리지 않는다
+                // New user input resolves earlier pending question/approval dialogs.
                 openTools.removeAll()
             }
         }
 
-        // 도구 출력 본문이 이 문구를 단순 인용한 경우(파일 읽기 결과 등)를 거르려 시작 위치에 고정한다
+        // Anchor at the start to reject tool output merely quoting this marker, such as file-read results.
         private mutating func collectStarted(in text: String) {
             if let match = text.firstMatch(of: /^\s*Command running in background with ID: ([A-Za-z0-9_-]+)/) {
                 startedTaskIds.insert(String(match.output.1))
@@ -358,8 +358,8 @@ public enum TranscriptReader {
             }
         }
 
-        /// CronCreate 호출이 아니라 결과 문구로 등록을 센다. id 와 반복 여부가 한 줄에 있고, 실패한 호출은 이 문구를 남기지 않는다.
-        /// 시각을 모르는 기록은 만료를 셀 수 없어 끝나지 않는 것으로 둔다
+        /// Count successful CronCreate results rather than calls: the result carries ID/repeat state and excludes failures.
+        /// Unknown timestamps cannot establish expiry, so keep those jobs pending.
         private mutating func collectCron(in text: String, scheduledAt: Date?) {
             guard let match = text.firstMatch(of: /^\s*Scheduled (recurring job|one-shot task) ([A-Za-z0-9_-]+)/) else { return }
             let isRecurring = match.output.1 == "recurring job"

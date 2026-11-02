@@ -26,7 +26,7 @@ import Testing
     }
 
     @Test func firstIngestMarksNothingNew() {
-        // 앱을 켜기 전에 이미 끝난 세션까지 NEW 로 띄우면 켤 때마다 알림이 쏟아진다
+        // Do not flood NEW on launch with sessions completed before the app started.
         let sessions = [Self.session("a", .done), Self.session("b", .running), Self.session("c", .waiting)]
         var tracker = SignalTracker()
         tracker.ingest(sessions)
@@ -60,7 +60,7 @@ import Testing
 
     @Test(arguments: [AgentStatus.running, .waiting])
     func doneToActiveClearsNew(resumed: AgentStatus) {
-        // 사용자가 보기 전에 같은 세션이 다시 일을 시작하면 지난 완료는 더 이상 의미가 없다
+        // Resumed work invalidates a completion not yet acknowledged.
         var tracker = SignalTracker()
         tracker.ingest([Self.session("a", .running)])
         tracker.ingest([Self.session("a", .done)])
@@ -88,7 +88,7 @@ import Testing
         #expect(tracker.unseen.isEmpty)
         #expect(tracker.summary(of: finished).new == false)
 
-        // 확인한 세션이 done 으로 남아 있어도 다음 갱신에서 NEW 로 되살아나면 안 된다
+        // Acknowledged sessions remaining done must not regain NEW on the next refresh.
         tracker.ingest(finished)
         #expect(tracker.unseen.isEmpty)
     }
@@ -102,13 +102,13 @@ import Testing
         tracker.ingest([])
         #expect(tracker.unseen.isEmpty)
 
-        // 사라진 뒤 다시 나타난 done 세션은 전이를 본 적이 없으므로 NEW 가 아니다
+        // A disappeared/reappeared done session has no observed transition, so it is not NEW.
         tracker.ingest([Self.session("a", .done)])
         #expect(tracker.unseen.isEmpty)
     }
 
     @Test func doneThroughUnknownBackToDoneKeepsNew() {
-        // 읽을 수 없던 구간이 있었다고 아직 확인하지 않은 완료가 사라지면 안 된다
+        // An unreadable interval must not erase an unacknowledged completion.
         var tracker = SignalTracker()
         tracker.ingest([Self.session("a", .running)])
         tracker.ingest([Self.session("a", .done)])
@@ -123,7 +123,7 @@ import Testing
     }
 
     @Test func seenSessionStaysSeenAcrossUnknown() {
-        // unknown 을 거쳤다는 이유만으로 이미 확인한 완료가 새 알림으로 되살아나면 안 된다
+        // An unknown interval must not resurrect an already acknowledged completion.
         var tracker = SignalTracker()
         tracker.ingest([Self.session("a", .running)])
         tracker.ingest([Self.session("a", .done)])
@@ -138,7 +138,7 @@ import Testing
     }
 
     @Test func runningThroughUnknownToDoneBecomesNew() {
-        // 판독 불가 구간에 끝난 일을 놓치는 쪽이 알림이 한 번 더 뜨는 쪽보다 나쁘다
+        // Missing work completed during an unreadable interval is worse than an extra notification.
         var tracker = SignalTracker()
         tracker.ingest([Self.session("a", .running)])
         tracker.ingest([Self.session("a", .unknown)])
@@ -197,7 +197,7 @@ import Testing
     }
 
 
-    // MARK: 보내기 실패 (v1.2 설계 4.7)
+    // MARK: Send failures (v1.2 design §4.7)
 
     @Test func failedSessionsLeaveStatusCounts() {
         let tracker = SignalTracker()

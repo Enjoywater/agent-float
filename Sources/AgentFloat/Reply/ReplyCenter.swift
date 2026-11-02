@@ -7,7 +7,7 @@ enum ReplyPhase: Equatable {
     case sending(DeliveryStage)
     case result(DeliveryOutcome)
 
-    /// 키가 한 번이라도 들어갔는지. 들어간 뒤에는 세션이 대기를 벗어나도 결과 화면을 저절로 닫지 않는다 (설계 4.7)
+    /// Once any key is sent, keep the result visible even if the session stops waiting (design §4.7).
     var sentKeys: Bool {
         switch self {
         case .editing: false
@@ -18,7 +18,7 @@ enum ReplyPhase: Equatable {
     }
 }
 
-/// 가능 여부 판정과 보내기를 함수로 받는다. 화면 확인용 가짜 동작이 실제와 같은 경로로 들어오게 하려는 것이다
+/// Inject availability and delivery functions so fake rendering checks exercise the same UI path.
 struct ReplyBackend: Sendable {
     typealias Deliver = @Sendable (ReplyDraft, PendingPrompt, AgentSession, @escaping @Sendable (DeliveryStage) -> Void) async -> DeliveryOutcome
 
@@ -26,29 +26,29 @@ struct ReplyBackend: Sendable {
     let deliver: Deliver
 }
 
-/// 답장 화면의 상태. 쓰다 만 답은 질문 id 별로 메모리에만 두어 앱을 끄면 사라진다 (설계 4.7)
+/// Reply-view state; keep drafts in memory by question ID and discard them when the app exits (design §4.7).
 @MainActor @Observable
 final class ReplyCenter {
     private(set) var openSession: AgentSession?
     private(set) var editors: [String: ReplyEditor] = [:]
     private(set) var availability: [SessionKey: ConsoleAvailability] = [:]
     private(set) var phase: ReplyPhase = .editing
-    /// 보내다 멈췄거나 기록이 달랐던 세션. 사용자가 확인할 때까지 남는다
+    /// Retain interrupted or mismatched deliveries until the user acknowledges them.
     private(set) var failures: [SessionKey: DeliveryOutcome] = [:]
-    /// 열려 있는 동안 생긴 변화(질문 바뀜 등)를 띠로 알린다
+    /// Show changes occurring while open, such as a replaced question, in a strip.
     private(set) var notice: ReplyCopy.Strip?
-    /// 입력 칸 커서. 열 때마다 질문 종류로 새로 정한다 — 본문 질문은 열자마자 쓸 수 있게 켜고, 질문 창은 숫자 키가 선택지를 고르게 끈다
+    /// Reset focus by prompt type on every open: text prompts focus input; dialogs keep number keys for options.
     private(set) var fieldFocus = FieldFocus()
 
-    /// 내용 높이가 바뀌어 창 크기를 다시 재야 할 때
+    /// Notify when content height requires remeasuring the window.
     @ObservationIgnored var onChange: (() -> Void)?
-    /// 저절로 목록으로 돌아갈 때. 창 폭과 키 입력을 되돌리는 일은 패널이 한다
+    /// Notify automatic returns to the list; the panel restores width and keyboard ownership.
     @ObservationIgnored var onAutoClose: (() -> Void)?
     @ObservationIgnored var onFailuresChange: ((Set<SessionKey>) -> Void)?
 
     @ObservationIgnored private let backend: ReplyBackend
     @ObservationIgnored private var autoReturnTask: Task<Void, Never>?
-    /// 보내는 중인 세션과 그 단계. 화면을 닫아도 보내기는 계속되므로, 다시 열면 이 단계를 보여 주고 두 번째 보내기를 막는다 (설계 4.4 "같은 세션에 동시에 두 번 보내지 않음")
+    /// Delivery survives closing the view; reopening shows its current stage and prevents duplicate sends (design §4.4).
     @ObservationIgnored private var inFlight: [SessionKey: DeliveryStage] = [:]
 
     init(backend: ReplyBackend) {
@@ -66,9 +66,9 @@ final class ReplyCenter {
         return editor.answers.contains { $0 != nil } || !editor.replyText.isEmpty
     }
 
-    // MARK: 열기·닫기
+    // MARK: Opening and closing
 
-    /// 실패 표시가 켜진 세션은 질문이 이미 사라졌어도 실패 화면을 연다
+    /// Open failure results even if the original question has disappeared.
     func open(_ session: AgentSession) {
         let failure = failures[session.key]
         guard session.prompt != nil || failure != nil else { return }
@@ -105,7 +105,7 @@ final class ReplyCenter {
         }
     }
 
-    /// "다시 확인": 보내지 않은 결과에서 편집으로 돌아가며 가능 여부를 다시 본다
+    /// Recheck returns unsent results to editing and reassesses availability.
     func recheck() {
         guard case let .result(outcome) = phase, case .notSent = outcome else { return }
         phase = .editing
@@ -117,7 +117,7 @@ final class ReplyCenter {
         fieldFocus.set(true)
     }
 
-    /// Tab·esc 로 칸에서 나갔을 때. 요청을 끄지 않으면 다시 그려지는 칸이 커서를 도로 가져간다
+    /// Clear focus requests on Tab/Escape or a redrawn field would reclaim the cursor.
     func releaseFieldFocus() {
         fieldFocus.set(false)
     }
@@ -126,14 +126,14 @@ final class ReplyCenter {
         if case .text? = prompt { true } else { false }
     }
 
-    // MARK: 편집
+    // MARK: Editing
 
     func edit(_ change: (inout ReplyEditor) -> Void) {
         guard phase == .editing, let id = openSession?.prompt?.id, var editor = editors[id] else { return }
         let step = editor.step
         change(&editor)
         editors[id] = editor
-        // 앞 질문에서 칸에 있던 커서가 다음 질문으로 넘어가면 숫자 키가 그 질문의 선택지 대신 글자가 된다
+        // Do not carry field focus into the next question, where number keys should select options.
         if editor.step != step { fieldFocus.set(false) }
         onChange?()
     }
@@ -142,7 +142,7 @@ final class ReplyCenter {
         edit { $0.choose(option: option) }
     }
 
-    /// ⏎ 와 주요 버튼. 질문이 여럿이면 다음 질문·확인 화면으로, 아니면 보낸다
+    /// Return/primary action advances multi-question prompts to the next question or confirmation; otherwise send.
     func primary() {
         guard phase == .editing, let editor else { return }
         switch editor.primary {
@@ -152,17 +152,17 @@ final class ReplyCenter {
         }
     }
 
-    // MARK: 보내기
+    // MARK: Sending
 
     func send() {
-        // 가능 여부는 비동기로 판정되어 아직 모를 수 있다. 보기만으로 확정된 경우만 막고, 나머지는 전달기의 G2 가 다시 확인한다
+        // Block only confirmed read-only states while availability is pending; delivery G2 checks again.
         guard phase == .editing, let session = openSession, let prompt = session.prompt, let draft = editor?.draft,
               inFlight[session.key] == nil, availability[session.key].map({ $0 == .ready }) ?? true else { return }
         inFlight[session.key] = .sameQuestion
         phase = .sending(.sameQuestion)
         onChange?()
         let backend = backend
-        // 앱이 끝날 때까지 살아 있는 객체라 강하게 잡아도 된다. 약한 참조를 중첩 클로저로 넘기면 Sendable 경계를 넘지 못한다
+        // This object survives for the app lifetime; strong capture avoids weak references crossing nested Sendable closures.
         let center = self
         let key = session.key
         Task {
@@ -208,27 +208,27 @@ final class ReplyCenter {
         }
     }
 
-    /// 실패 화면의 "닫기"·"터미널에서 열기" 또는 그 줄로 이동했을 때만 실패 표시를 끈다
+    /// Clear failures only on explicit close, terminal opening, or navigation to that session.
     func acknowledgeFailure(_ key: SessionKey) {
         guard failures.removeValue(forKey: key) != nil else { return }
         onFailuresChange?(Set(failures.keys))
         if openKey == key, case .result = phase { phase = .editing }
     }
 
-    // MARK: 열려 있는 동안의 변화
+    // MARK: Changes while open
 
     func sync(with sessions: [AgentSession]) {
         let byKey = Dictionary(sessions.map { ($0.key, $0) }, uniquingKeysWith: { _, latest in latest })
         let pendingIds = Set(sessions.compactMap { $0.status == .waiting ? $0.prompt?.id : nil })
         let openPromptId = openSession?.prompt?.id
-        // 질문이 바뀌었거나 대기를 벗어난 세션의 쓰다 만 답은 버린다
+        // Discard drafts when the question changes or the session stops waiting.
         editors = editors.filter { pendingIds.contains($0.key) || ($0.key == openPromptId && phase.sentKeys) }
         let before = failures.count
         failures = failures.filter { byKey[$0.key] != nil }
         if failures.count != before { onFailuresChange?(Set(failures.keys)) }
 
         guard let open = openSession else { return }
-        // 보내는 중이거나 키가 들어간 결과 화면은 그대로 둔다
+        // Preserve sending views and results after any key was sent.
         if phase.sentKeys { return }
         guard let current = byKey[open.key] else {
             notice = ReplyCopy.sessionEnded
@@ -258,7 +258,7 @@ final class ReplyCenter {
         refreshAvailability()
     }
 
-    /// "보내지 않음" 화면은 띠 대신 결과의 이유를 보여 준다. 그사이 터미널에서 답했거나 세션이 끝났으면 그 이유로 바꿔야 화면이 지금 상황을 말한다
+    /// Unsent results explain why rather than showing strips; refresh the reason when answered elsewhere or ended.
     private func replaceNotSentReason(with reason: NotSentReason) {
         guard case .result(.notSent) = phase else { return }
         phase = .result(.notSent(reason))
@@ -275,8 +275,8 @@ final class ReplyCenter {
     }
 }
 
-/// 입력 칸 커서 요청. `serial` 이 바뀌면 이미 그려진 칸이, 새로 나타난 칸은 나타날 때 `wanted` 를 따른다.
-/// 숫자 키는 커서가 칸에 있으면 글자가 되므로, 커서가 앞 세션·앞 질문에서 넘어오면 고른 것과 다른 답이 보내진다(최종 리뷰 C1)
+/// A changed serial updates existing fields; newly rendered fields use wanted on appearance.
+/// A cursor inherited from another question turns number-key choices into text and can send the wrong answer (final review C1).
 struct FieldFocus: Equatable {
     private(set) var serial = 0
     private(set) var wanted = false

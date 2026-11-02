@@ -5,7 +5,7 @@ import Testing
 
 @MainActor
 struct ReplyCenterTests {
-    /// 숫자 키는 커서가 입력 칸에 있으면 글자가 된다. 본문 질문에서 켠 커서가 질문 창까지 남으면 "2⏎"가 선택지 2 대신 글자 "2"로 보내진다 (최종 리뷰 C1)
+    /// Stale composer focus makes number keys text, sending a literal number instead of selecting the option (final review C1).
     @Test func choiceDialogAfterBodyQuestionLeavesFieldUnfocused() {
         let center = ReplyCenter(backend: DeliveryGate().backend)
         center.open(Self.session("a", prompt: Self.bodyQuestion))
@@ -26,7 +26,7 @@ struct ReplyCenterTests {
         #expect(!center.fieldFocus.wanted)
     }
 
-    /// 보내는 중에 화면만 닫혔다 다시 열려도 같은 세션에 두 번째 보내기를 시작하지 않는다 (설계 4.4, 최종 리뷰 I1)
+    /// Closing/reopening while sending must not start a second delivery to the same session (design §4.4, final review I1).
     @Test func reopeningWhileSendingDoesNotSendAgain() async {
         let gate = DeliveryGate()
         let center = ReplyCenter(backend: gate.backend)
@@ -46,7 +46,7 @@ struct ReplyCenterTests {
         #expect(center.phase == .result(.notSent(.alreadyAnswered)))
     }
 
-    /// "보내지 않음" 화면을 보는 동안 터미널에서 답하면, 화면이 원래 이유(쓰던 글 등) 대신 이미 답했다고 알린다 (최종 리뷰 M5)
+    /// If answered in the terminal while viewing an unsent result, replace the old reason with already-answered guidance (final review M5).
     @Test func notSentScreenTellsWhenTheTerminalAnswered() async {
         let gate = DeliveryGate()
         let center = ReplyCenter(backend: gate.backend)
@@ -90,14 +90,14 @@ struct ReplyCenterTests {
         )
     }
 
-    /// 메인 액터에 걸린 Task 들이 한 바퀴 돌 시간을 준다
+    /// Allow queued MainActor tasks to advance once.
     private static func settle() async {
         for _ in 0..<20 { await Task.yield() }
         try? await Task.sleep(for: .milliseconds(20))
     }
 }
 
-/// 보내기를 붙잡아 두었다가 풀어 주는 가짜 전달기. 몇 번 불렸는지 센다
+/// Fake delivery that pauses until released and counts invocations.
 actor DeliveryGate {
     private(set) var calls = 0
     private var waiters: [CheckedContinuation<DeliveryOutcome, Never>] = []

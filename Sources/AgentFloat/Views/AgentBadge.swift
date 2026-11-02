@@ -1,7 +1,7 @@
 import AgentFloatCore
 import SwiftUI
 
-/// 상태 점과 터미널 아이콘 사이에서 에이전트 종류만 나타낸다. 목록과 답장 화면이 같은 표시를 쓴다.
+/// Identify the agent between status and terminal icons, consistently in lists and replies.
 struct AgentBadge: View {
     static let height: CGFloat = 14
 
@@ -20,7 +20,7 @@ struct AgentBadge: View {
         case "claude-code": return .claude
         case "codex": return .codex
         default:
-            // 가짜 provider도 실제 이름과 같은 시각 표현으로 검토할 수 있다.
+            // Render fake providers with the same agent identities as real sessions.
             switch session.agentName.lowercased() {
             case "claude": return .claude
             case "codex": return .codex

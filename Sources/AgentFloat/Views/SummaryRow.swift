@@ -1,7 +1,7 @@
 import AgentFloatCore
 import SwiftUI
 
-/// 접힌 알약과 펼친 패널 머리에 같은 모양으로 쓰여, 펼침이 접힘의 확대판으로 읽힌다 (spec 4.10)
+/// Reuse the summary in pill and panel so expansion reads as an enlarged pill (spec §4.10).
 struct SummaryRow: View {
     let summary: PillSummary
 
@@ -11,10 +11,10 @@ struct SummaryRow: View {
     var body: some View {
         HStack(spacing: 10) {
             if summary.isEmpty {
-                // 숨기면 앱이 꺼졌는지 헷갈리므로 흐리게라도 남긴다 (spec 4.5)
+                // Keep an empty pill dimly visible so users know the app is still running (spec §4.5).
                 item(color: Palette.gray, count: 0).opacity(0.5)
             } else {
-                // 보내다 멈춘 세션은 무엇보다 먼저 확인해야 해서 맨 앞에 둔다 (v1.2 설계 4.7)
+                // Interrupted deliveries need attention first, so place them ahead of other counts (v1.2 design §4.7).
                 if summary.failed > 0 {
                     item(color: Palette.failed, count: summary.failed)
                     tag("FAIL", color: Palette.failText(on: paintedTone))
@@ -46,7 +46,7 @@ struct SummaryRow: View {
         }
     }
 
-    /// 꼬리는 바로 앞 개수에 딸린 말이라 항목 사이 간격보다 붙여 둔다
+    /// Keep the suffix close to its count rather than using inter-item spacing.
     private func tag(_ text: String, color: Color) -> some View {
         Text(text)
             .font(.system(size: 10, weight: .bold))

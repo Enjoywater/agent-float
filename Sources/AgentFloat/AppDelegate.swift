@@ -3,7 +3,7 @@ import AppKit
 import ServiceManagement
 import SwiftUI
 
-/// 사람 손 없이 화면과 전환을 확인하려는 디버그 출력. 사용자 기기 설정을 건드리지 않고 실행 중인 실제 값을 남긴다
+/// Log actual runtime state for unattended UI verification without changing system settings.
 enum DebugLog {
     static let isEnabled = ProcessInfo.processInfo.environment["AGENT_FLOAT_DEBUG"] == "1"
     private static let launchedAt = Date()
@@ -68,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelController?.flushPendingSave()
     }
 
-    /// Dock 아이콘 우클릭 메뉴. 메뉴바 아이콘을 숨긴 동안에는 설정으로 가는 유일한 길이다
+    /// The Dock context menu is the only settings entry point while the menu bar icon is hidden.
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         menuBar?.dockMenu()
     }
@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyIconPresence()
     }
 
-    /// 실행은 Info.plist 의 LSUIElement 로 Dock 없이 시작하고, 고른 값에 따라 여기서 바꾼다
+    /// LSUIElement starts without a Dock icon; apply the user's icon preference here.
     private func applyIconPresence() {
         menuBar?.setStatusItemVisible(iconPresence.showsMenuBarIcon)
         let policy: NSApplication.ActivationPolicy = iconPresence.showsDockIcon ? .regular : .accessory
@@ -88,7 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DebugLog.write("icon presence=\(iconPresence.rawValue) policy=\(policy == .regular ? "regular" : "accessory")")
     }
 
-    /// 보내기는 tmux·Orca·Ghostty 만 담당한다. 그 밖의 터미널은 보기만 (v1.2 설계 4.1)
+    /// Only tmux, Orca, and Ghostty support sending; other terminals remain read-only (v1.2 design §4.1).
     private static func makeReplyBackend(runner: ProcessCommandRunner, store: SessionStore) -> ReplyBackend {
         let consoles = ConsoleRegistry([
             TmuxConsole(runner: runner, executable: TmuxCLI.resolveExecutable()),
@@ -108,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    /// 위치 종류마다 담당이 하나뿐이라 등록 순서는 결과에 영향이 없다
+    /// Each locator has one owner, so registration order cannot affect routing.
     private static func makeNavigators(runner: ProcessCommandRunner, activator: AppActivator) -> NavigatorRegistry {
         NavigatorRegistry([
             GhosttyNavigator(runner: runner),
@@ -124,7 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ])
     }
 
-    /// tmux 클라이언트를 띄운 바깥 터미널이 tty 로 탭을 고를 수 있는 앱이면 그 탭까지, 아니면 그 앱만 앞으로 올린다
+    /// Select the outer tmux terminal's tab when tty selection is supported; otherwise raise its app.
     private static func makeTmuxNavigator(runner: ProcessCommandRunner, activator: AppActivator) -> TmuxNavigator {
         let appleTerminal = AppleTerminalNavigator(runner: runner)
         let iTerm = ITermNavigator(runner: runner)
@@ -143,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 실제 세션을 띄우거나 바꾸지 않고 화면·전환을 확인할 수 있게 입력을 바꿔 끼운다
+    /// Inject fake input to verify rendering and transitions without opening or modifying real sessions.
     static func makeProviders(_ environment: [String: String]) -> [any AgentProvider] {
         if let raw = environment["AGENT_FLOAT_FAKE_SESSIONS"], let count = Int(raw), count > 0 {
             return [FakeProvider(
@@ -168,7 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return [claude, CodexCodeProvider(codexHome: URL(fileURLWithPath: codexHome, isDirectory: true))]
     }
 
-    /// 시스템 설정의 화면 모드를 바꾸지 않고 라이트·다크 모양을 각각 확인하려는 디버그 덮어쓰기
+    /// Override appearance for debugging without changing the system light/dark setting.
     private static func applyAppearanceOverride(_ value: String?) {
         switch value {
         case "light": NSApp.appearance = NSAppearance(named: .aqua)
@@ -177,7 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 사람이 마우스를 올리지 않아도 펼친 모습과 전환 순서를 확인할 수 있게 한다 (USR1 펼침, USR2 접힘)
+    /// Verify expansion unattended: USR1 expands and USR2 collapses.
     private func installDebugSignals(_ controller: PanelController) {
         let handlers: [(Int32, @MainActor () -> Void)] = [
             (SIGUSR1, { [weak controller] in controller?.debugExpand() }),
@@ -194,7 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 모든 데스크탑 고정·비활성 동작(spec 4.8)은 데스크탑을 직접 넘겨 봐야 알 수 있어, 사람 손 없이도 확인되게 실행 중인 실제 값을 남긴다
+    /// Log actual runtime values for unattended checks of all-Spaces and inactive behavior (spec §4.8).
     private func logLaunchState(panel: FloatingPanel, host: NSView) {
         let frame = panel.frame
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
@@ -213,7 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Self.logTrackingAreas(of: host)
     }
 
-    /// SwiftUI 줄 hover 가 비활성 패널에서도 동작하는지는 추적 영역 옵션으로 판단할 수 있다
+    /// Tracking-area options establish whether SwiftUI row hover works in an inactive panel.
     static func logTrackingAreas(of view: NSView) {
         for area in view.trackingAreas {
             let options = area.options

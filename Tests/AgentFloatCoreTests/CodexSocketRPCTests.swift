@@ -4,7 +4,7 @@ import Foundation
 import Testing
 @testable import AgentFloatCore
 
-/// 실제 Unix socket과 WebSocket 프레임을 사용한다. 외부 Codex 설치·네트워크는 필요 없다.
+/// Use real Unix sockets and WebSocket frames without requiring Codex installation or external networking.
 private final class CodexSocketFixture: @unchecked Sendable {
     let path = "/tmp/af-\(UUID().uuidString).sock"
     private let listener: Int32
@@ -42,8 +42,8 @@ private final class CodexSocketFixture: @unchecked Sendable {
             _ = setsockopt(peer, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
             do { try serve(peer) }
             catch {
-                // 잘못된 handshake·시간 초과 테스트에서는 클라이언트가 먼저 닫는다.
-                // 정상 경로의 서버 실패는 클라이언트 요청이 실패하면서 호출한 테스트에 기록된다.
+                // Clients close first in invalid-handshake and timeout tests.
+                // Normal-path server failures propagate through the client's request into the calling test.
             }
         }
     }
@@ -98,7 +98,7 @@ private final class CodexSocketFixture: @unchecked Sendable {
 struct CodexSocketRPCTests {
     @Test func rejectsInvalidUpgradeAndClosedConnection() throws {
         let fixture = try CodexSocketFixture { peer in
-            // 성공 상태 코드만으로 WebSocket 연결을 신뢰하지 않는다.
+            // A successful HTTP status alone must not establish a valid WebSocket connection.
             try CodexSocketFixture.write(peer, Data("HTTP/1.1 101 Switching Protocols\r\nSec-WebSocket-Accept: invalid\r\n\r\n".utf8))
         }
         #expect(throws: CodexRPCError.self) { try CodexSocketRPC(path: fixture.path) }
@@ -123,7 +123,7 @@ struct CodexSocketRPCTests {
             let response = Array(#"{"id":1,"result":{"data":["a"],"nextCursor":null}}"#.utf8)
             let first = Data([0x01, 10]) + Data(response.prefix(10))
             let last = Data([0x80, UInt8(response.count - 10)]) + Data(response.dropFirst(10))
-            // recv가 헤더나 payload 전체를 한 번에 주지 않는 경우도 검사한다.
+            // Exercise recv returning partial headers and payloads.
             for byte in first + last { try CodexSocketFixture.write(peer, Data([byte])) }
         }
         let rpc = try CodexSocketRPC(path: fixture.path)

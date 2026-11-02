@@ -1,7 +1,7 @@
 import AgentFloatCore
 import SwiftUI
 
-/// 답장 화면의 버튼이 하는 일. 창 크기·키 입력·이동은 패널이 맡아 여기로 넘겨준다
+/// Panel-provided actions own window sizing, keyboard handling, and navigation.
 struct ReplyActions {
     var back: () -> Void = {}
     var primary: () -> Void = {}
@@ -10,7 +10,7 @@ struct ReplyActions {
     var recheck: () -> Void = {}
     var openSettings: () -> Void = {}
     var editQuestion: (Int) -> Void = { _ in }
-    /// 실제로 그려진 내용 높이. 화면 밖 측정이 줄 간격 큰 글을 낮게 재는 경우(실측)를 바로잡는 데 쓴다
+    /// Actual rendered content height corrects offscreen undermeasurement of large line spacing.
     var contentHeight: (CGFloat) -> Void = { _ in }
 }
 
@@ -22,14 +22,14 @@ private struct ReplyContentHeightKey: PreferenceKey {
     }
 }
 
-/// 패널이 답장 화면으로 바뀐 모습(C 배치): 내비 줄, 2행, 내용, 버튼 줄 (설계 4.8, 시안 1~10)
+/// Panel replacement C: navigation, metadata, content, and buttons (design §4.8, drafts 1–10).
 struct ReplyScreen: View {
     let center: ReplyCenter
     let session: AgentSession
     let actions: ReplyActions
-    /// nil 이면 높이를 재는 중이라 스크롤 없이 내용 그대로 늘어놓는다
+    /// Nil means measuring; lay out all content without scrolling.
     let height: CGFloat?
-    /// 옆 카드는 고른 줄에 제목이 있어 에이전트 배지만 따로 표시한다
+    /// The side card's selected row already shows its title; display only the agent badge here.
     var showsHeader = true
 
     static let compactHeaderHeight: CGFloat = AgentBadge.height + 10
@@ -49,7 +49,7 @@ struct ReplyScreen: View {
                 .padding(.bottom, 4)
             }
             if let height {
-                // 내용만 스크롤하고 버튼 줄은 고정한다 (설계 4.8 높이)
+                // Scroll only content while keeping buttons fixed (design §4.8 height).
                 ScrollView(.vertical) {
                     content.background(GeometryReader { proxy in
                         Color.clear.preference(key: ReplyContentHeightKey.self, value: proxy.size.height)
@@ -78,9 +78,9 @@ struct ReplyScreen: View {
     }
 }
 
-/// "‹" + 제목 + 경과 시간, 그 아래 앱 아이콘·폴더·사유 (‹ 24×24, 제목과 2행은 34에서 시작)
+/// Back chevron/title/elapsed time, then app/folder/reason; chevron 24×24, text starts at 34.
 struct ReplyHeader: View {
-    /// 내비 줄(위 6 + 24) + 2행(위 1 + 14)
+    /// Navigation row: top 6 + 24; metadata: top 1 + 14.
     static let height: CGFloat = 45
 
     let session: AgentSession
@@ -141,15 +141,15 @@ struct ReplyHeader: View {
     }
 }
 
-/// 왼쪽 보조 버튼 + 오른쪽 주요 캡슐 버튼(높이 28, 반경 14, ⏎ 표시)
+/// Secondary action left, primary capsule right: height 28, radius 14, Return hint.
 struct ReplyFooter: View {
-    /// 위 12 + 버튼 28 + 아래 10
+    /// Top 12 + button 28 + bottom 10.
     static let height: CGFloat = 50
 
     let center: ReplyCenter
     let session: AgentSession
     let actions: ReplyActions
-    /// 줄 안 배치는 바깥 상자가 좌우 여백을 정한다
+    /// Inline placement delegates horizontal padding to its outer container.
     var insetsHorizontally = true
 
     var body: some View {
@@ -259,7 +259,7 @@ struct PrimaryButton: View {
     }
 }
 
-/// 답장 화면 높이를 펼치기 전에 재기 위한 뷰. 스크롤 없이 늘어놓은 같은 내용이다
+/// Measure the same unscrolled reply content before expansion.
 struct ReplyMeasure: View {
     let center: ReplyCenter
     let session: AgentSession

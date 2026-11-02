@@ -42,7 +42,7 @@ def main():
     assert "에이전트 이름 표시" in tree or "배포 순서" in tree or "SyncRetryPolicy" in tree or shot["scene"] == "permission", tree
 
     def choose(tree, option):
-        # 줄 안 배치는 footer도 같은 깊이에 있어, 직접 입력 칸 앞의 선택지만 고른다.
+        # Inline footers share the same depth; select only options preceding the direct-input field.
         options = tree.split("텍스트 필드", 1)[0]
         buttons = re.findall(r"^\t\t(\d+) 버튼(?: \(selected\))?$", options, re.M)
         assert len(buttons) == 2, tree

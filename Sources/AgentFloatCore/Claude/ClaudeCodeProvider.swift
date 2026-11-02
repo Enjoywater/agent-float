@@ -1,8 +1,8 @@
 import Foundation
 import Synchronization
 
-/// 세션 파일이 아는 것(상태·pid)과 모르는 것(제목·터미널 위치)을 transcript 와 프로세스 환경으로 채운다.
-/// 폴링마다 불리므로 transcript 판독과 환경변수 조회(호출당 약 1MiB 할당)는 바뀔 때만 다시 한다
+/// Enrich session-file state/PID with transcript titles and process terminal placement.
+/// Polling is frequent; reread transcripts and process environments (about 1 MiB per call) only when changed.
 public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Sendable {
     public let id = "claude-code"
 
@@ -12,7 +12,7 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
     private let projectsDirectory: URL
     private let homeDirectory: String
     private let inspector: any ProcessInspecting
-    // snapshot 전체를 한 번에 잠근다. 호출이 겹쳐도 직렬화되어야 캐시 정리가 다른 호출의 사용분을 지우지 않는다
+    // Lock the whole snapshot so overlapping calls cannot prune another call's cache entries.
     private let caches = Mutex(Caches())
 
     public init(claudeHome: URL, homeDirectory: String, inspector: any ProcessInspecting) {
@@ -32,12 +32,12 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
     }
 
     public func snapshot(now: Date) throws -> [AgentSession] {
-        // 처음 설치한 머신에서는 디렉터리가 아직 없는 것이 정상이라 오류로 보지 않는다
+        // A missing sessions directory is normal on first installation.
         guard FileManager.default.fileExists(atPath: sessionsDirectory.path) else { return [] }
         let files = try FileManager.default
             .contentsOfDirectory(at: sessionsDirectory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "json" }
-            // 열거 순서가 호출마다 달라지면 내용이 같아도 목록이 바뀐 것으로 보이므로 이름순으로 고정한다
+            // Sort filenames so filesystem enumeration order cannot create apparent list changes.
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
 
         return caches.withLock { state in
@@ -59,7 +59,7 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         }
     }
 
-    /// 보낸 답이 기록됐는지 확인할 때만 불린다. 위치는 snapshot 이 찾아 둔 경로를 쓰고, 없으면 다시 찾는다
+    /// Check recorded replies only on demand, using the cached transcript location or resolving it again.
     public func recordedAnswer(sessionId: String, promptId: String) -> RecordedAnswer? {
         let location = caches.withLock { state -> TranscriptLocation? in
             var projects = ProjectDirectories(root: projectsDirectory)
@@ -69,10 +69,10 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         return try? TranscriptReader.recordedAnswer(to: promptId, url: URL(fileURLWithPath: location.path))
     }
 
-    // MARK: 세션 파일
+    // MARK: Session files
 
-    /// Claude 가 파일을 쓰는 도중에 읽으면 JSON 이 잘려 있으므로, 파싱에 실패하면 직전 정상 값을 쓴다.
-    /// 프로세스가 이미 죽었다면 호출 쪽의 생존 검사가 걸러낸다
+    /// Concurrent Claude writes can truncate JSON; retain the last successfully parsed file.
+    /// The caller's liveness check excludes processes that have already exited.
     private func sessionFile(at url: URL, state: inout Caches) -> ClaudeSessionFile? {
         if let data = try? Data(contentsOf: url), let parsed = ClaudeSessionFile.parse(data) {
             state.lastGoodFiles[url.path] = parsed
@@ -81,8 +81,8 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         return state.lastGoodFiles[url.path]
     }
 
-    /// 같은 sessionId 가 살아 있는 파일 둘 이상에 있으면 화면에서 같은 줄이 겹치므로 가장 최근 상태 갱신 하나만 남긴다.
-    /// 시각이 같거나 없으면 pid 가 큰 쪽이 나중에 뜬 프로세스일 가능성이 높다
+    /// Deduplicate live files by sessionId, keeping the newest status update.
+    /// If timestamps tie or are absent, prefer the larger PID as the likely later process.
     private static func droppingDuplicates(_ files: [ClaudeSessionFile]) -> [ClaudeSessionFile] {
         var winners: [String: Int] = [:]
         for (index, file) in files.enumerated() {
@@ -99,7 +99,7 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         return candidate.pid > current.pid
     }
 
-    // MARK: 세션 조립
+    // MARK: Session assembly
 
     private func makeSession(
         from file: ClaudeSessionFile,
@@ -132,8 +132,8 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         )
     }
 
-    /// 상태 갱신 시각이 없는 파일에 매번 `now` 를 쓰면 폴링마다 세션 값이 달라져 바뀐 것 없이 화면을 다시 그린다.
-    /// 그래서 그 상태를 처음 본 시각을 기억하고, 상태가 바뀌면 그때부터 다시 잰다
+    /// Using now for missing timestamps changes every snapshot and redraws unchanged sessions.
+    /// Remember the first observation time, resetting only when status changes.
     private func statusSince(
         of file: ClaudeSessionFile,
         status: AgentStatus,
@@ -148,7 +148,7 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         return now
     }
 
-    // MARK: 터미널 앱·위치
+    // MARK: Terminal app and placement
 
     private func placement(
         of file: ClaudeSessionFile,
@@ -157,7 +157,7 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         state: inout Caches,
         touched: inout Touched
     ) -> (app: TerminalApp, locator: TerminalLocator) {
-        // 백그라운드 세션은 붙어 있는 터미널이 없어 환경변수를 읽을 필요가 없다
+        // Background sessions have no attached terminal, so skip environment inspection.
         if file.kind == "bg", let jobId = file.jobId {
             return (.unknown, .background(jobId: jobId))
         }
@@ -166,7 +166,7 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         touched.processes.insert(processKey)
         let context = terminalContext(for: processKey, state: &state)
         let fallback = TerminalLocator.application(pid: file.pid)
-        // tmux 안에서는 TERM_PROGRAM 이 바깥 터미널 대신 tmux 로 덮이므로 tmux 환경을 먼저 본다
+        // Inspect tmux first because it overrides the outer terminal's TERM_PROGRAM.
         if let tmux = context.tmux {
             return (.other("tmux"), .tmux(socket: tmux.socket, paneId: tmux.paneId, pid: file.pid))
         }
@@ -174,7 +174,7 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         case "ghostty":
             return (.ghostty, .ghostty(title: aiTitle, cwd: cwd))
         case "Orca":
-            // 탭을 특정할 수 없어도 앱은 Orca 이므로 아이콘은 유지하고 앱만 앞으로 올리는 폴백을 쓴다
+            // Preserve Orca's icon when exact tab mapping fails, falling back to raising the app.
             return (.orca, Self.orcaLocator(paneKey: context.paneKey, handle: context.orcaHandle) ?? fallback)
         case "Apple_Terminal":
             return (.other("Apple_Terminal"), context.tty.map { .appleTerminal(tty: $0) } ?? fallback)
@@ -198,13 +198,13 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
             tty: outermostTty(along: ancestors),
             tmux: Self.tmuxPane(environment: environment["TMUX"], pane: environment["TMUX_PANE"], ancestors: ancestors)
         )
-        // 조회 실패와 빈 환경을 구분할 수 없어, 비어 있으면 캐시하지 않고 다음 주기에 다시 읽는다
+        // An empty environment may mean inspection failure; do not cache it, so the next poll retries.
         if !environment.isEmpty { state.terminals[key] = context }
         return context
     }
 
-    /// `TMUX` 는 `<소켓 경로>,<서버 pid>,<세션 번호>`. 경로에 쉼표가 들어가도 뒤의 두 값만 떼어 낸다 (tmux 3.6 실측).
-    /// tmux 에서 CLI 로 띄운 IDE 처럼 환경만 물려받은 프로세스도 있어, 서버가 실제로 조상일 때만 tmux 안으로 본다
+    /// TMUX is socket-path,server-pid,session-number; split only the last two fields to allow commas in paths (tmux 3.6).
+    /// GUI apps may inherit tmux variables; require the server to be an actual ancestor.
     private static func tmuxPane(environment tmux: String?, pane: String?, ancestors: [Int32]) -> TmuxPane? {
         guard let tmux, let pane, TmuxCLI.isPaneId(pane) else { return nil }
         let parts = tmux.split(separator: ",", omittingEmptySubsequences: false)
@@ -214,15 +214,15 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         return TmuxPane(socket: socket, paneId: pane)
     }
 
-    /// nvim `:terminal`·screen 처럼 안쪽 pty 를 만드는 프로그램 아래에서는 세션의 tty 가 탭의 tty 가 아니다.
-    /// 그래서 tty 가 이어지는 가장 바깥 조상(탭을 연 셸)의 tty 를 쓴다. 터미널 앱 자신은 tty 가 없어 거기서 멈춘다
+    /// Nested ptys from nvim :terminal or screen can differ from the tab's tty.
+    /// Use the outermost contiguous tty ancestor (the tab shell), stopping at the tty-less terminal app.
     private func outermostTty(along ancestors: [Int32]) -> String? {
         var outermost: String?
         for pid in ancestors {
             guard let tty = inspector.tty(pid: pid) else { break }
             outermost = tty
         }
-        // 의사 터미널이 아닌 값(`/dev/console` 등)은 어느 탭과도 맞지 않아 매번 경고음만 나므로 폴백으로 보낸다
+        // Non-pty devices such as /dev/console cannot match tabs; use app fallback instead of repeatedly beeping.
         return outermost.flatMap { TtyFormat.isDevicePath($0) ? $0 : nil }
     }
 
@@ -248,27 +248,27 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         touched.sessionIds.insert(sessionId)
         touched.transcriptPaths.insert(location.path)
 
-        // `--resume` 직후에는 transcript 가 그대로라 파일 표식만 보면 앞 프로세스 기준 판독을 그대로 돌려주게 된다
+        // After --resume, unchanged transcript markers can otherwise reuse the previous process's cached interpretation.
         if let cached = state.transcripts[location.path], cached.stamp == location.stamp, cached.since == since {
             return ReadTranscript(path: location.path, tail: cached.tail)
         }
         let knownTitle = state.titles[sessionId]
-        // URL 인스턴스는 resourceValues 를 캐시해 재사용하면 옛 수정 시각을 돌려주므로 매번 새로 만든다
+        // URL caches resourceValues; create a fresh instance to avoid stale modification timestamps.
         let url = URL(fileURLWithPath: location.path)
         guard var tail = try? TranscriptReader.read(url: url, scanHeadForTitle: knownTitle == nil, since: since) else {
-            // 읽기 실패로 대기 상태가 완료로 깜빡이지 않도록 직전 판독을 유지한다
+            // Preserve the previous reading on I/O failure to avoid flickering from waiting to done.
             return state.transcripts[location.path].map { ReadTranscript(path: location.path, tail: $0.tail) }
         }
-        // 제목 기록이 꼬리 창 밖으로 밀려나도 앞서 알아낸 제목을 유지한다
+        // Retain known titles after title records slide outside the tail window.
         tail.aiTitle = tail.aiTitle ?? knownTitle
         if let title = tail.aiTitle { state.titles[sessionId] = title }
         state.transcripts[location.path] = CachedTail(stamp: location.stamp, since: since, tail: tail)
         return ReadTranscript(path: location.path, tail: tail)
     }
 
-    /// 부모 세션은 서브에이전트가 일하는 동안 transcript 에 아무것도 쓰지 않아 멈춘 것으로 오인된다.
-    /// 그래서 서브에이전트 파일의 최근 수정 시각을 마지막 활동으로 친다. 상태 도출기는 이 사실을 몰라도 되도록 여기서 덮어쓴다.
-    /// 오래된 busy 세션만 확인해 평소 폴링 경로에는 폴더 순회가 끼지 않는다
+    /// Parent transcripts can remain silent while subagents work, falsely suggesting a stall.
+    /// Count the latest subagent mtime as activity here so status derivation remains independent of transcript layout.
+    /// Inspect only stale busy sessions, keeping directory traversal off the normal polling path.
     private func withSubagentActivity(_ transcript: ReadTranscript, of file: ClaudeSessionFile, now: Date) -> TranscriptTail {
         let tail = transcript.tail
         guard file.status == "busy", now.timeIntervalSince(tail.modifiedAt) > ClaudeStatusDeriver.staleAfter else {
@@ -284,8 +284,8 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
         return adjusted
     }
 
-    /// 실측 배치는 `subagents/agent-*.jsonl` 과 `subagents/workflows/<wf>/agent-*.jsonl` 이라 파일이 세 단계 아래까지 있다.
-    /// 그 아래는 보지 않아 폴더가 크게 자란 세션에서도 순회 비용이 묶인다
+    /// Observed layouts include subagents/agent-*.jsonl and subagents/workflows/<wf>/agent-*.jsonl.
+    /// Bound traversal to three levels so large session trees cannot grow scan cost indefinitely.
     private static func newestModification(under directory: URL) -> Date? {
         let keys: [URLResourceKey] = [.isDirectoryKey, .contentModificationDateKey]
         guard let enumerator = FileManager.default.enumerator(
@@ -308,8 +308,8 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
 
     private static let maxSubagentDepth = 3
 
-    /// 같은 sessionId 가 여러 프로젝트 폴더에 있으면 수정 시각이 가장 최근인 쪽이 현재 세션이다 (resume 으로 복사된 경우).
-    /// 못 찾은 결과는 캐시하지 않는다. 새 세션은 첫 턴이 끝나야 파일이 생긴다
+    /// Among resumed copies sharing a sessionId, the most recently modified project transcript is current.
+    /// Do not cache misses: new transcripts may appear only after the first turn.
     private func locateTranscript(
         sessionId: String,
         state: inout Caches,
@@ -337,11 +337,11 @@ public final class ClaudeCodeProvider: AgentProvider, AnswerRecordReading, Senda
     }
 }
 
-// MARK: 캐시 타입
+// MARK: Cache types
 
 private struct ProcessKey: Hashable {
     let pid: Int32
-    // pid 는 재사용되므로 시작 시각까지 같아야 같은 프로세스다
+    // PIDs are reused; matching start times establish process identity.
     let procStart: String?
 }
 
@@ -363,7 +363,7 @@ private struct FileStamp: Equatable {
     let size: Int
 
     static func of(path: String) -> FileStamp? {
-        // URL.resourceValues 는 인스턴스에 값을 캐시하므로 경로로 직접 읽는다
+        // Read by path because URL.resourceValues caches values on the instance.
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
               let modifiedAt = attributes[.modificationDate] as? Date,
               let size = attributes[.size] as? NSNumber
@@ -393,13 +393,13 @@ private struct ReadTranscript {
     let tail: TranscriptTail
 }
 
-/// 이번 snapshot 에서 쓰인 키. 끝난 세션의 캐시가 상시 실행 앱에 계속 쌓이지 않게 정리하는 기준이다
+/// Keys used by this snapshot determine pruning so finished-session caches do not accumulate forever.
 private struct Touched {
     var filePaths: Set<String>
     var sessionIds: Set<String> = []
     var transcriptPaths: Set<String> = []
     var processes: Set<ProcessKey> = []
-    // transcript 가 아직 없는 세션도 담아야 해서 sessionIds 와 따로 센다
+    // Count processes separately from sessionIds because some sessions have no transcript yet.
     var statusSessionIds: Set<String> = []
 }
 
@@ -421,7 +421,7 @@ private struct Caches {
     }
 }
 
-/// 세션마다 프로젝트 폴더를 다시 열거하지 않도록 snapshot 한 번에 한 번만 목록을 만든다
+/// Enumerate project directories once per snapshot rather than once per session.
 private struct ProjectDirectories {
     private let root: URL
     private var listed: [URL]?
@@ -432,7 +432,7 @@ private struct ProjectDirectories {
 
     mutating func all() -> [URL] {
         if let listed { return listed }
-        // 수정 시각이 같은 중복 사본 사이에서도 결과가 매번 같도록 이름순으로 고정한다
+        // Sort names for deterministic selection when duplicate copies share an mtime.
         let found = ((try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [])
             .sorted { $0.path < $1.path }
         listed = found

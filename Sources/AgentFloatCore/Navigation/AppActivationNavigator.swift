@@ -1,4 +1,4 @@
-/// 정확한 탭을 모르는 세션을 위한 앱 단위 폴백. GUI 앱 판별·활성화는 AppKit 이 필요해 앱 타깃이 클로저로 주입한다
+/// App-level fallback when the exact tab is unknown; inject AppKit-dependent GUI discovery/activation from the app target.
 public struct AppActivationNavigator: TerminalNavigator {
     private let inspector: any ProcessInspecting
     private let activateFirstApp: @Sendable ([Int32]) -> Bool
@@ -20,10 +20,10 @@ public struct AppActivationNavigator: TerminalNavigator {
 }
 
 enum ProcessAncestry {
-    // 순환하는 부모 표나 비정상적으로 깊은 트리에서도 순회가 끝나도록 상한을 둔다
+    // Bound traversal to terminate on cycles or excessively deep parent trees.
     static let maxChainLength = 32
 
-    /// 가까운 조상부터 담아야 가장 안쪽의 GUI 앱이 먼저 고려된다
+    /// Order nearest ancestors first so the innermost GUI app wins.
     static func chain(from pid: Int32, inspector: any ProcessInspecting) -> [Int32] {
         var chain = [pid]
         while chain.count < maxChainLength,

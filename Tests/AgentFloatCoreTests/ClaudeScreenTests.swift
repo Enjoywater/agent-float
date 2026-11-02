@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import AgentFloatCore
 
-/// 화면 fixture 는 실측 화면의 줄 모양만 따르고 내용은 가상이다 (rulings "v1.2 답장")
+/// Screen fixtures reproduce measured layouts with fictional content (v1.2 reply rulings).
 func screenFixture(_ name: String) throws -> ConsoleScreen {
     let parts = name.split(separator: ".", maxSplits: 1).map(String.init)
     let url = try #require(Bundle.module.url(forResource: parts[0], withExtension: parts[1], subdirectory: "Fixtures/screens"))
@@ -40,7 +40,7 @@ let expiryQuestion = ChoiceQuestion(
         #expect(read.otherDraft == "")
     }
 
-    /// 설명 줄이 "3. …" 처럼 번호로 시작해도 선택지가 아니다. 설명은 다섯 칸 들여 써 있다 (최종 리뷰 M4)
+    /// A description beginning with a number is not an option; descriptions indent five spaces (final review M4).
     @Test func numberedDescriptionIsNotAnOption() throws {
         let base = try screenFixture("choice-single-focus0.txt")
         let lines = base.lines.map { $0 == "     바꾼 코드를 되돌림" ? "     3. 단계로 나눠 되돌림" : $0 }
@@ -140,7 +140,7 @@ let expiryQuestion = ChoiceQuestion(
         #expect(!ClaudeScreen.matches(try dialog("choice-single-focus0.txt"), question: other))
     }
 
-    // MARK: 흐림 읽기
+    // MARK: Faint styling
 
     @Test func faintRangesAreTracked() {
         let screen = ConsoleScreen.ansi("a\u{1b}[2mbc\u{1b}[0md\n\u{1b}[2mx\u{1b}[22my")

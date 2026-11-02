@@ -3,7 +3,7 @@ import Testing
 @testable import AgentFloatCore
 
 @Suite struct NavigationConfirmationTests {
-    // MARK: 이동 확인 (R37)
+    // MARK: Navigation confirmation (R37)
 
     @Test func expectedAppFollowsTheLocator() {
         #expect(ExpectedFrontmost.expected(for: .ghostty(title: "위젯", cwd: "/w"), activatedPid: nil) == .bundle(TerminalBundle.ghostty))
@@ -15,7 +15,7 @@ import Testing
     @Test func ttyTerminalsAndTmuxExpectTheirApp() {
         #expect(ExpectedFrontmost.expected(for: .appleTerminal(tty: "/dev/ttys004"), activatedPid: nil) == .bundle(TerminalBundle.appleTerminal))
         #expect(ExpectedFrontmost.expected(for: .iTerm(tty: "/dev/ttys005"), activatedPid: nil) == .bundle(TerminalBundle.iTerm))
-        // 바깥 터미널은 실행해 봐야 알므로 실제로 올린 앱을, 그런 앱이 없으면 분리된 세션을 붙인 Ghostty 를 기대한다
+        // Expect the discovered outer app, or Ghostty when attaching a detached session.
         #expect(ExpectedFrontmost.expected(for: .tmux(socket: "/s", paneId: "%1", pid: 9), activatedPid: 77) == .process(77))
         #expect(ExpectedFrontmost.expected(for: .tmux(socket: "/s", paneId: "%1", pid: 9), activatedPid: nil) == .bundle(TerminalBundle.ghostty))
     }
@@ -39,7 +39,7 @@ import Testing
         #expect(!terminal.isReached(byBundle: nil, pid: nil))
     }
 
-    // MARK: 직접 선택 감시 주기 (R38)
+    // MARK: Manual-selection polling schedules (R38)
 
     @Test func failuresBackOffExponentiallyUpToAMinute() {
         var schedule = FocusWatchSchedule()

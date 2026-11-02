@@ -115,7 +115,7 @@ import AgentFloatCore
         #expect(PanelGeometry.clamped(pill, into: []) == pill)
     }
 
-    // MARK: 옆 카드 (v1.2 설계 4.5 B)
+    // MARK: Side card (v1.2 design §4.5 B)
 
     private static let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
 

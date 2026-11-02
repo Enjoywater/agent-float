@@ -2,9 +2,9 @@ import AgentFloatCore
 import AppKit
 import SwiftUI
 
-/// 유리가 뒤 화면을 보고 고른 톤을 알려 준다.
-/// SwiftUI 의 colorScheme 은 시스템 설정에 고정돼 있고, 유리 안의 AppKit 뷰만 VibrantLight·VibrantDark 로 바뀐다(2026-10-19 실측).
-/// 톤을 뒤집어 칠하는 내용 아래에 두면 뒤집힌 톤을 다시 읽어 깜빡이므로, 반드시 그 바깥에 붙인다
+/// Report the tone chosen by glass from its background.
+/// SwiftUI colorScheme stays system-bound; only AppKit views inside glass become VibrantLight/VibrantDark (measured 2026-10-19).
+/// Mount outside tone-inverted content to avoid reading the inverted tone and creating flicker.
 struct GlassToneProbe: NSViewRepresentable {
     let onChange: (GlassTone) -> Void
 
@@ -31,7 +31,7 @@ final class GlassToneProbeView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    /// 빛과 같은 이유로 클릭을 받지 않는다 (BorderSweep 참고)
+    /// Reject clicks for the same reason as BorderSweep.
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }
@@ -52,13 +52,13 @@ final class GlassToneProbeView: NSView {
         guard tone != reported else { return }
         reported = tone
         DebugLog.write("glass tone=\(tone) appearance=\(effectiveAppearance.name.rawValue)")
-        // 레이아웃 도중에 불릴 수 있어 SwiftUI 상태는 다음 차례에 바꾼다
+        // Callbacks may occur during layout; defer SwiftUI state updates to the next turn.
         DispatchQueue.main.async { [onChange] in onChange(tone) }
     }
 }
 
 extension EnvironmentValues {
-    /// 알약을 직접 칠한 톤. 동적 색이 이 값을 모르므로 색을 고르는 쪽이 읽는다 (Palette)
+    /// The painted pill tone; Palette reads it because dynamic colors cannot infer it.
     @Entry var paintedGlassTone: GlassTone?
 }
 
@@ -70,7 +70,7 @@ extension GlassTone {
         }
     }
 
-    /// 50% 검정 틴트는 흰 배경 위에서 유리가 도로 밝아져 이기지 못했다(실측). 그보다 진해야 반대 톤으로 보인다
+    /// A 50% black tint lost against glass adapting to white backgrounds; stronger tint is required for inversion.
     var surfaceFill: Color {
         switch self {
         case .light: Color.white.opacity(0.8)
@@ -78,8 +78,8 @@ extension GlassTone {
         }
     }
 
-    /// 시스템과 같은 톤으로 덮어쓰면 colorScheme 값이 바뀌지 않아 유리가 고른 글자색이 그대로 남는다(실측: 다크 모드에서 흰 배경 위 진한 면에 검은 글자).
-    /// 칠한 면 위의 글자는 이 색으로 직접 정하고, secondary·tertiary 는 이 색을 기준으로 옅어진다
+    /// Overriding with the system tone does not change colorScheme, leaving glass-selected text colors unchanged.
+    /// Set the painted surface's text color directly and derive secondary/tertiary opacity from it.
     var textColor: Color {
         switch self {
         case .light: Color.black.opacity(0.85)

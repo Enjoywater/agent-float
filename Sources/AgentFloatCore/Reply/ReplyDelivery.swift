@@ -1,11 +1,11 @@
 import Foundation
 
-/// 답장 화면의 "보내는 중" 네 줄과 같은 순서 (v1.2 설계 시안 6)
+/// Keep stages aligned with the four sending-status rows (v1.2 design draft 6).
 public enum DeliveryStage: Int, CaseIterable, Sendable {
     case sameQuestion, screen, typing, record
 }
 
-/// 키를 하나도 보내지 않고 멈춘 이유
+/// Reasons for stopping before sending any keys.
 public enum NotSentReason: Equatable, Sendable {
     case alreadyAnswered, questionChanged, sessionEnded, terminalDraft, unexpectedScreen, unreadableScreen
     case readOnly(ReadOnlyReason)
@@ -14,9 +14,9 @@ public enum NotSentReason: Equatable, Sendable {
 public enum DeliveryOutcome: Equatable, Sendable {
     case delivered(RecordedAnswer)
     case notSent(NotSentReason)
-    /// 키를 보내는 도중 멈춤. 일부 키가 들어갔을 수 있다
+    /// Stopped during input; some keys may already have reached the terminal.
     case stopped(stage: String)
-    /// 기록된 답이 보낸 답과 다름. `recorded == nil` 은 정해진 시간 안에 기록이 없었던 것
+    /// Recorded reply differs from intended input; nil means no record arrived before the deadline.
     case mismatched(sent: RecordedAnswer, recorded: RecordedAnswer?)
 }
 
@@ -41,7 +41,7 @@ public struct DeliveryTiming: Sendable {
     public static let standard = DeliveryTiming()
 }
 
-/// 의도와 다른 답이 들어가지 않도록 네 단계를 차례로 확인하며 보낸다 (v1.2 설계 4.4). 하나라도 어긋나면 그 자리에서 멈추고 다시 시도하지 않는다
+/// Verify four gates in order; stop immediately on any mismatch and never retry delivery (v1.2 design §4.4).
 public struct ReplyDelivery: Sendable {
     private let currentSessions: @Sendable () async -> [AgentSession]
     private let consoles: ConsoleRegistry
@@ -68,13 +68,13 @@ public struct ReplyDelivery: Sendable {
     ) async -> DeliveryOutcome {
         guard let expected = ReplyDriver.expectedRecord(prompt: prompt, draft: draft) else { return .notSent(.questionChanged) }
 
-        // G1 같은 질문
+        // G1: Same question
         onStage(.sameQuestion)
         guard let current = await currentSessions().first(where: { $0.key == session.key }) else { return .notSent(.sessionEnded) }
         guard current.status == .waiting else { return .notSent(.alreadyAnswered) }
         guard current.prompt?.id == prompt.id, current.waitReason == session.waitReason else { return .notSent(.questionChanged) }
 
-        // G2 화면
+        // G2: Screen
         onStage(.screen)
         if case let .readOnly(reason) = await consoles.availability(of: current) { return .notSent(.readOnly(reason)) }
         guard let console = consoles.console(for: current) else { return .notSent(.unreadableScreen) }
@@ -93,14 +93,14 @@ public struct ReplyDelivery: Sendable {
         case .unexpected: return .notSent(.unexpectedScreen)
         }
 
-        // G3 입력: 키 하나 보내고 화면이 그 키에 맞게 바뀌었는지 본 뒤에야 다음 키를 정한다
+        // G3: Send one key and verify its resulting screen before choosing the next.
         onStage(.typing)
         var progress = ReplyProgress()
         var sent = 0
         while true {
             switch ReplyDriver.nextMove(prompt: prompt, draft: draft, progress: &progress, screen: state, check: console.promptCheck, codex: isCodex) {
             case .finished:
-                // G4 기록
+                // G4: Transcript
                 onStage(.record)
                 return await verifyRecord(expected, session: current, promptId: prompt.id)
             case let .stuck(reason):
@@ -116,7 +116,7 @@ public struct ReplyDelivery: Sendable {
                 }
                 sent += 1
                 if isCodex, input == .key(.enter), progress.pressedSubmit {
-                    // Codex는 제출 직후 같은 모양의 다음 질문을 띄울 수 있다. 기록으로 판정하고 더 입력하지 않는다.
+                    // Codex may immediately show an identical-looking new question; verify via history without further input.
                     onStage(.record)
                     return await verifyRecord(expected, session: current, promptId: prompt.id)
                 }
@@ -133,8 +133,8 @@ public struct ReplyDelivery: Sendable {
         case failed(String)
     }
 
-    /// 화면이 바뀔 때까지 기다린다. 다시 그리는 도중의 화면(알 수 없음, 글이 덜 그려짐)은 결과로 보지 않는다.
-    /// 화면 읽기가 한 번 실패해도 시간 제한 안에서는 다시 읽는다 — Ghostty 는 읽을 때마다 osascript·손쉬운 사용을 거쳐 가끔 실패한다
+    /// Wait for a settled screen; unknown or partially rendered frames are not final results.
+    /// Retry transient reads within the deadline because Ghostty's osascript/Accessibility path can fail intermittently.
     private func settle(after input: ConsoleInput, from old: ScreenState, console: any TerminalConsole, session: AgentSession) async -> Settle {
         let deadline = ContinuousClock.now + timing.stepTimeout
         var readFailed = false
@@ -148,7 +148,7 @@ public struct ReplyDelivery: Sendable {
             if Self.hasText(screen.composerDraft) { return .failed("터미널 입력창에 글이 생김") }
             let new = session.key.providerId == "codex" ? CodexScreen.interpret(screen) : ClaudeScreen.interpret(screen)
             if new == old || new == .unrecognized { continue }
-            // 제안과 첫 글자가 같으면 정상적인 시험 입력도 제안의 일부처럼 보인다. 기대한 결과인지 먼저 가린다.
+            // A probe matching a suggestion prefix can look like hint text; check the expected result first.
             if ReplyDriver.isExpected(after: input, from: old, to: new, check: console.promptCheck) { return .moved(new) }
             if ReplyDriver.isPartial(after: input, from: old, state: new) { continue }
             return .failed("화면이 예상과 다르게 바뀜")

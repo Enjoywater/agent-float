@@ -5,7 +5,7 @@ public struct ChoiceRow: Equatable, Sendable {
         case option, other, chat, submit
     }
 
-    /// 체크 상자를 뗀 줄 글. 직접 쓰기 줄은 안내 문구나 쓴 글
+    /// Option text without checkbox markers; direct-input rows contain a hint or draft.
     public let label: String
     public let isFocused: Bool
     public let isChecked: Bool
@@ -20,10 +20,10 @@ public struct ChoiceRow: Equatable, Sendable {
 }
 
 public struct ChoiceDialog: Equatable, Sendable {
-    /// 감긴 줄을 공백 하나로 이은 질문 문장
+    /// Question text with wrapped lines joined by single spaces.
     public let questionText: String
     public let rows: [ChoiceRow]
-    /// 직접 쓰기 칸에 적힌 글. 비었으면 ""
+    /// Text currently in the direct-input field, empty when absent.
     public let otherDraft: String
     public let notesActive: Bool
 
@@ -42,19 +42,19 @@ public struct ChoiceDialog: Equatable, Sendable {
 public enum ScreenState: Equatable, Sendable {
     case choiceDialog(ChoiceDialog)
     case review(focusedOnSubmit: Bool)
-    /// 질문 창이 없고 프롬프트가 보임. 진행 중 화면도 빈 프롬프트로 읽힌다
+    /// No dialog and a visible prompt; running screens can also appear as an empty prompt.
     case prompt(draft: String)
     case unrecognized
 }
 
-/// Claude Code 2.1.309 의 질문 창·확인 화면·프롬프트를 화면 글자로 알아본다. 모양 규칙의 근거는 rulings "v1.2 답장" 실측 표
+/// Recognize Claude Code 2.1.309 dialogs, confirmation, and prompts from rendered text (v1.2 reply rulings measurements).
 public enum ClaudeScreen {
     static let otherPlaceholders: Set<String> = ["Type something.", "Type something"]
     static let chatLabel = "Chat about this"
     static let submitLabel = "Submit"
     static let reviewMarker = "Ready to submit your answers?"
     static let reviewSubmitLabel = "Submit answers"
-    /// 질문 문장은 이만큼만 비교한다. 길이가 다른 화면 폭에서 감겨도 앞부분은 같다
+    /// Compare only the question prefix, which remains stable when terminal widths wrap differently.
     static let questionPrefixLength = 24
 
     public static func interpret(_ screen: ConsoleScreen) -> ScreenState {
@@ -68,13 +68,13 @@ public enum ClaudeScreen {
         return .unrecognized
     }
 
-    /// 입력 칸의 글을 화면과 따로 알려 주는 터미널(Orca `draft`, 실측 S5)에 쓴다. 그런 터미널의 화면 줄에 남은 입력 칸 글자는 흐린 안내·제안 문구뿐이라
-    /// 지우고 따로 받은 글을 넣는다. 질문 창이 떠 있으면 그 글이 어디에 쓰인 것인지 화면으로 확인할 수 없어 그대로 둔다 — 쓰던 글로 보고 보내지 않는다
+    /// For terminals exposing composer text separately, such as Orca draft (S5), screen text contains only faint suggestions.
+    /// Replace that suggestion with the supplied draft; leave dialogs untouched because draft ownership is ambiguous and must block sending.
     public static func placingPromptInput(_ screen: ConsoleScreen) -> ConsoleScreen {
         guard let index = activePromptIndex(screen.lines) else { return screen }
         var lines = screen.lines
         lines[index] = "❯\u{a0}" + (screen.composerDraft ?? "")
-        // 안내 문구가 감겨 이어진 줄도 입력 칸에 속한다
+        // Wrapped hint lines still belong to the composer.
         var next = index + 1
         while next < lines.count, !lines[next].hasPrefix("─"), !lines[next].trimmingCharacters(in: .whitespaces).isEmpty {
             lines[next] = ""
@@ -83,14 +83,14 @@ public enum ClaudeScreen {
         return ConsoleScreen(lines: lines, faint: nil, composerDraft: nil)
     }
 
-    /// 맨 아래에 그려진 것이 지금의 화면이다. 위쪽 기록에 남은 옛 입력 줄이나, 그 아래 질문 창이 떠 있는 화면이면 nil
+    /// Only the bottommost rendered prompt is current; return nil for old scrollback prompts or a later dialog.
     private static func activePromptIndex(_ lines: [String]) -> Int? {
         guard let promptIndex = lines.lastIndex(where: isPromptLine) else { return nil }
         if let headerIndex = lines.lastIndex(where: isHeaderLine), headerIndex > promptIndex { return nil }
         return promptIndex
     }
 
-    /// 화면의 질문 문장 앞부분과 선택지(원래 라벨)가 순서까지 같아야 같은 질문이다
+    /// Match the question prefix and original option labels in exact order.
     public static func matches(_ dialog: ChoiceDialog, question: ChoiceQuestion) -> Bool {
         let shown = normalized(dialog.questionText)
         let asked = normalized(question.text)
@@ -99,19 +99,19 @@ public enum ClaudeScreen {
         return labels == question.options.map(\.label)
     }
 
-    /// 입력 칸은 폭에 맞춰 단어 사이에서 감기며 그 자리의 공백이 사라지므로 공백을 빼고 비교한다
+    /// Wrapping removes inter-word spaces, so compare composer text without whitespace.
     public static func sameText(_ lhs: String, _ rhs: String) -> Bool {
         lhs.filter { !$0.isWhitespace } == rhs.filter { !$0.isWhitespace }
     }
 
-    // MARK: 줄 종류
+    // MARK: Line kinds
 
-    /// 프롬프트는 `❯` 뒤에 NBSP 가 오고, 선택지 포인터는 일반 공백이 온다 (실측 ⑨·①)
+    /// Prompts use NBSP after ❯; option pointers use ordinary spaces (measurements 9 and 1).
     private static func isPromptLine(_ line: String) -> Bool {
         line == "❯" || line.hasPrefix("❯\u{a0}")
     }
 
-    /// 질문 창 맨 위의 머리표 줄(` ☐ 머리표`) 또는 질문이 여럿일 때의 탭 줄(`←  ☐ 가  ☐ 나  ✔ Submit  →`)
+    /// Dialog header chip or multi-question tab row, including arrows, question chips, and Submit.
     private static func isHeaderLine(_ line: String) -> Bool {
         var rest = Substring(line).drop(while: { $0 == " " })
         if rest.hasPrefix("←") { rest = rest.dropFirst().drop(while: { $0 == " " }) }
@@ -119,7 +119,7 @@ public enum ClaudeScreen {
         return first == "☐" || first == "☒"
     }
 
-    // MARK: 질문 창
+    // MARK: Question dialogs
 
     private struct ParsedRow {
         let number: Int?
@@ -147,17 +147,17 @@ public enum ClaudeScreen {
         return .choiceDialog(ChoiceDialog(questionText: question, rows: rows, otherDraft: draft))
     }
 
-    /// 긴 질문은 줄마다 `│ ` 거터가 붙는다 (실측)
+    /// Wrapped questions repeat the vertical gutter on each line.
     private static func questionLine(_ line: String) -> String {
         var text = Substring(line)
         if text.hasPrefix("│") { text = text.dropFirst() }
         return text.trimmingCharacters(in: .whitespaces)
     }
 
-    /// 선택지 번호는 표시 기호 뒤 한 칸(두 자리 번호에 맞춰 정렬되면 두 칸)에서 시작한다. 설명 줄은 다섯 칸 들여 써 있다
+    /// Option numbers start one space after the pointer (two for aligned two-digit numbers); descriptions indent five spaces.
     static let maxRowIndent = 2
 
-    /// `❯ 1. 라벨`, `  2. [✔] 라벨`, `❯    Submit`. 설명 줄처럼 번호가 없거나 깊이 들여쓴 줄은 nil
+    /// Parse pointer/number/label or checked options; unnumbered Submit/description/deeply indented lines return nil.
     private static func parseRow(_ line: String) -> ParsedRow? {
         guard let marker = line.first, marker == "❯" || marker == " " else { return nil }
         let isFocused = marker == "❯"
@@ -179,7 +179,7 @@ public enum ClaudeScreen {
         return ParsedRow(number: number, row: ChoiceRow(label: label, isFocused: isFocused, isChecked: isChecked, kind: .option))
     }
 
-    /// 직접 쓰기 줄은 글을 쓰면 안내 문구가 사라지므로 글자가 아니라 자리로 찾는다: Chat 줄 바로 앞 번호
+    /// Locate direct input by position immediately before Chat, since typing replaces its placeholder text.
     private static func classify(_ parsed: [ParsedRow]) -> [ChoiceRow] {
         let chatNumber = parsed.last { $0.row.label == chatLabel }?.number
         let otherNumber = chatNumber.map { $0 - 1 }
@@ -199,10 +199,10 @@ public enum ClaudeScreen {
         }
     }
 
-    // MARK: 프롬프트
+    // MARK: Prompt
 
-    /// 프롬프트 줄과 이어지는 줄(입력이 길어 감긴 줄)에서 흐리지 않은 글자만 모은다.
-    /// 흐림을 읽지 못하는 화면에서는 안내·제안 문구도 글로 남아, 비어 있지 않은 것으로 판정된다 (설계 4.4 "애매하면 비어 있지 않은 것")
+    /// Collect only non-faint text from the prompt and its wrapped continuation lines.
+    /// Without faint styling, hints look like draft text; ambiguity must count as non-empty (design §4.4).
     private static func promptDraft(_ screen: ConsoleScreen, from promptIndex: Int) -> String {
         var pieces: [String] = []
         var index = promptIndex

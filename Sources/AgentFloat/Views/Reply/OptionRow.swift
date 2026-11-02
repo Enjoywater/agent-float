@@ -1,7 +1,7 @@
 import AgentFloatCore
 import SwiftUI
 
-/// 선택지 한 줄. 번호 키 → 고르면 채운 원 체크(여러 개 고르기는 체크 상자 모양), 라벨, 추천 배지, 설명 (설계 4.8, 시안 1)
+/// Option row: keyboard number, filled-circle selection (checkbox for multi-select), label, recommendation, description (design §4.8, draft 1).
 struct OptionRow: View {
     let number: Int
     let option: ChoiceOption

@@ -27,7 +27,7 @@ import Testing
         FakeCommandRunner.Call(executable: "/fake/tmux", arguments: ["-S", Self.socket] + arguments)
     }
 
-    // MARK: 출력 해석
+    // MARK: Output parsing
 
     @Test func parsesClientList() {
         let output = "/dev/ttys001\t501\tmain\t1792370000\n/dev/ttys002\t502\twork\t1792370100\n"
@@ -45,7 +45,7 @@ import Testing
         let main = TmuxClient(tty: "/dev/ttys001", pid: 501, session: "main", activity: 200)
         let work = TmuxClient(tty: "/dev/ttys002", pid: 502, session: "work", activity: 100)
         #expect(TmuxCLI.chooseClient(for: "work", among: [main, work]) == work)
-        // 그 세션을 보는 클라이언트가 없으면 사용자가 가장 최근에 만진 클라이언트로 데려간다
+        // Without a client already viewing the session, choose the most recently active client.
         #expect(TmuxCLI.chooseClient(for: "other", among: [work, main]) == main)
         #expect(TmuxCLI.chooseClient(for: "work", among: []) == nil)
     }
@@ -66,7 +66,7 @@ import Testing
         #expect(resolved == TmuxCLI.candidatePaths.first { FileManager.default.isExecutableFile(atPath: $0) })
     }
 
-    // MARK: 이동
+    // MARK: Navigation
 
     @Test func attachedPaneSwitchesClientThenOuterTerminal() async throws {
         let fake = FakeCommandRunner { call in

@@ -1,7 +1,7 @@
 import Foundation
 import Synchronization
 
-/// 공유 app-server의 실제 런타임 상태를 읽는다. 저장된 대화 목록이나 mtime은 생존 증거로 쓰지 않는다.
+/// Read actual shared app-server runtime state; saved conversations and mtimes do not prove liveness.
 public final class CodexCodeProvider: AgentProvider, AnswerRecordReading, Sendable {
     public let id = "codex"
     public var watchedDirectories: [URL] { [codexHome.appendingPathComponent("app-server-control")] }
@@ -12,7 +12,7 @@ public final class CodexCodeProvider: AgentProvider, AnswerRecordReading, Sendab
     private let cache = Mutex<[String: AgentSession]>([:])
     private let errorMessage = Mutex<String?>(nil)
     private let transcriptPaths = Mutex<[String: String]>([:])
-    /// UI 없이 탐지 연결을 진단할 때 사용한다. 연결 성공 또는 소켓 부재 시 nil.
+    /// Expose discovery diagnostics without UI; nil on a successful connection or absent socket.
     public var lastError: String? { errorMessage.withLock { $0 } }
 
     public init(codexHome: URL) {
@@ -63,7 +63,7 @@ public final class CodexCodeProvider: AgentProvider, AnswerRecordReading, Sendab
                     do {
                         response = try JSONDecoder().decode(ThreadResponse.self, from: client.call("thread/read", params: params))
                     } catch CodexRPCError.server(let code) where code == -32602 {
-                        // 목록을 읽은 직후 내려간 세션을 다시 로드하지 않는다.
+                        // Do not reload sessions unloaded immediately after listing.
                         continue
                     }
                     let thread = response.thread
@@ -103,7 +103,7 @@ public final class CodexCodeProvider: AgentProvider, AnswerRecordReading, Sendab
                 transcriptPaths.withLock { paths in paths = paths.filter { sessions[$0.key] != nil } }
             } catch {
                 errorMessage.withLock { $0 = String(describing: error) }
-                // SessionStore의 오류 폴백은 이전 running을 유지한다. 여기서는 관측 실패를 명시한다.
+                // SessionStore preserves previous running state on error; explicitly represent failed observation here.
                 previous = previous.mapValues { old in
                     AgentSession(
                         key: old.key, agentName: old.agentName, title: old.title, cwd: old.cwd,

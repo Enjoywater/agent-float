@@ -1,7 +1,7 @@
 import AgentFloatCore
 import SwiftUI
 
-/// 답장 화면의 수치. v1.2 설계 4.8 표의 값 그대로다
+/// Reply dimensions match the v1.2 design §4.8 table.
 enum ReplyLayout {
     static let width: CGFloat = 320
     static let innerRadius: CGFloat = 12
@@ -24,14 +24,14 @@ enum ReplyLayout {
     static let fieldMaxLines = 5
     static let slideOffset: CGFloat = 12
     static let autoReturn: Duration = .milliseconds(1200)
-    /// 본문 질문은 끝에 묻는 말이 있어 끝부분만 보여 준다 (설계 6장 빌더 재량의 출발점)
+    /// Text replies ask at the end, so show only the tail (design §6 implementation starting point).
     static let messageTailLines = 12
     static let messageTailCharacters = 600
     static let messageMaxHeight: CGFloat = 182
     static let messageFade: CGFloat = 34
 }
 
-/// 답장 화면의 문구. 설계 4.6 문구 표와 rulings R57·R58·R62 그대로다
+/// Reply copy follows design §4.6 and rulings R57, R58, R62.
 enum ReplyCopy {
     struct Strip {
         let title: String
@@ -108,7 +108,7 @@ enum ReplyCopy {
     static let stages = ["같은 질문을 기다리는지 확인", "터미널 화면 확인", "입력하는 중", "기록된 답 확인"]
 }
 
-/// 답장 화면의 채움·선 색. 색은 상태·선택·주요 버튼에만 쓴다 (설계 4.8)
+/// Reply fills/strokes; reserve color for states, selections, and primary actions (design §4.8).
 enum ReplyPalette {
     static let accent = Color(nsColor: .systemBlue)
     static let failed = Color(nsColor: .systemRed)
@@ -121,7 +121,7 @@ enum ReplyPalette {
         Color.primary.opacity(scheme == .dark ? 0.11 : 0.075)
     }
 
-    /// 입력 칸의 오목한 바닥
+    /// Recessed input-field surface.
     static func well(_ scheme: ColorScheme) -> Color {
         scheme == .dark ? Color.black.opacity(0.24) : Color.white.opacity(0.62)
     }

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Labels {
-    /// 상태가 유지된 시간을 가장 큰 단위 하나로만 보여준다 (분 미만은 "<1m")
+    /// Show elapsed status time using the largest unit only; less than a minute is <1m.
     public static func elapsed(_ interval: TimeInterval) -> String {
         switch interval {
         case ..<60: "<1m"
@@ -11,7 +11,7 @@ public enum Labels {
         }
     }
 
-    /// 경로 전체는 위젯 폭에 안 맞아 마지막 폴더명만 쓴다. 홈과 빈 값은 "~"
+    /// Use the final folder component to fit the widget; home and empty paths display ~.
     public static func folder(cwd: String, home: String) -> String {
         let path = trimmingTrailingSlashes(cwd)
         if cwd.isEmpty || path == trimmingTrailingSlashes(home) { return "~" }

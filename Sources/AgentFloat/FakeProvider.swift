@@ -1,13 +1,13 @@
 import AgentFloatCore
 import Foundation
 
-/// `AGENT_FLOAT_FAKE_SESSIONS=<n>` 일 때 실제 세션 대신 쓰는 시각 검증용 provider.
-/// 많은 줄(넘침·스크롤)과 긴 제목(말줄임)을 사람이 세션을 띄우지 않고도 재현하려는 것이다 (Review Focus 2)
+/// Visual-test provider used instead of real sessions when AGENT_FLOAT_FAKE_SESSIONS=<n>.
+/// Reproduce overflow, scrolling, and title truncation without launching real agents (Review Focus 2).
 struct FakeProvider: AgentProvider {
     let id = "fake"
     let count: Int
     let startedAt: Date
-    /// 촬영 시나리오는 가짜 세션 모드에서만 적용한다. 일반 가짜 세션의 넘침 검사는 그대로 둔다.
+    /// Apply media scenarios only in fake mode, preserving the normal overflow fixture.
     var mediaScene: MediaScene? = nil
     var mediaAgent: MediaAgent = .claude
 
@@ -20,7 +20,7 @@ struct FakeProvider: AgentProvider {
 
     var watchedDirectories: [URL] { [] }
 
-    /// NEW 는 "켜져 있는 동안 진행 → 완료" 전환에서만 생기므로(spec 4.6), 한 줄을 실행 직후 잠시 진행으로 두었다가 완료로 바꾼다
+    /// NEW requires a running-to-done transition while the app is open; briefly start one row as running (spec §4.6).
     private static let finishAfter: TimeInterval = 6
 
     private static let titles = [
@@ -113,7 +113,7 @@ struct FakeProvider: AgentProvider {
         }
     }
 
-    /// 답장 화면 시안(v1.2 `reply-flow-c.html`)과 같은 가상 질문. 대기 세션은 0, 4, 8, 12, 16… 번째다
+    /// Match the fictional question in v1.2 reply-flow-c.html; waiting sessions occupy indices 0, 4, 8, 12, 16…
     private static func prompt(for index: Int) -> PendingPrompt? {
         switch index {
         case 0:

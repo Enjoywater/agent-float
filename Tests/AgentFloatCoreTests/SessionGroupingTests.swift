@@ -26,7 +26,7 @@ import Testing
     }
 
     @Test func groupsOrderAndSorting() {
-        // 입력은 일부러 화면 순서와 어긋나게 섞는다
+        // Intentionally shuffle input away from display order.
         let sessions = [
             Self.session("done-old", .done, minutesAgo: 50),
             Self.session("unknown-1", .unknown, minutesAgo: 5),
@@ -61,7 +61,7 @@ import Testing
         ])
         #expect(Self.ids(running[0]) == ["r-new", "r-old"])
 
-        // 같은 시각이면 입력 순서와 무관하게 제목 순으로 고정되어야 화면이 깜빡이지 않는다
+        // Equal timestamps must sort deterministically by title, not input order, to avoid flickering.
         let tied = SessionGrouping.groups([
             Self.session("x1", .waiting, minutesAgo: 5, title: "beta"),
             Self.session("x2", .waiting, minutesAgo: 5, title: "alpha"),

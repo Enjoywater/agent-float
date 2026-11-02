@@ -3,7 +3,7 @@ import Synchronization
 import Testing
 @testable import AgentFloatCore
 
-/// 보낸 입력 수에 따라 정해 둔 화면을 돌려주고, 보낸 입력을 남긴다
+/// Return screens based on sent-input count and record each input.
 private final class ScriptedConsole: TerminalConsole, Sendable {
     let promptCheck: PromptCheck
     private let verdict: ConsoleAvailability
@@ -59,7 +59,7 @@ private func sequence(_ names: [String]) throws -> @Sendable (Int) throws -> Con
     return { screens[min($0, screens.count - 1)] }
 }
 
-/// 선택지 n 개짜리 질문 창에서 포커스만 다른 화면
+/// Generate an n-option dialog with varying focus.
 private func manyOptionScreen(count: Int, focus: Int) -> ConsoleScreen {
     var lines = [String(repeating: "─", count: 40), " ☐ 고르기", "", "열 개 중 고르세요", ""]
     for index in 0..<count {
@@ -69,7 +69,7 @@ private func manyOptionScreen(count: Int, focus: Int) -> ConsoleScreen {
     return ConsoleScreen(lines: lines, faint: nil, composerDraft: nil)
 }
 
-/// 번호가 붙은 줄 중 그 번호 줄만 포커스로 바꾼 화면
+/// Focus only the numbered row matching the requested index.
 private func refocus(_ screen: ConsoleScreen, toRow number: Int) -> ConsoleScreen {
     let lines = screen.lines.map { line -> String in
         guard let marker = line.first, marker == "❯" || marker == " ",
@@ -189,7 +189,7 @@ private func deliver(
         #expect(console.inputs == [.key(.down)])
     }
 
-    /// Ghostty 는 읽을 때마다 osascript·손쉬운 사용을 거쳐 한 번씩 실패할 수 있다. 시간 제한 안에서는 다시 읽는다 (최종 리뷰 M2)
+    /// Ghostty's osascript/Accessibility reads may fail transiently; retry within the deadline (final review M2).
     @Test func oneFailedReadAfterAKeyIsRetried() async throws {
         let start = try screenFixture("choice-single-focus0.txt")
         let busy = try screenFixture("prompt-busy.txt")
@@ -204,7 +204,7 @@ private func deliver(
             return busy
         }
         let answer = "읽은 때부터 다시 세기 (Recommended)"
-        // 여러 테스트가 함께 돌면 50ms 안에 다시 읽을 차례가 오지 않을 수 있어 넉넉히 준다. 성공하면 바로 끝난다
+        // Concurrent tests may delay a retry beyond 50 ms; allow slack while successful checks still finish immediately.
         let roomy = DeliveryTiming(stepTimeout: .seconds(2), pollInterval: .milliseconds(5), recordTimeout: .seconds(2))
         let outcome = await deliver(.choices([.option(0)]), console: console, record: .choices([question: answer]), timing: roomy)
         #expect(outcome == .delivered(.choices([question: answer])))
@@ -264,7 +264,7 @@ private func deliver(
         #expect(console.inputs.count == afterReturn)
     }
 
-    /// Orca 에서 본문 질문에 답하는 전체 흐름: 안내 문구만 있는 빈 칸 → 넣은 글이 `draft` 로 보임 → Enter 뒤 `draft` 없음 (실측 S5 ④)
+    /// Orca text-reply flow: hint-only empty composer, typed draft, then absent draft after Enter (S5, 4).
     @Test func deliversBodyReplyThroughOrcaDraft() async {
         let sends = Mutex(0)
         let runner = FakeCommandRunner { call in
@@ -308,14 +308,14 @@ private func deliver(
         #expect(console.inputs == [.text("응, 진행해 줘"), .key(.enter)])
     }
 
-    /// 프롬프트 줄만 바꾼 화면. 흐림을 읽지 못하는 콘솔처럼 안내 문구도 글로 남는다
+    /// Replace only the prompt row, keeping hints as text like a console without faint styling.
     private func promptScreen(_ text: String) throws -> ConsoleScreen {
         ConsoleScreen(lines: try screenFixture("prompt-draft.txt").lines.map {
             $0.hasPrefix("❯\u{a0}") ? "❯\u{a0}" + text : $0
         }, faint: nil, composerDraft: nil)
     }
 
-    /// Ghostty 의 전체 흐름: 안내 문구 → 첫 글자만 보임 → 답 전체 → Enter 뒤 안내 문구 (R78)
+    /// Ghostty flow: hint, probe character, full answer, then hint after Enter (R78).
     @Test func deliversBodyReplyByProbing() async throws {
         let body = PendingPrompt.text(id: "a-2", message: "다음 작업을 진행할까요?")
         let screens = try ["Try \"안내 문구\"", "응", "응, 진행해 줘", "Try \"안내 문구\""].map(promptScreen)
@@ -343,7 +343,7 @@ private func deliver(
         #expect(console.inputs == [.text("응"), .key(.backspace)])
     }
 
-    /// 지운 뒤에도 처음 글로 돌아오지 않으면 남은 글자를 터미널에서 확인해야 한다
+    /// If deletion fails to restore the original text, the remaining character requires terminal inspection.
     @Test func eraseThatLeavesTextStops() async throws {
         let body = PendingPrompt.text(id: "a-2", message: "다음 작업을 진행할까요?")
         let screens = try ["쓰던 글", "쓰던 글응", "쓰던 글응!"].map(promptScreen)

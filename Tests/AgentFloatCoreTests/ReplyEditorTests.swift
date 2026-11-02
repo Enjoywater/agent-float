@@ -17,7 +17,7 @@ import Testing
     ])
     private static let body = PendingPrompt.text(id: "a-2", message: "다음 작업을 진행할까요?")
 
-    // MARK: 질문 창
+    // MARK: Question dialogs
 
     @Test func singleQuestionSendsWhenChosen() {
         var editor = ReplyEditor(prompt: Self.single)
@@ -124,7 +124,7 @@ import Testing
         #expect(editor.draft == nil)
     }
 
-    // MARK: 본문 질문과 글 검사
+    // MARK: Text questions and validation
 
     @Test func bodyReplySends() {
         var editor = ReplyEditor(prompt: Self.body)
@@ -133,7 +133,7 @@ import Testing
         #expect(editor.draft == .text("응, 진행해 줘"))
     }
 
-    /// 앞뒤 공백은 보낼 글에서 뺀다. Claude Code 가 공백을 다듬어 기록하면 보낸 글과 달라 보여 실패로 표시된다 (최종 리뷰 M1)
+    /// Trim surrounding whitespace to match Claude's normalized transcript and avoid false mismatches (final review M1).
     @Test func surroundingWhitespaceIsTrimmedFromTheDraft() {
         var body = ReplyEditor(prompt: Self.body)
         body.setReply("  응, 진행해 줘 ")
@@ -154,7 +154,7 @@ import Testing
         #expect(editor.block == nil)
     }
 
-    /// Claude Code 는 800자를 넘게 붙여 넣으면 `[Pasted text #N]` 으로 접어, 화면에서 넣은 글을 확인할 수 없다 (실측 S6 ⑧)
+    /// Claude collapses pastes over 800 characters into a marker, preventing onscreen verification (S6, 8).
     @Test func textOverPasteFoldLimitIsBlocked() {
         #expect(ReplyText.block(String(repeating: "a", count: 800), inPrompt: true) == nil)
         #expect(ReplyText.block(String(repeating: "a", count: 801), inPrompt: true) == .tooLong)
@@ -182,7 +182,7 @@ import Testing
         #expect(editor.primary == .disabled)
     }
 
-    // MARK: 키
+    // MARK: Keys
 
     @Test func returnDuringCompositionOnlyCommits() {
         #expect(ReplyKeys.action(for: .returnKey, fieldFocused: true, hasMarkedText: true) == .commitComposition)
@@ -205,7 +205,7 @@ import Testing
         #expect(ReplyKeys.action(for: .escape, fieldFocused: true, hasMarkedText: true) == .passThrough)
     }
 
-    // MARK: 배치 설정
+    // MARK: Placement preferences
 
     @Test func placementDefaultsToPanel() {
         #expect(ReplyPlacement.resolve(override: nil, saved: nil) == .panel)

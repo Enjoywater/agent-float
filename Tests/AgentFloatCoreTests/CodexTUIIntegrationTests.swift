@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import AgentFloatCore
 
-/// 외부 모델 대신 로컬 응답 fixture에 연결한 실제 Codex TUI에서만 명시적으로 실행한다.
+/// Run explicitly against a real Codex TUI backed by local response fixtures rather than an external model.
 struct CodexTUIIntegrationTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["AGENT_FLOAT_CODEX_TUI_FIXTURE"] != nil))
     func deliversAndVerifiesThroughActualCodexTUI() async throws {

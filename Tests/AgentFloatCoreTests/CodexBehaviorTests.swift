@@ -71,7 +71,7 @@ struct CodexBehaviorTests {
         let after = CodexTranscript.parse(Data((data + output).utf8), sessionID: "s")
         #expect(after.pendingChoice == nil)
         #expect(after.records[id] == .choices(["Which color should we use?": "Purple"]))
-        // 기록 중인 출력으로는 답변 완료로 판정하지 않는다.
+        // Partially written output must not imply a completed answer.
         let incomplete = CodexTranscript.parse(Data((data + output.dropLast()).utf8), sessionID: "s")
         #expect(incomplete.records[id] == nil)
         #expect(incomplete.pendingChoice != nil)

@@ -1,8 +1,8 @@
 import AgentFloatCore
 import SwiftUI
 
-/// 답장 화면에서 띠·질문·선택지·입력 칸을 그리는 부분. 세 배치(패널 전환·줄 안·옆 카드)가 같이 쓴다 (설계 4.5)
-/// 패널 전환(C)과 줄 안(A)은 간격과 질문 글자 크기가 다르다 (설계 4.8)
+/// Shared strips, questions, options, and fields for panel, inline, and side-card placements (design §4.5).
+/// Panel C and inline A use different spacing and question font sizes (design §4.8).
 enum ReplyContentStyle {
     case panel, inline
 
@@ -10,7 +10,7 @@ enum ReplyContentStyle {
     var chipToQuestion: CGFloat { self == .panel ? ReplyLayout.chipToQuestion : 6 }
     var questionToOptions: CGFloat { self == .panel ? ReplyLayout.questionToOptions : 10 }
     var questionSize: CGFloat { self == .panel ? 13 : 12.5 }
-    /// 글자 크기에 더해 줄 높이 18.5(패널)·18(줄 안)이 되는 간격. 두 배치 모두 3 이다
+    /// Add spacing 3 to the font for line heights 18.5 (panel) and 18 (inline).
     var questionLineSpacing: CGFloat { 3 }
 }
 
@@ -38,7 +38,7 @@ struct ReplyContent: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: 상태
+    // MARK: State
 
     private var readOnly: ReadOnlyReason? {
         if case let .readOnly(reason)? = center.availability[session.key] { return reason }
@@ -50,7 +50,7 @@ struct ReplyContent: View {
         return false
     }
 
-    /// 결과·실패 화면은 띠만 남긴다. 보내지 않은 결과와 편집 중에는 쓴 답을 그대로 보여 준다
+    /// Results/failures show only strips; unsent results and editing preserve the draft.
     private var showsEditor: Bool {
         switch center.phase {
         case .editing, .sending: true
@@ -106,7 +106,7 @@ struct ReplyContent: View {
         }
     }
 
-    /// 기록된 답을 사람이 읽는 한 줄로. 질문이 여럿이면 질문 순서대로 잇는다
+    /// Render recorded answers on one line, joining multiple questions in order.
     static func describe(_ answer: RecordedAnswer, prompt: PendingPrompt?) -> String {
         switch answer {
         case let .text(text):
@@ -117,7 +117,7 @@ struct ReplyContent: View {
         }
     }
 
-    // MARK: 편집
+    // MARK: Editing
 
     @ViewBuilder
     private func editorContent(prompt: PendingPrompt, editor: ReplyEditor) -> some View {
@@ -165,7 +165,7 @@ struct ReplyContent: View {
                         option: option,
                         isSelected: Self.isSelected(index, in: editor.answers[editor.step]),
                         multiSelect: question.multiSelect,
-                        // 직접 입력을 시작하면 설명을 접어 칸이 위로 밀려 올라가지 않게 한다 (시안 2)
+                        // Collapse the description on direct input so the field does not move upward (draft 2).
                         showsDescription: editor.otherText.isEmpty,
                         isEnabled: readOnly == nil,
                         onChoose: { center.choose(index) }
@@ -205,7 +205,7 @@ struct ReplyContent: View {
     }
 }
 
-/// 질문 창의 머리표 칩 (10.5 Semibold, 주황 20%)
+/// Question-dialog header chip: 10.5 Semibold, 20% orange.
 struct HeaderChip: View {
     let text: String
 
@@ -222,7 +222,7 @@ struct HeaderChip: View {
     }
 }
 
-/// 질문이 여럿일 때 "1 / 2" + 진행 막대
+/// Multi-question progress: fraction plus progress bar.
 struct StepIndicator: View {
     let step: Int
     let count: Int
@@ -247,7 +247,7 @@ struct StepIndicator: View {
     }
 }
 
-/// 질문 여러 개의 확인 화면 "이렇게 보낼게요" (시안 4)
+/// Multi-question confirmation preview (draft 4).
 struct ReviewList: View {
     let editor: ReplyEditor
     let onEdit: (Int) -> Void
@@ -300,7 +300,7 @@ struct ReviewList: View {
     }
 }
 
-/// 본문 질문의 마지막 답변 끝부분. 묻는 말은 끝에 있으므로 위쪽을 흐리며 자른다 (시안 5)
+/// Show the tail of text replies where the question occurs, fading/cropping earlier content (draft 5).
 struct MessageTail: View {
     let message: String
 
@@ -355,14 +355,14 @@ struct MessageTail: View {
         return (text, truncated)
     }
 
-    /// 굵게·코드 정도만 살린다. 목록·제목 기호는 글자 그대로 둔다 (설계 6장 빌더 재량)
+    /// Preserve bold and inline code only; leave list/heading markers literal (design §6 implementation discretion).
     private static func rendered(_ text: String) -> AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 }
 
-/// 승인 대기 세션이 실행하려는 명령 (시안 10의 승인 대기)
+/// The command awaiting permission (draft 10).
 struct CommandBox: View {
     let tool: String
     let summary: String

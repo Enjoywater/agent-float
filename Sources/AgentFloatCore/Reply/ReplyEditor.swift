@@ -4,27 +4,27 @@ public enum PrimaryAction: Equatable, Sendable {
     case send, next, disabled
 }
 
-/// 보낼 수 없는 글의 이유. 화면 아래 안내 문구가 이 값을 따른다
+/// Input-rejection reasons also drive the helper text below the field.
 public enum TextBlock: Equatable, Sendable {
-    /// `/`·`!`·`#` 로 시작하면 Claude Code 가 명령·셸·메모로 읽는다
+    /// Claude interprets leading /, !, and # as commands, shell execution, and notes.
     case commandLike
-    /// `@` 가 있으면 프롬프트 위에 파일 자동 완성이 떠 Enter 가 글 대신 제안을 고른다 (실측 ⑩)
+    /// An @ opens file completion, making Enter select a suggestion rather than submit text (measurement 10).
     case mention
     case multiline
     case controlCharacter
-    /// 붙여 넣은 글이 길면 Claude Code 가 `[Pasted text #N]` 으로 접어, 화면에서 넣은 글을 확인할 수 없다
+    /// Long pastes collapse into Pasted text markers, preventing onscreen verification.
     case tooLong
 }
 
 public enum ReplyText {
-    /// Claude Code 2.1.310 은 800자까지 그대로 두고 801자부터 접는다(실측 S6 ⑧). 글자 수는 JS 문자열 길이인 UTF-16 단위다
+    /// Claude 2.1.310 preserves up to 800 UTF-16 units and collapses at 801 (S6, 8), matching JS string length.
     public static let pasteFoldLimit = 800
 
-    /// 직접 쓰기 칸에는 자동 완성이 뜨지 않아 명령·`@` 규칙은 프롬프트에만 적용한다 (실측 ⑩)
+    /// Direct-input fields have no completion; apply command/@ restrictions only to the main composer (measurement 10).
     public static func block(_ text: String, inPrompt: Bool) -> TextBlock? {
         if text.contains(where: \.isNewline) { return .multiline }
         if text.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) { return .controlCharacter }
-        // 보낼 글은 앞뒤 공백을 뺀 글이다
+        // Trim surrounding whitespace before sending.
         if text.trimmingCharacters(in: .whitespaces).utf16.count > pasteFoldLimit { return .tooLong }
         guard inPrompt else { return nil }
         if let first = text.first(where: { !$0.isWhitespace }), "/!#".contains(first) { return .commandLike }
@@ -33,10 +33,10 @@ public enum ReplyText {
     }
 }
 
-/// 답장 화면에서 고르고 쓰는 중인 답. 질문 id 별로 보관되어, 다른 줄을 보고 돌아와도 그대로 남는다
+/// Retain edited answers by question ID so leaving and reopening a row preserves drafts.
 public struct ReplyEditor: Equatable, Sendable {
     public let prompt: PendingPrompt
-    /// 지금 보고 있는 질문. 질문이 여럿이면 `questions.count` 가 확인 화면이다
+    /// Current question index; questions.count represents multi-question confirmation.
     public private(set) var step = 0
     public private(set) var answers: [ChoiceAnswer?]
     public private(set) var replyText = ""
@@ -61,7 +61,7 @@ public struct ReplyEditor: Equatable, Sendable {
         otherTexts.indices.contains(step) ? otherTexts[step] : ""
     }
 
-    /// 여러 개 고르기의 직접 입력은 기록 형식을 실측하지 못해 받지 않는다 (Task 3 결정)
+    /// Disable multi-select custom input because its recorded format has not been measured (Task 3 decision).
     public var acceptsOtherText: Bool {
         currentQuestion.map { !$0.multiSelect } ?? false
     }
@@ -97,7 +97,7 @@ public struct ReplyEditor: Equatable, Sendable {
         replyText = text
     }
 
-    /// 확인 화면에서 고치러 들어왔다가 다 답했으면 곧바로 확인 화면으로 돌아간다
+    /// After editing an already complete multi-question answer, return directly to confirmation.
     public mutating func advance() {
         guard questions.count > 1, step < questions.count, isAnswered(step) else { return }
         step = answers.indices.allSatisfy(isAnswered) ? questions.count : step + 1
@@ -132,8 +132,8 @@ public struct ReplyEditor: Equatable, Sendable {
         }
     }
 
-    /// 보낼 수 있을 때만 값이 있다. 질문이 여럿이면 확인 화면에서만 보낸다.
-    /// 앞뒤 공백은 뺀다 — Claude Code 가 다듬어 기록하면 보낸 글과 기록이 달라 보이기 때문이다
+    /// Expose a value only when sendable; multi-question answers send from confirmation only.
+    /// Trim surrounding whitespace because Claude's normalized recording would otherwise look mismatched.
     public var draft: ReplyDraft? {
         switch prompt {
         case .permission:
@@ -178,7 +178,7 @@ public enum ReplyKeyAction: Equatable, Sendable {
 }
 
 public enum ReplyKeys {
-    /// 한글 조합 중의 ⏎ 는 글자를 확정하는 키다. 여기서 보내면 마지막 글자가 빠지거나 반쯤 조합된 채 보내진다
+    /// Return commits IME composition; sending then could drop or partially compose the final character.
     public static func action(for input: ReplyKeyInput, fieldFocused: Bool, hasMarkedText: Bool) -> ReplyKeyAction {
         switch input {
         case let .digit(number):
@@ -187,7 +187,7 @@ public enum ReplyKeys {
         case .returnKey:
             return hasMarkedText ? .commitComposition : .primary
         case .escape:
-            // 조합 중 esc 는 입력기가 조합을 취소하는 데 쓴다
+            // During composition, Escape belongs to the input method.
             if hasMarkedText { return .passThrough }
             return fieldFocused ? .leaveField : .back
         case .other:

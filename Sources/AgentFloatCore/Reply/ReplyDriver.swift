@@ -1,6 +1,6 @@
 import Foundation
 
-/// 질문 하나에 대한 답. 번호는 질문의 선택지 순서(0부터)
+/// One question's answer; option indices are zero-based.
 public enum ChoiceAnswer: Equatable, Sendable {
     case option(Int)
     case options(Set<Int>)
@@ -13,18 +13,18 @@ public enum ReplyDraft: Equatable, Sendable {
 }
 
 public struct ReplyProgress: Equatable, Sendable {
-    /// 마지막으로 화면에서 본 질문 번호
+    /// Last question index observed onscreen.
     public var question: Int
-    /// 지금 질문의 칸(또는 프롬프트)에 글을 이미 입력했는지. 같은 글을 두 번 넣지 않기 위함
+    /// Track typed input per question to prevent inserting the same text twice.
     public var typedText: Bool
-    /// 답 전체를 제출하는 Enter 를 눌렀는지. 이 뒤에 질문 창이 사라져야 정상적으로 끝난 것이다
+    /// Whether final submission Enter was sent; successful completion requires the dialog to disappear afterward.
     public var pressedSubmit: Bool
-    /// 지금 질문을 고르고 다음 질문으로 넘기는 Enter 를 눌렀는지. 다음 화면은 이 질문이 아니라 그 뒤 질문에서 찾는다 —
-    /// 앞부분과 선택지가 같은 두 질문이면 뒤 질문 화면이 앞 질문과 맞아 보여 앞 질문의 답을 넣게 된다
+    /// Track advancing Enter separately and look only at subsequent questions;
+    /// otherwise identical prefixes/options could match the previous question and receive its answer again.
     public var pressedNext: Bool
-    /// 넣어 보고 확인하는 콘솔에서 첫 글자를 넣기 전 입력 칸에 보이던 글. 그 글자를 지운 뒤 이 글로 돌아와야 사용자 글을 건드리지 않은 것이다
+    /// Remember pre-probe text; deletion must restore it exactly to prove user text was untouched.
     public var promptBefore: String?
-    /// 첫 글자를 지우는 키를 보냈는지
+    /// Whether the probe-deletion key has been sent.
     public var erasedProbe: Bool
 
     public init(
@@ -44,7 +44,7 @@ public enum ReplyMove: Equatable, Sendable {
     case send(ConsoleInput)
     case finished
     case stuck(String)
-    /// 넣어 본 첫 글자를 지워 입력 칸을 처음대로 되돌림. 쓰던 글이 있어 보내지 않은 것이다
+    /// Restore the initial composer after detecting existing text; do not send the reply.
     case restored
 }
 
@@ -52,9 +52,9 @@ public enum StartCheck: Equatable, Sendable {
     case ready, terminalDraft, unexpected
 }
 
-/// 화면을 읽고 다음 키 하나만 정한다. 키 순서를 미리 정해 두면 화면이 예상과 달라진 순간에도 남은 키를 계속 보내게 된다
+/// Choose only one next key from the current screen; precomputed sequences would continue after unexpected changes.
 public enum ReplyDriver {
-    /// G2. 첫 질문이 그대로 떠 있고 사용자가 터미널에서 손대지 않았을 때만 시작한다
+    /// G2: Start only with the unchanged first question and no user edits in the terminal.
     public static func startCheck(prompt: PendingPrompt, screen: ScreenState, check: PromptCheck = .beforeTyping) -> StartCheck {
         switch prompt {
         case let .choices(_, questions):
@@ -64,7 +64,7 @@ public enum ReplyDriver {
             return dialog.focusedIndex == nil ? .unexpected : .ready
         case .text:
             guard case let .prompt(draft) = screen else { return .unexpected }
-            // 안내 문구도 글로 읽히는 콘솔은 여기서 가리지 못해 첫 글자를 넣어 본 뒤에 가린다
+            // Consoles exposing hints as text require a first-character probe before emptiness can be decided.
             if check == .afterTyping { return .ready }
             return draft.isEmpty ? .ready : .terminalDraft
         case .permission:
@@ -72,7 +72,7 @@ public enum ReplyDriver {
         }
     }
 
-    /// G3 한 걸음
+    /// One G3 step.
     public static func nextMove(
         prompt: PendingPrompt, draft: ReplyDraft, progress: inout ReplyProgress, screen: ScreenState, check: PromptCheck = .beforeTyping, codex: Bool = false
     ) -> ReplyMove {
@@ -89,7 +89,7 @@ public enum ReplyDriver {
         }
     }
 
-    /// G4 에서 transcript 에 있어야 할 답. 여러 개 고르기는 선택지 순서대로 ", " 로 이어 기록된다 (실측 ⑦)
+    /// Expected G4 transcript answer; multi-select choices are joined in option order with comma-space (measurement 7).
     public static func expectedRecord(prompt: PendingPrompt, draft: ReplyDraft) -> RecordedAnswer? {
         switch (prompt, draft) {
         case let (.choices(_, questions), .choices(answers)) where questions.count == answers.count:
@@ -114,7 +114,7 @@ public enum ReplyDriver {
         }
     }
 
-    /// 보낸 입력 하나가 만들어야 할 변화만 일어났는지. 그 밖의 변화는 사용자가 터미널에서 함께 손댄 것으로 보고 멈춘다 (Review Focus 1)
+    /// Require exactly the expected change; other changes indicate concurrent terminal edits and stop delivery (Review Focus 1).
     public static func isExpected(
         after input: ConsoleInput, from old: ScreenState, to new: ScreenState, check: PromptCheck = .beforeTyping
     ) -> Bool {
@@ -122,7 +122,7 @@ public enum ReplyDriver {
         case let .choiceDialog(before):
             return dialogTransition(after: input, from: before, to: new)
         case .review:
-            // 제출하자마자 Claude 가 다음 질문 창을 띄울 수 있다. 이 뒤로는 키를 보내지 않고 기록(G4)이 결과를 가린다
+            // Claude may immediately show another dialog after submission; send no further keys and defer to G4.
             guard input == .key(.enter) else { return false }
             switch new {
             case .prompt, .choiceDialog: return true
@@ -133,10 +133,10 @@ public enum ReplyDriver {
             switch input {
             case let .text(text):
                 if ClaudeScreen.sameText(after, draft + text) { return true }
-                // 첫 글자를 넣으면 안내 문구는 사라지고, 쓰던 글이 있으면 그 글의 커서 자리에 끼어 보인다
+                // Typing replaces hints, but inserts into an existing draft at its cursor position.
                 return check == .afterTyping && (ClaudeScreen.sameText(after, text) || isInsertion(of: text, into: draft, giving: after))
             case .key(.enter):
-                // 안내 문구도 글로 읽히는 콘솔에서는 비었는지 대신 넣은 글이 사라졌는지 본다. 보내졌는지는 기록(G4)이 가린다
+                // When hints look like text, verify inserted text disappeared rather than composer emptiness; G4 verifies submission.
                 return check == .afterTyping ? !ClaudeScreen.sameText(after, draft) : after.isEmpty
             case .key(.backspace):
                 return check == .afterTyping && removesOneCharacter(from: draft, giving: after)
@@ -148,8 +148,8 @@ public enum ReplyDriver {
         }
     }
 
-    /// 붙여 넣은 글이 아직 다 그려지지 않은 중간 화면. 이것을 결과로 보면 멀쩡한 입력을 멈추게 된다
-    /// 앞서 보이던 글까지 이어 본다 — 첫 글자를 넣은 뒤 나머지를 넣는 도중이면 앞 글자가 이미 칸에 있다
+    /// Partially rendered paste frames are not results and must not stop valid input.
+    /// Include previous text because the probe character already occupies the field while the remainder is pasted.
     public static func isPartial(after input: ConsoleInput, from old: ScreenState, state: ScreenState) -> Bool {
         guard case let .text(text) = input, let shown = typedField(state) else { return false }
         let typed = ((typedField(old) ?? "") + text).filter { !$0.isWhitespace }
@@ -165,7 +165,7 @@ public enum ReplyDriver {
         }
     }
 
-    /// `base` 의 어느 자리에 `inserted` 를 끼우면 `result` 가 되는지. 공백은 감긴 줄에서 달라질 수 있어 빼고 비교한다
+    /// Check whether inserting inserted anywhere in base produces result; ignore wrap-dependent whitespace.
     static func isInsertion(of inserted: String, into base: String, giving result: String) -> Bool {
         let base = Array(base.filter { !$0.isWhitespace })
         let inserted = Array(inserted.filter { !$0.isWhitespace })
@@ -183,7 +183,7 @@ public enum ReplyDriver {
 
     private static func dialogTransition(after input: ConsoleInput, from before: ChoiceDialog, to new: ScreenState) -> Bool {
         if input == .key(.enter) {
-            // 고르기·제출 뒤에는 다음 질문, 확인 화면, 또는 질문 창이 닫힌 프롬프트만 나와야 한다
+            // After selection/submission, expect only the next question, confirmation, or a prompt after dialog dismissal.
             switch new {
             case let .choiceDialog(after): return !sameQuestion(before, after)
             case .review, .prompt: return true
@@ -216,7 +216,7 @@ public enum ReplyDriver {
             && lhs.rows.filter { $0.kind == .option }.map(\.label) == rhs.rows.filter { $0.kind == .option }.map(\.label)
     }
 
-    // MARK: 질문 창
+    // MARK: Question dialogs
 
     private static func choiceMove(
         questions: [ChoiceQuestion], answers: [ChoiceAnswer], progress: inout ReplyProgress, screen: ScreenState, codex: Bool
@@ -233,7 +233,7 @@ public enum ReplyDriver {
         case .unrecognized:
             return .stuck("알 수 없는 화면")
         case let .choiceDialog(dialog):
-            // 제출한 뒤에 뜬 질문 창은 Claude 가 새로 물은 것이다. 거기에는 아무 키도 보내지 않고 기록(G4)으로 넘긴다
+            // A post-submission dialog is a new question; send no keys and proceed to G4.
             if progress.pressedSubmit { return .finished }
             return dialogMove(dialog, questions: questions, answers: answers, progress: &progress, codex: codex)
         }
@@ -254,7 +254,7 @@ public enum ReplyDriver {
         }
         guard let focus = dialog.focusedIndex else { return .stuck("포커스를 찾을 수 없음") }
         let question = questions[index]
-        // 질문 하나짜리 하나 고르기는 고르는 Enter 가 곧 제출이다. 그 밖에는 확인 화면의 Submit 이 제출이다 (실측 ⑥)
+        // Single-question single-select Enter submits directly; other dialogs submit from confirmation (measurement 6).
         let submitsNow = codex ? index == questions.count - 1 : questions.count == 1 && !question.multiSelect
         let optionRows = dialog.rows.indices.filter { dialog.rows[$0].kind == .option }
 
@@ -284,7 +284,7 @@ public enum ReplyDriver {
             }
             for (choice, row) in optionRows.enumerated() where dialog.rows[row].isChecked != chosen.contains(choice) {
                 if focus != row { return step(from: focus, to: row) }
-                // Enter 도 켜고 끄지만 직접 쓰기 줄에서는 뜻이 달라질 수 있어 Space 로 고정한다 (R60)
+                // Use Space for toggles because Enter can mean something else on direct-input rows (R60).
                 return .send(.key(.space))
             }
             guard let submit = dialog.rows.firstIndex(where: { $0.kind == .submit }) else { return .stuck("Submit 줄이 없음") }
@@ -293,7 +293,7 @@ public enum ReplyDriver {
         }
     }
 
-    /// 질문을 마치는 Enter. 답 전체를 제출하는지, 다음 질문(또는 확인 화면)으로 넘기는지를 기록해 다음 화면을 바르게 읽게 한다
+    /// Track whether Enter submits everything or advances so the next screen is interpreted correctly.
     private static func pressEnter(submits: Bool, progress: inout ReplyProgress) -> ReplyMove {
         if submits { progress.pressedSubmit = true } else { progress.pressedNext = true }
         return .send(.key(.enter))
@@ -303,7 +303,7 @@ public enum ReplyDriver {
         .send(.key(target > focus ? .down : .up))
     }
 
-    // MARK: 본문 질문
+    // MARK: Text questions
 
     private static func textMove(reply: String, progress: inout ReplyProgress, screen: ScreenState) -> ReplyMove {
         guard isTypable(reply) else { return .stuck("입력할 수 없는 글자가 있음") }
@@ -320,10 +320,10 @@ public enum ReplyDriver {
         return .send(.key(.enter))
     }
 
-    /// 첫 글자 하나만 넣어 빈 칸인지 가린다. 줄이 그 글자뿐이면 비어 있던 것이고(안내 문구는 사라진다, 실측 S5 ①·S6),
-    /// 쓰던 글이 있으면 그 글 사이에 끼어 보인다 — 그때는 지우기 한 번으로 되돌리고 보내지 않는다 (R78)
+    /// Probe with one character: an otherwise empty field contains only it after hints disappear (S5, 1; S6).
+    /// If inserted into existing text, erase exactly once and stop without sending (R78).
     private static func probeMove(reply: String, progress: inout ReplyProgress, screen: ScreenState) -> ReplyMove {
-        // 결합 문자로 된 첫 글자는 지우기 한 번에 다 지워진다는 보장이 없다
+        // A combining first character may not be fully removed by one deletion.
         guard isTypable(reply), let first = reply.first, !first.isWhitespace, first.unicodeScalars.count == 1 else {
             return .stuck("입력할 수 없는 글자가 있음")
         }
@@ -356,7 +356,7 @@ public enum ReplyDriver {
         return .send(.key(.backspace))
     }
 
-    /// 제어 문자는 키로 해석되어(줄바꿈은 Enter, ESC 는 취소) 글과 다른 동작을 일으킨다
+    /// Control characters act as keys: newline submits and Escape cancels rather than inserting text.
     static func isTypable(_ text: String) -> Bool {
         !text.trimmingCharacters(in: .whitespaces).isEmpty
             && !text.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F }

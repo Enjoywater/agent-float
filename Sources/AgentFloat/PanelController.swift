@@ -3,7 +3,7 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// 펼침·접힘의 느낌을 정하는 값. 사용자가 나중에 손보기 쉽도록 한곳에 모은다 (spec 4.8 "자연스럽고 부드럽게")
+/// Centralize transition tuning for later adjustments (spec §4.8: natural and smooth).
 enum Motion {
     static let expandDelay = scaled(0.15)
     static let collapseDelay = scaled(0.4)
@@ -11,21 +11,21 @@ enum Motion {
     static let listFadeInDelay = scaled(0.08)
     static let listFadeIn = Animation.easeOut(duration: scaled(0.2))
     static let listFadeOut = Animation.easeIn(duration: scaled(0.12))
-    /// 동작 줄이기에서 morph 대신 쓰는 전환
+    /// Use this transition instead of morphing when Reduce Motion is enabled.
     static let crossfade = Animation.easeInOut(duration: scaled(0.15))
     static let sweepPeriod = scaled(2.6)
-    /// 개수가 줄어 알약이 좁아질 때 창을 줄이기 전에 기다리는 시간. 내용의 spring 이 거의 멈춘 뒤에 줄여야 잘리지 않는다
+    /// Wait for the content spring to settle before shrinking the window, avoiding clipping.
     static let pillShrinkDelay = scaled(0.5)
-    /// 경과 시간 표시가 분 단위라 이보다 자주 다시 그릴 필요가 없다
+    /// Elapsed time is shown in minutes, so more frequent redraws are unnecessary.
     static let labelTick: TimeInterval = 15
 
     static func isReduced(_ systemSetting: Bool) -> Bool {
         systemSetting || forceReduced
     }
 
-    /// 시스템 설정을 바꾸지 않고 동작 줄이기 경로를 확인하려는 디버그 덮어쓰기
+    /// Debug override for Reduce Motion without changing system settings.
     private static let forceReduced = ProcessInfo.processInfo.environment["AGENT_FLOAT_REDUCE_MOTION"] == "1"
-    /// 전환 중간 모습을 스크린샷으로 확인하려고 모든 시간을 늘린다 (예: 8이면 8배 느림)
+    /// Slow transitions for intermediate screenshots; 8 means eight times slower.
     private static let slowFactor = Double(ProcessInfo.processInfo.environment["AGENT_FLOAT_SLOW_MOTION"] ?? "") ?? 1
 
     private static func scaled(_ seconds: Double) -> Double {
@@ -33,7 +33,7 @@ enum Motion {
     }
 }
 
-/// SwiftUI 쪽이 그리는 데 필요한 전환 단계. 단계를 넘기는 시점은 창 크기와 맞물려야 해서 `PanelController` 만 바꾼다
+/// Only PanelController advances rendering phases because they must stay synchronized with window sizing.
 @MainActor @Observable
 final class PanelPresentation {
     var isGlassExpanded = false
@@ -43,17 +43,17 @@ final class PanelPresentation {
     var panelHeight: CGFloat = Layout.panelChromeHeight
     var listHeight: CGFloat = 0
     var glassContrast = GlassContrast.outline
-    /// 목록 280, 답장 화면 320 (v1.2 설계 4.8)
+    /// List width 280, reply width 320 (v1.2 design §4.8).
     var panelWidth: CGFloat = Layout.panelWidth
     var content = PanelContent.list
     var replyPlacement = ReplyPlacement.panel
-    /// 화면을 다시 그릴 일이 없는 값이라 관찰하지 않는다
+    /// Do not observe values that cannot affect rendering.
     @ObservationIgnored var isDragging = false
     @ObservationIgnored var openReply: ((AgentSession) -> Void)?
-    /// 메인 유리가 뒤 화면을 보고 고른 톤. 옆 카드 창의 유리는 스스로 뒤를 읽지 않고 창 appearance 만 따르므로(실측) 이 톤을 넘겨 맞춘다
+    /// Forward the main glass's sampled tone; the side card follows appearance rather than sampling its own background.
     @ObservationIgnored var onGlassTone: ((GlassTone) -> Void)?
     @ObservationIgnored var replyActions = ReplyActions()
-    /// 목록 줄의 위치(창 위쪽 기준). 옆 카드를 그 줄에 맞추는 데만 쓰므로 관찰하지 않는다
+    /// Row positions relative to the window top are used only to align the side card, so do not observe them.
     @ObservationIgnored var rowFrames: [SessionKey: CGRect] = [:]
 }
 
@@ -61,8 +61,8 @@ enum PanelContent {
     case list, reply
 }
 
-/// 패널 프레임·hover·펼침 전환을 맡는다.
-/// 창 크기는 애니메이션하지 않고 한 번에 바꾸며, 움직임은 SwiftUI 안에서만 일어난다 (spec 4.8)
+/// Own panel frames, hover handling, and expansion transitions.
+/// Resize windows immediately; animate only SwiftUI content (spec §4.8).
 @MainActor
 final class PanelController: NSObject {
     private static let anchorKey = "panelAnchor"
@@ -82,9 +82,9 @@ final class PanelController: NSObject {
 
     private var anchor: PanelAnchor
     private var phase = Phase.collapsed
-    /// 예약된 전환 단계가 그 사이 시작된 반대 방향 전환을 덮어쓰지 않도록 전환마다 올린다
+    /// Version every transition so delayed phases cannot overwrite a newer reversal.
     private var generation = 0
-    /// 높이 전환이 겹치면 앞선 spring 의 완료가 뒤 전환 도중에 불려 창을 너무 일찍 줄인다(실측). 마지막 전환의 완료만 창을 맞춘다
+    /// An old height spring may finish during a newer transition; only the latest completion may resize the window.
     private var heightGeneration = 0
     private var isHovering = false
     private var isAdjustingFrame = false
@@ -96,11 +96,11 @@ final class PanelController: NSObject {
     private var buttonWatchTask: Task<Void, Never>?
     private var mouseDownMonitor: Any?
     private var keyMonitor: Any?
-    /// 답장 화면을 열기 전 맨 앞이던 앱. 닫으면 키 입력을 돌려준다 (v1.2 설계 4.7)
+    /// Remember the frontmost app before replying and restore its keyboard input on close (v1.2 design §4.7).
     private var previousApp: NSRunningApplication?
-    /// 폭·높이 전환이 겹치면 앞선 전환의 완료가 뒤 전환 도중에 창을 줄이므로 마지막 것만 창을 맞춘다
+    /// Overlapping width/height transitions must resize only from the latest completion.
     private var resizeGeneration = 0
-    /// 화면만 찍는 디버그 실행에서 키 입력 없이도 답장 화면을 열어 둔다
+    /// Open replies without keyboard input during screenshot-only debug runs.
     private var debugHoldsReply = false
     private var didRequestAccessibility = false
 
@@ -124,7 +124,7 @@ final class PanelController: NSObject {
         self.presentation = presentation
 
         let host = PanelHostingView(rootView: FloatRootView(model: model, replies: replies, presentation: presentation))
-        // 창 크기는 이 컨트롤러가 정한다. 기본값이면 SwiftUI 내용 크기가 창 크기를 제약으로 묶어 펼침 전환과 충돌한다
+        // Disable the default SwiftUI content-size constraint because this controller owns window sizing and morphing.
         host.sizingOptions = []
         hostingView = host
 
@@ -139,8 +139,8 @@ final class PanelController: NSObject {
         lastAppliedFrame = frame
         super.init()
 
-        // 패널이 키 창이 되지 않아도 hover 를 받으려면 activeAlways 가 필요하다.
-        // 옆 카드도 같은 추적기를 써서, 패널에서 나와 0.4초(접힘 지연) 안에 카드로 들어가면 접힘이 취소된다 (설계 4.5 B: 사이 틈을 지나는 동안 접지 않음)
+        // activeAlways is required to receive hover while the panel is not key.
+        // Share tracking with the card so crossing the gap within the 0.4-second delay cancels collapse (design §4.5 B).
         for view in [host, card.panel.contentView].compactMap(\.self) {
             view.addTrackingArea(NSTrackingArea(
                 rect: .zero,
@@ -158,7 +158,7 @@ final class PanelController: NSObject {
         NotificationCenter.default.addObserver(
             self, selector: #selector(panelDidMove(_:)), name: NSWindow.didMoveNotification, object: panel
         )
-        // 알약을 잡는 순간 펼침이 끼어들면 끌어야 할 알약이 패널로 바뀌어 버린다 (R35)
+        // Do not expand during a pill drag, which would replace the object being dragged (R35).
         mouseDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             MainActor.assumeIsolated {
                 if event.window === self?.panel { self?.mouseWentDown() }
@@ -185,14 +185,14 @@ final class PanelController: NSObject {
         let size = pillSize()
         anchor = Self.restoredAnchor(saved: nil, size: size)
         saveAnchor()
-        // 펼쳐 있는 동안은 접힐 때 새 자리로 돌아간다
+        // While expanded, defer returning to the reset position until collapse.
         guard phase == .collapsed else { return }
         presentation.anchorsTrailing = anchor.trailing
         presentation.pillWidth = size.width
         applyFrame(anchor.pillFrame(size: size))
     }
 
-    /// 끈 직후 바로 종료하면 0.3초 뒤 저장이 실행되지 않아 위치를 잃으므로 종료 직전에 바로 저장한다 (R28)
+    /// Flush pending position persistence before quitting; the 0.3-second debounce may not have fired (R28).
     func flushPendingSave() {
         guard let task = dragSettleTask else { return }
         task.cancel()
@@ -211,14 +211,14 @@ final class PanelController: NSObject {
         }
     }
 
-    /// `AGENT_FLOAT_OPEN_REPLY=<n>` 이면 펼친 뒤 n 번째로 답할 수 있는 대기 세션의 답장 화면까지 연다. 사람 손 없이 화면을 찍기 위함이다.
-    /// 합성 키 입력은 맨 앞 앱(사용자가 쓰는 앱)으로 새어 나갈 수 있어, 고르기·입력·보내기·닫기도 환경 변수로 흉내 낸다:
-    /// `_SELECT=<0부터>`(쉼표로 여럿), `_TEXT=<글>`, `_ADVANCE=1`, `_SEND=1`, `_CLOSE_AFTER=<초>`
+    /// AGENT_FLOAT_OPEN_REPLY=<n> opens the nth answerable waiting session after expansion for unattended capture.
+    /// Synthetic keys can leak to the user's foreground app; simulate selection, input, send, and close via environment variables:
+    /// _SELECT=<zero-based indices, comma-separated>, _TEXT=<text>, _ADVANCE=1, _SEND=1, _CLOSE_AFTER=<seconds>.
     private func debugOpenReply() {
         let environment = ProcessInfo.processInfo.environment
         guard let raw = environment["AGENT_FLOAT_OPEN_REPLY"], let index = Int(raw) else { return }
         var candidates = model.groups.flatMap(\.sessions).filter { $0.status == .waiting && $0.prompt != nil }
-        // `_SESSION=<sessionId>` 로 실측용 시험 세션만 고른다. 사용자의 실제 세션은 열지 않기 위함이다
+        // _SESSION=<sessionId> limits measurements to the designated test session, avoiding real user sessions.
         if let target = environment["AGENT_FLOAT_OPEN_REPLY_SESSION"] { candidates = candidates.filter { $0.key.sessionId == target } }
         guard candidates.indices.contains(index) else { return }
         DebugLog.write("debug focus before=\(Self.focusedApplicationPid()) front=\(NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0)")
@@ -232,18 +232,18 @@ final class PanelController: NSObject {
             }
         }
         if environment["AGENT_FLOAT_OPEN_REPLY_ADVANCE"] == "1" { replies.edit { $0.advance() } }
-        // `_STEPS=0;1` 은 질문마다 고르고 다음으로 넘긴다 (질문 여러 개의 확인 화면)
+        // _STEPS=0;1 selects an answer and advances each question for multi-question confirmation captures.
         for step in (environment["AGENT_FLOAT_OPEN_REPLY_STEPS"] ?? "").split(separator: ";").compactMap({ Int($0) }) {
             replies.choose(step)
             replies.edit { $0.advance() }
         }
-        // 화면만 찍을 때는 사용자가 쓰던 앱의 키 입력을 가져오지 않는다
+        // Screenshot-only runs must not take keyboard input from the user's app.
         if environment["AGENT_FLOAT_OPEN_REPLY_NO_KEY"] == "1" {
             debugHoldsReply = true
             releaseKeyInput(restoreFocus: false)
         }
         if environment["AGENT_FLOAT_OPEN_REPLY_SEND"] == "1" {
-            // 가능 여부 판정이 끝난 뒤에 보내야 한다
+            // Wait for availability assessment before sending.
             _ = after(0.3) { $0.replyPrimary() }
         }
         DebugLog.write("debug focus open=\(Self.focusedApplicationPid()) key=\(panel.isKeyWindow)")
@@ -257,7 +257,7 @@ final class PanelController: NSObject {
         }
     }
 
-    /// 시스템 전체에서 키 입력을 받는 앱. 답장 화면을 닫은 뒤 원래 앱으로 돌아갔는지 확인하는 데 쓴다 (실측 S4)
+    /// The app receiving system keyboard input; verify restoration after closing replies (measurement S4).
     private static func focusedApplicationPid() -> Int32 {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(), kAXFocusedApplicationAttribute as CFString, &value) == .success,
@@ -267,7 +267,7 @@ final class PanelController: NSObject {
         return pid
     }
 
-    /// 테두리 빛처럼 위에 얹힌 AppKit 뷰가 끌기·줄 클릭을 가로채는지는 실제 hitTest 결과로만 알 수 있다
+    /// Use actual hitTest results to determine whether overlay AppKit views intercept dragging or row clicks.
     private func logHitTests() {
         let bounds = hostingView.bounds
         let probes = [
@@ -291,7 +291,7 @@ final class PanelController: NSObject {
     private func hoverChanged(_ inside: Bool) {
         isHovering = inside
         DebugLog.write("hover inside=\(inside) phase=\(phase)")
-        // 끄는 중에는 커서가 창과 함께 움직여 hover 가 의미 없고, 전환이 끼어들면 놓을 자리가 흔들린다 (spec 4.8)
+        // Ignore hover while dragging; transitions would move the intended drop location (spec §4.8).
         guard !presentation.isDragging else { return }
         scheduleHoverTransition()
     }
@@ -301,7 +301,7 @@ final class PanelController: NSObject {
         if isHovering {
             guard phase != .expanded, !Self.isPrimaryButtonDown else { return }
             hoverTask = after(Motion.expandDelay) { controller in
-                // 대기하는 사이 버튼을 눌렀다면 끌려는 것이다
+                // A button pressed during the delay indicates a drag.
                 guard !Self.isPrimaryButtonDown else { return }
                 controller.expand()
             }
@@ -318,7 +318,7 @@ final class PanelController: NSObject {
     private func mouseWentDown() {
         hoverTask?.cancel()
         DebugLog.write("mouse down phase=\(phase)")
-        // 끌기 고리(performDrag)가 손을 뗀 이벤트를 삼킬 수 있어 버튼 상태를 직접 지켜본다
+        // performDrag can consume mouse-up; observe button state directly.
         buttonWatchTask?.cancel()
         buttonWatchTask = Task { [weak self] in
             while Self.isPrimaryButtonDown {
@@ -332,7 +332,7 @@ final class PanelController: NSObject {
         }
     }
 
-    /// 창 크기가 바뀌는 동안 진입·이탈 알림을 놓칠 수 있어 실제 커서 위치로 다시 맞춘다
+    /// Resizing can lose enter/exit events; reconcile against the actual cursor position.
     private func syncHover() {
         let pointer = NSEvent.mouseLocation
         isHovering = panel.frame.contains(pointer) || (card.isVisible && card.panel.frame.contains(pointer))
@@ -340,10 +340,10 @@ final class PanelController: NSObject {
         scheduleHoverTransition()
     }
 
-    // MARK: 펼침·접힘
+    // MARK: Expansion and collapse
 
     private func expand() {
-        // 세션이 없으면 펼쳐도 요약 줄 하나뿐이라 흐린 알약으로 둔다
+        // With no sessions, expansion adds only the summary row; keep the dimmed pill.
         guard !presentation.isDragging, !model.sessions.isEmpty else { return }
         let pill = anchor.pillFrame(size: pillSize())
         let layout = expandedLayout(pill: pill)
@@ -355,12 +355,12 @@ final class PanelController: NSObject {
         phase = .expanded
         model.isExpanded = true
 
-        // 창을 먼저 목표 크기로 키운다. 내용이 고정 모서리에 붙어 있어 이 순간에도 알약은 제자리다
+        // Grow the window to its target size first; fixed-corner anchoring keeps the pill stationary.
         presentation.anchorsTrailing = layout.trailing
         presentation.panelHeight = layout.panelHeight
         presentation.listHeight = layout.listHeight
         applyFrame(layout.windowFrame)
-        // 커진 창에서 알약 자리를 먼저 확정해야 한다. 같은 갱신에 morph 를 시작하면 옛 창 기준 자리에서 미끄러져 들어온다(실측)
+        // Resolve the pill frame in the enlarged window before morphing, or it slides from the old frame.
         hostingView.layoutSubtreeIfNeeded()
         DebugLog.write("expand frame=\(Self.describe(layout.windowFrame)) trailing=\(layout.trailing) list=\(layout.listHeight) reduced=\(isReduced)")
 
@@ -383,7 +383,7 @@ final class PanelController: NSObject {
         withAnimation(Motion.spring) {
             presentation.isGlassExpanded = true
         }
-        // 유리가 먼저 커지고 목록이 뒤따라야 "같은 유리가 늘어난다"로 읽힌다
+        // Grow the glass before introducing the list so it reads as one expanding surface.
         listFadeTask = after(Motion.listFadeInDelay) { controller in
             guard controller.generation == generation else { return }
             DebugLog.write("list fade-in")
@@ -396,13 +396,13 @@ final class PanelController: NSObject {
     private func collapse() {
         guard phase == .expanded else { return }
         if replies.openKey != nil || presentation.content == .reply {
-            // 쓴 답은 남기고 다음 펼침은 목록으로 연다 (설계 4.7 접힘)
+            // Preserve drafted answers but reopen on the list (design §4.7 collapse).
             replies.close()
             card.hide()
             presentation.content = .list
             releaseKeyInput(restoreFocus: false)
         }
-        // 펼친 동안 개수가 바뀌었으면 옛 폭의 알약으로 줄어들어 요약 줄이 잘린 뒤 튄다
+        // Use the current count while collapsing; an outdated pill width would clip and jump.
         presentation.pillWidth = pillSize().width
         generation += 1
         let generation = generation
@@ -420,7 +420,7 @@ final class PanelController: NSObject {
             }
             return
         }
-        // 목록이 먼저 사라진 뒤 유리가 줄어야 줄어드는 유리 밖으로 글자가 삐져나오지 않는다
+        // Remove the list before shrinking glass so text cannot protrude beyond it.
         withAnimation(Motion.listFadeOut) {
             presentation.isListVisible = false
         } completion: { [weak self] in
@@ -434,17 +434,17 @@ final class PanelController: NSObject {
         }
     }
 
-    /// 창은 morph 가 끝난 뒤에 줄인다. 먼저 줄이면 줄어드는 유리가 창 가장자리에서 잘린다
+    /// Shrink the window after morphing; shrinking first clips glass at the window edge.
     private func finishCollapse(_ generation: Int) {
         guard self.generation == generation, phase == .collapsing else { return }
-        // 접히는 도중에 끌기 시작했다면 저장된 자리가 아니라 지금 끌고 있는 자리에서 접혀야 한다
+        // If dragging began during collapse, collapse at the current drag position rather than the saved frame.
         if presentation.isDragging {
             anchor = anchorFromWindow()
         }
         phase = .collapsed
         presentation.panelWidth = Layout.panelWidth
         let size = pillSize()
-        // 펼친 채 화면 끝으로 끌었거나 그사이 모니터가 빠졌으면 접힌 알약이 화면 밖에 놓일 수 있다
+        // Dragging to an edge or disconnecting a display can leave the collapsed pill offscreen.
         let onScreen = clampedAnchor(anchor, size: size)
         if onScreen != anchor {
             anchor = onScreen
@@ -462,7 +462,7 @@ final class PanelController: NSObject {
         Motion.isReduced(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
     }
 
-    // MARK: 내용 변화
+    // MARK: Content changes
 
     private func modelDidChange() {
         switch phase {
@@ -478,15 +478,15 @@ final class PanelController: NSObject {
                 adjustExpandedHeight()
             }
         case .collapsing:
-            // 접힘이 끝날 때 그 시점의 알약 크기로 창을 맞춘다
+            // Fit the window to the current pill size when collapse finishes.
             break
         }
     }
 
-    /// 넓어질 때는 창을 먼저 키우고, 좁아질 때는 내용 전환이 끝난 뒤 줄인다. 반대로 하면 바뀌는 동안 알약이 잘린다
+    /// Grow the window before content expands, but shrink after content transitions to avoid clipping.
     private func resizePill() {
         let size = pillSize()
-        // 실행 직후의 빈 알약 폭으로는 화면 안이던 자리도 넓어진 알약은 넘칠 수 있어 다시 확인한다
+        // Recheck bounds: a position valid for the initial empty pill may not fit a wider pill.
         let onScreen = clampedAnchor(anchor, size: size)
         let relocated = onScreen != anchor
         anchor = onScreen
@@ -497,7 +497,7 @@ final class PanelController: NSObject {
         let resizeNow = relocated || target.width >= panel.frame.width
         if resizeNow {
             applyFrame(target)
-            // 커진 창에서 알약 자리를 먼저 확정해야 폭 전환이 고정 모서리에서 시작한다
+            // Resolve the pill frame after growing the window so width morphing starts at the fixed corner.
             hostingView.layoutSubtreeIfNeeded()
         }
         withAnimation(isReduced ? Motion.crossfade : Motion.spring) {
@@ -510,7 +510,7 @@ final class PanelController: NSObject {
         }
     }
 
-    /// 펼친 동안 세션 수가 바뀌면 위쪽과 고정한 옆 가장자리는 그대로 두고 높이만 같은 spring 으로 맞춘다
+    /// While expanded, keep the top and anchored side fixed and spring only the height.
     private func adjustExpandedHeight() {
         let layout = expandedLayout(pill: pillAtWindowCorner())
         guard layout.panelHeight != presentation.panelHeight else { return }
@@ -528,14 +528,14 @@ final class PanelController: NSObject {
                 DebugLog.write("height completion skipped (superseded)")
                 return
             }
-            // 줄어드는 도중에 다시 늘었을 수 있어, 잡아 둔 값이 아니라 지금 목표 높이로 창을 맞춘다
+            // Content may have grown again while shrinking; fit the current target, not the captured height.
             let settled = self.expandedWindowFrame(height: self.presentation.panelHeight)
             self.applyFrame(settled)
             DebugLog.write("height settled window=\(settled.height) panel=\(self.presentation.panelHeight)")
         }
     }
 
-    /// 위쪽과 고정한 옆 가장자리는 그대로 두고 높이만 바꾼 창 프레임
+    /// Resize height while preserving the top and anchored side.
     private func expandedWindowFrame(height: CGFloat) -> CGRect {
         let current = panel.frame
         let visible = Self.visibleFrame(for: current)
@@ -552,11 +552,11 @@ final class PanelController: NSObject {
         let listHeight: CGFloat
     }
 
-    /// 목록 높이를 펼치기 전에 재야 창과 유리가 한 번에 목표 높이에 닿는다 (출렁임 없음, spec 4.8)
+    /// Measure the list before expansion so window and glass reach their target height together (spec §4.8).
     private func expandedLayout(pill: CGRect) -> ExpandedLayout {
         let visible = Self.visibleFrame(for: pill)
         let contentHeight = Self.measureList(listMeasurer, groups: model.groups, failed: model.failedSessions, unseen: model.unseen)
-        // 세션이 많아도 화면 밖으로 넘치지 않게 하고 나머지는 스크롤로 본다 (Review Focus 2)
+        // Cap height at the visible screen and scroll the remaining rows (Review Focus 2).
         let maxPanelHeight = floor(visible.height * Layout.maxHeightRatio)
         let panelHeight = min(Layout.panelChromeHeight + contentHeight, maxPanelHeight)
         let frame = PanelGeometry.expandedFrame(
@@ -566,14 +566,14 @@ final class PanelController: NSObject {
         )
         return ExpandedLayout(
             windowFrame: frame,
-            // PanelGeometry.expandedFrame 과 같은 규칙이어야 내용이 붙는 모서리와 창이 고정한 모서리가 같다
+            // Match PanelGeometry.expandedFrame so content and window share the anchored corner.
             trailing: pill.midX > visible.midX,
             panelHeight: panelHeight,
             listHeight: panelHeight - Layout.panelChromeHeight
         )
     }
 
-    // MARK: 답장 화면 (v1.2 설계 4.5 C · 4.7)
+    // MARK: Reply view (v1.2 design §§4.5 C, 4.7)
 
     private func connectReplies() {
         presentation.openReply = { [weak self] session in self?.openReply(session) }
@@ -596,7 +596,7 @@ final class PanelController: NSObject {
         }
     }
 
-    /// 답장 화면은 마우스가 벗어나도 접지 않는다. 다른 앱을 눌러 키 입력을 잃었을 때만 접는다(보내는 중에는 그것도 막는다)
+    /// Keep replies open on pointer exit; collapse on losing keyboard focus unless sending.
     private var holdsReplyOpen: Bool {
         guard replies.openKey != nil else { return false }
         if case .sending = replies.phase { return true }
@@ -605,7 +605,7 @@ final class PanelController: NSObject {
 
     private func openReply(_ session: AgentSession) {
         guard phase == .expanded else { return }
-        // 처음 Ghostty 세션을 열 때 한 번만 권한 창을 띄운다. 거절했다면 화면은 "보기만"과 "설정 열기"로 안내한다 (설계 4.9)
+        // Request Ghostty Accessibility permission once; denial leaves read-only guidance and an Open Settings action (design §4.9).
         if case .ghostty = session.locator, !didRequestAccessibility, !AXIsProcessTrusted() {
             didRequestAccessibility = true
             AXGhosttyScreenReader.requestTrust()
@@ -615,7 +615,7 @@ final class PanelController: NSObject {
         guard replies.openKey == session.key else { return }
         switch presentation.replyPlacement {
         case .panel:
-            // 폭을 먼저 넓혀야 답장 내용이 처음부터 최종 폭으로 그려진다. 반대면 좁은 폭으로 한 번 그려져 높이가 튄다(실측)
+            // Widen first so reply content is measured at its final width, avoiding an initial height jump.
             resizeExpanded(width: ReplyLayout.width, contentHeight: measureReply())
             withAnimation(isReduced ? Motion.crossfade : Motion.spring) {
                 presentation.content = .reply
@@ -627,16 +627,16 @@ final class PanelController: NSObject {
         case .card:
             showCard(for: session)
         }
-        // 사용자가 그 줄을 눌러 답하려는 뜻을 밝혔으므로 이때만 키 입력을 받는다. 앱 자체는 활성화하지 않는다
+        // Accept keyboard input only after an explicit reply click; do not activate the app itself.
         let keyWindow = presentation.replyPlacement == .card ? card.panel : panel
         keyWindow.acceptsKeyInput = true
         keyWindow.makeKey()
-        // 창이 처음 보일 때 AppKit 이 첫 입력 칸을 스스로 고른다(실측: 옆 카드). 질문 창에서 커서가 칸에 있으면 숫자 키가 선택지 대신 글자가 되므로,
-        // 입력 칸을 쓰라는 요청이 없으면 비운다 (최종 리뷰 C1)
+        // AppKit selects the first input automatically when a card appears; a focused field turns option-number keys into text.
+        // Clear initial focus unless text entry was explicitly requested (final review C1).
         if !replies.fieldFocus.wanted, keyWindow.firstResponder is NSTextView { keyWindow.makeFirstResponder(nil) }
         DebugLog.write("reply open session=\(session.key.sessionId) key=\(panel.isKeyWindow) front=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil")")
         guard DebugLog.isEnabled else { return }
-        // 키 입력이 패널에 머무는지는 실행 중에만 알 수 있다 (실측 S4)
+        // Keyboard ownership must be verified at runtime (measurement S4).
         for delay in [0.5, 1.5] {
             _ = after(delay) { controller in
                 DebugLog.write("reply focus +\(delay)s focused=\(Self.focusedApplicationPid()) key=\(controller.panel.isKeyWindow)")
@@ -650,7 +650,7 @@ final class PanelController: NSObject {
         afterReplyClosed(restoreFocus: restoreFocus)
     }
 
-    /// 답장 상태는 이미 닫힌 뒤다. 배치에 상관없이 목록 폭·높이와 키 입력을 되돌린다
+    /// Reply state is already closed; restore list size and keyboard ownership for every placement.
     private func afterReplyClosed(restoreFocus: Bool) {
         let hadCard = card.isVisible
         card.hide()
@@ -659,11 +659,11 @@ final class PanelController: NSObject {
         }
         resizeExpanded(width: Layout.panelWidth, contentHeight: measureListContent())
         releaseKeyInput(restoreFocus: restoreFocus)
-        // 카드 위에 있던 커서는 카드가 사라져도 나감 알림을 받지 못한다
+        // Removing the card does not deliver an exit event to the cursor that was over it.
         if hadCard { syncHover() }
     }
 
-    /// 줄 안 배치는 목록 안에서 열려 있으므로 그 내용까지 함께 잰다
+    /// Inline replies contribute to list height and must be measured with the list.
     private func measureListContent() -> CGFloat {
         let inline = inlineReply
         return Self.measureList(
@@ -672,7 +672,7 @@ final class PanelController: NSObject {
         )
     }
 
-    /// 고른 줄 높이에 맞춰 패널 반대쪽에 카드를 띄운다. 줄 위치를 아직 모르면 요약 줄 바로 아래에 맞춘다
+    /// Align the card with its selected row; use the summary row as a fallback before positions are known.
     private func showCard(for session: AgentSession, contentHeight: CGFloat? = nil) {
         let visible = Self.visibleFrame(for: panel.frame)
         let measured = contentHeight.map { $0 + ReplyCardController.padding * 2 } ?? card.measureHeight(for: session)
@@ -691,7 +691,7 @@ final class PanelController: NSObject {
         return InlineReply(center: replies, actions: presentation.replyActions)
     }
 
-    /// 키 창을 내려놓고 답장 화면을 열기 전 앱이 다시 키 입력을 받게 한다
+    /// Resign key status and return keyboard input to the app that was active before replying.
     private func releaseKeyInput(restoreFocus: Bool) {
         for window in [panel, card.panel] {
             let wasKey = window.isKeyWindow
@@ -717,7 +717,7 @@ final class PanelController: NSObject {
         }
     }
 
-    /// 고정 모서리를 둔 채 폭과 높이를 바꾼다. 커질 때는 창을 먼저 키우고, 작아질 때는 유리가 줄어든 뒤 창을 맞춘다
+    /// Preserve the anchored corner; grow the window first and shrink only after the glass transition.
     private func resizeExpanded(width: CGFloat, contentHeight: CGFloat) {
         let pill = pillAtWindowCorner()
         let visible = Self.visibleFrame(for: pill)
@@ -726,7 +726,7 @@ final class PanelController: NSObject {
         let target = PanelGeometry.expandedFrame(
             collapsed: pill, expandedSize: CGSize(width: width, height: panelHeight), visible: visible
         )
-        // 옛 크기와 새 크기를 모두 담는 창이어야 전환 중에 유리가 잘리지 않는다
+        // The window must contain both old and new frames so the transitioning glass is not clipped.
         applyFrame(target.union(panel.frame))
         hostingView.layoutSubtreeIfNeeded()
         resizeGeneration += 1
@@ -741,7 +741,7 @@ final class PanelController: NSObject {
         }
     }
 
-    /// 그려진 내용이 잰 값과 다르면 그 값으로 다시 맞춘다. 내용 높이는 창 높이와 무관해 맞춘 뒤 다시 바뀌지 않는다
+    /// Reconcile measured and rendered heights; content height does not depend on window height, so this settles.
     private func replyContentRendered(_ height: CGFloat) {
         if presentation.replyPlacement == .card, card.isVisible, let session = replies.openSession, height > 0 {
             showCard(for: session, contentHeight: ReplyScreen.compactHeaderHeight + ceil(height) + ReplyFooter.height)
@@ -762,8 +762,8 @@ final class PanelController: NSObject {
         return height
     }
 
-    /// ⏎·esc·숫자·Tab 을 텍스트 칸보다 먼저 본다. 한글 조합 중인지는 필드 편집기(`NSTextView`)에 묻는다 (설계 4.7 키 표).
-    /// 이 키를 여기서 처리했으면 true — 텍스트 칸에 줄바꿈 등이 들어가지 않게 이벤트를 삼킨다
+    /// Handle Return, Escape, numbers, and Tab before text fields; ask NSTextView whether composition is active (design §4.7 keys).
+    /// Return true when consumed to prevent unwanted edits such as inserting a newline.
     private func handleKey(_ event: NSEvent) -> Bool {
         guard replies.openKey != nil, let keyWindow = [panel, card.panel].first(where: \.isKeyWindow) else { return false }
         let fieldEditor = keyWindow.firstResponder as? NSTextView
@@ -795,7 +795,7 @@ final class PanelController: NSObject {
             replies.choose(index)
             return true
         case .primary:
-            // Shift+⏎ 줄바꿈은 보낼 수 없으므로 아무 일도 하지 않는다 (R59)
+            // Shift+Return cannot send a newline, so leave it inert (R59).
             if !event.modifierFlags.contains(.shift) { replyPrimary() }
             return true
         case .commitComposition, .passThrough:
@@ -811,7 +811,7 @@ final class PanelController: NSObject {
         }
     }
 
-    /// ⏎ 와 주요 버튼은 화면에 보이는 주요 버튼과 같은 일을 한다
+    /// Return and the primary action perform the same operation as the visible primary button.
     private func replyPrimary() {
         switch replies.phase {
         case .sending:
@@ -833,7 +833,7 @@ final class PanelController: NSObject {
         }
     }
 
-    /// 터미널로 가면 그 세션을 직접 본 것이므로 실패 표시도 끈다. 포커스는 이동한 터미널이 가져가므로 되돌리지 않는다
+    /// Opening the terminal acknowledges failure; keep focus in the destination instead of restoring it.
     private func openTerminalFromReply() {
         guard let session = replies.openSession else { return }
         replies.acknowledgeFailure(session.key)
@@ -857,22 +857,22 @@ final class PanelController: NSObject {
         syncHover()
     }
 
-    // MARK: 위치 (R27)
+    // MARK: Position (R27)
 
-    /// 첫 이동 알림보다 먼저 와서, 끌기가 시작되는 순간 예약된 펼침을 막을 수 있다 (R35)
+    /// Arrives before the first move notification so dragging can cancel pending expansion immediately (R35).
     @objc private func panelWillMove(_ notification: Notification) {
         guard !isAdjustingFrame else { return }
         beginDrag()
     }
 
     @objc private func panelDidMove(_ notification: Notification) {
-        // 펼침·접힘으로 직접 바꾼 프레임은 사용자가 옮긴 것이 아니다
+        // Frames changed by expansion or collapse are not user moves.
         guard !isAdjustingFrame, panel.frame.origin != lastAppliedFrame.origin else { return }
         beginDrag()
     }
 
     private func beginDrag() {
-        // 카드는 패널 옆에 붙어 있어 패널이 움직이면 엉뚱한 자리에 남는다
+        // The side card would be left behind when the panel moves.
         if card.isVisible { closeReply(restoreFocus: false) }
         if !presentation.isDragging {
             presentation.isDragging = true
@@ -887,9 +887,9 @@ final class PanelController: NSObject {
         dragSettleTask = after(.milliseconds(300)) { $0.dragSettled() }
     }
 
-    /// 끄는 동안 이동 알림이 연달아 오므로 손을 뗀 뒤 한 번만 기록한다
+    /// Move notifications arrive continuously during dragging; persist once after release.
     private func dragSettled() {
-        // 누른 채 멈춰 있으면 아직 끄는 중이다
+        // Holding the button while stationary still counts as dragging.
         if NSEvent.pressedMouseButtons & 1 != 0 {
             armDragSettle()
             return
@@ -900,7 +900,7 @@ final class PanelController: NSObject {
         anchor = anchorFromWindow()
         saveAnchor()
         DebugLog.write("drag ended phase=\(phase) anchor=\(Self.describe(anchor))")
-        // 접힌 알약을 화면 끝 너머로 놓았으면 저장한 자리(화면 안)로 바로 옮긴다. 펼친 채면 접힐 때 옮긴다
+        // Clamp a collapsed pill immediately after an offscreen drop; defer until collapse when expanded.
         if phase == .collapsed {
             presentation.anchorsTrailing = anchor.trailing
             applyFrame(anchor.pillFrame(size: pillSize()))
@@ -909,7 +909,7 @@ final class PanelController: NSObject {
     }
 
     @objc private func screensDidChange(_ notification: Notification) {
-        // 펼쳐 있는 동안은 접힐 때(finishCollapse) 같은 방식으로 화면 안에 넣는다
+        // Expanded panels are clamped the same way in finishCollapse.
         guard phase == .collapsed else { return }
         let size = pillSize()
         let onScreen = clampedAnchor(anchor, size: size)
@@ -920,14 +920,14 @@ final class PanelController: NSObject {
         applyFrame(anchor.pillFrame(size: size))
     }
 
-    /// 어느 단계든 알약은 창의 고정 모서리에 붙어 있으므로, 펼친 채 옮겼어도 그 모서리가 접힐 자리다
+    /// The pill shares the anchored corner in every phase, including after dragging while expanded.
     private func anchorFromWindow() -> PanelAnchor {
         let pill = pillAtWindowCorner()
         let raw = PanelAnchor(pillFrame: pill, visible: Self.visibleFrame(for: pill))
         return clampedAnchor(raw, size: pill.size)
     }
 
-    /// 화면 안이면 그대로 두어야 저장된 쪽(오른쪽·왼쪽)이 화면 가운데 근처에서 뒤집히지 않는다
+    /// Leave valid frames unchanged so the saved left/right anchor does not flip near screen center.
     private func clampedAnchor(_ current: PanelAnchor, size: CGSize) -> PanelAnchor {
         let pill = current.pillFrame(size: size)
         let clamped = PanelGeometry.clamped(pill, into: NSScreen.screens.map(\.visibleFrame))
@@ -958,7 +958,7 @@ final class PanelController: NSObject {
         presentation.replyPlacement
     }
 
-    /// 열린 답장 화면은 닫고(쓴 답은 남음) 다음 열기부터 새 배치로 연다
+    /// Close the current reply while preserving its draft; apply the new placement on next open.
     func setReplyPlacement(_ placement: ReplyPlacement) {
         closeReply(restoreFocus: false)
         presentation.replyPlacement = placement
@@ -988,7 +988,7 @@ final class PanelController: NSObject {
         return PanelAnchor(corner: CGPoint(x: x, y: y), trailing: trailing)
     }
 
-    /// 저장한 모서리에 지금 폭의 알약을 붙여 보고, 어느 화면에도 온전히 들어가지 않으면 주 화면 오른쪽 위로 되돌린다
+    /// Try the saved corner with the current pill width; fall back to the main screen's upper-right if no display fits.
     private static func restoredAnchor(saved: PanelAnchor?, size: CGSize) -> PanelAnchor {
         let savedFrame = saved?.pillFrame(size: size)
         let origin = PanelGeometry.restoredOrigin(
@@ -1016,7 +1016,7 @@ final class PanelController: NSObject {
         rect.isNull ? 0 : rect.width * rect.height
     }
 
-    // MARK: 크기 재기
+    // MARK: Measurement
 
     private func pillSize() -> CGSize {
         Self.measurePill(pillMeasurer, summary: model.summary)
@@ -1035,9 +1035,9 @@ final class PanelController: NSObject {
         return ceil(measurer.fittingSize.height)
     }
 
-    // MARK: 보조
+    // MARK: Helpers
 
-    /// 대기 중 컨트롤러가 사라지면 예약도 의미가 없어 약하게 잡는다
+    /// Capture weakly: pending work has no purpose after the controller disappears.
     private func after(_ seconds: Double, _ action: @escaping @MainActor (PanelController) -> Void) -> Task<Void, Never> {
         after(.seconds(seconds), action)
     }
@@ -1059,7 +1059,7 @@ final class PanelController: NSObject {
     }
 }
 
-/// NSHostingView 가 스스로 쓰는 추적 영역의 알림과 섞이지 않도록 패널 진입·이탈만 따로 받는다
+/// Receive panel enter/exit separately from NSHostingView's internal tracking areas.
 private final class HoverTracker: NSResponder {
     var onChange: (@MainActor (Bool) -> Void)?
 
@@ -1072,7 +1072,7 @@ private final class HoverTracker: NSResponder {
     }
 }
 
-/// 접힌 알약과 같은 모양을 화면 밖에서 재기 위한 뷰
+/// Measure the same collapsed pill shape offscreen.
 struct PillMeasure: View {
     let summary: PillSummary
 
@@ -1095,7 +1095,7 @@ struct ListMeasure: View {
     }
 }
 
-/// 키보드 배열과 무관한 물리 키 번호(`NSEvent.keyCode`)
+/// Physical NSEvent.keyCode values independent of keyboard layout.
 private enum KeyCode {
     static let tab: UInt16 = 48
     static let returnKey: UInt16 = 36

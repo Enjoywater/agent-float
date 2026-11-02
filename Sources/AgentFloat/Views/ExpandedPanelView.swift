@@ -1,7 +1,7 @@
 import AgentFloatCore
 import SwiftUI
 
-/// 펼친 패널의 요약 줄 아래 부분. 높이 상한은 `PanelController` 가 창 크기와 함께 정해 넘긴다
+/// Content below the expanded summary; PanelController supplies the maximum height with window sizing.
 struct ExpandedPanelView: View {
     let groups: [SessionGroup]
     var failed: [AgentSession] = []
@@ -14,7 +14,7 @@ struct ExpandedPanelView: View {
     var selectedKey: SessionKey? = nil
 
     var body: some View {
-        // 경과 시간은 분 단위라 갱신 주기와 상관없이 따로 시계를 둔다. 펼친 동안에만 돌아 접힌 상태의 유휴 CPU에는 영향이 없다
+        // Use a separate minute clock only while expanded, preserving collapsed idle CPU.
         TimelineView(.periodic(from: .now, by: Motion.labelTick)) { context in
             ScrollView(.vertical) {
                 SessionListContent(groups: groups, failed: failed, unseen: unseen, now: context.date, canNavigate: canNavigate, onActivate: onActivate, note: note, inline: inline, selectedKey: selectedKey)
@@ -25,7 +25,7 @@ struct ExpandedPanelView: View {
     }
 }
 
-/// 목록 줄의 위치(패널 표면 좌표). 옆 카드의 위쪽을 고른 줄에 맞추는 데 쓴다 (설계 4.5 B)
+/// Row positions in panel-surface coordinates align the side card to its selected row (design §4.5 B).
 struct RowFrameKey: PreferenceKey {
     static let space = "panelSurface"
     static let defaultValue: [SessionKey: CGRect] = [:]
@@ -35,7 +35,7 @@ struct RowFrameKey: PreferenceKey {
     }
 }
 
-/// 스크롤 없이 늘어놓은 목록. 펼치기 전에 같은 뷰로 높이를 재야 창과 유리가 한 번에 목표 높이에 닿는다
+/// Use the same unscrolled list to measure before expansion so glass and window reach their target together.
 struct SessionListContent: View {
     let groups: [SessionGroup]
     var failed: [AgentSession] = []
@@ -76,7 +76,7 @@ struct SessionListContent: View {
         .padding(.bottom, 3)
     }
 
-    /// 배경이 깔린 줄(대기·hover)끼리 맞붙어 한 덩어리로 보이지 않게 띄운다
+    /// Separate highlighted rows so waiting and hovered backgrounds do not merge visually.
     private func rows(_ sessions: [AgentSession]) -> some View {
         VStack(alignment: .leading, spacing: Layout.rowGap) {
             ForEach(sessions) { session in
@@ -92,11 +92,11 @@ struct SessionListContent: View {
                         note: note(session),
                         isSelected: session.key == selectedKey
                     )
-                    // 옆 카드를 이 줄에 맞춰 띄우려면 화면상 위치를 알아야 한다
+                    // Side-card alignment requires this row's onscreen position.
                     .background(GeometryReader { proxy in
                         Color.clear.preference(key: RowFrameKey.self, value: [session.key: proxy.frame(in: .named(RowFrameKey.space))])
                     })
-                    // 한 줄이 열려 있으면 나머지는 물러나 시선이 그 줄에 머물게 한다 (설계 4.5 A)
+                    // Dim other rows while one is open to keep attention on the selected row (design §4.5 A).
                     .opacity(inline?.center.openKey == nil ? 1 : 0.55)
                 }
             }

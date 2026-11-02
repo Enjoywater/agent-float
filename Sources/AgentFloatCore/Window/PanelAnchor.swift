@@ -1,9 +1,9 @@
 import CoreGraphics
 
-/// 접힌 알약 위치를 원점 대신 "붙어 있는 위쪽 모서리"로 기억한다.
-/// 원점으로 저장하면 개수가 늘어 폭이 바뀌거나 펼친 프레임이 저장될 때 알약이 화면 가장자리에서 떨어져 보인다
+/// Persist the collapsed pill's anchored upper corner rather than its origin.
+/// Saving origins lets width changes or expanded frames detach the pill from the display edge.
 public struct PanelAnchor: Equatable, Sendable {
-    /// `trailing` 이면 알약의 오른쪽 위, 아니면 왼쪽 위 모서리
+    /// Trailing identifies the upper-right corner; otherwise use upper-left.
     public let corner: CGPoint
     public let trailing: Bool
 
@@ -12,7 +12,7 @@ public struct PanelAnchor: Equatable, Sendable {
         self.trailing = trailing
     }
 
-    /// 어느 쪽에 붙일지는 `PanelGeometry.expandedFrame` 과 같은 규칙으로 정해야 펼칠 때 고정되는 모서리와 어긋나지 않는다
+    /// Choose the side using the same rule as expandedFrame to preserve the anchored corner on expansion.
     public init(pillFrame: CGRect, visible: CGRect) {
         let trailing = pillFrame.midX > visible.midX
         self.init(

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Codex 저장 기록에서 미응답 질문과 보낸 답을 연결한다.
+/// Link pending questions and recorded replies from Codex transcripts.
 struct CodexTranscript: Sendable {
     var pendingChoice: PendingPrompt?
     var lastMessage: (id: String, text: String)?
@@ -22,7 +22,7 @@ struct CodexTranscript: Sendable {
         var result = CodexTranscript()
         var lines = data.split(separator: 10, omittingEmptySubsequences: false)
         if dropFirstLine, !lines.isEmpty { lines.removeFirst() }
-        // 기록 중인 마지막 줄은 정상 레코드로 취급하지 않는다.
+        // Do not treat the partially written final line as a complete record.
         if data.last != 10, !lines.isEmpty { lines.removeLast() }
         for line in lines {
             guard let row = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
@@ -73,7 +73,7 @@ struct CodexTranscript: Sendable {
                 if case let .choices(id, questions)? = result.pendingChoice, id == promptID,
                    let object = try? JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any],
                    let answers = object["answers"] as? [String: [String: [String]]] {
-                    // 요청 ID로 질문 본문과 답을 연결한다. 사전 순서에 의존하지 않는다.
+                    // Join questions and replies by request ID, never dictionary iteration order.
                     if let request = findRequest(lines: lines, callID: callID), request.questions.count == questions.count {
                         var record: [String: String] = [:]
                         for question in request.questions {

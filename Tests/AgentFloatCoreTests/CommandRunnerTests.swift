@@ -36,7 +36,7 @@ import Testing
     }
 
     @Test func outputBeyondPipeCapacityDoesNotDeadlock() async throws {
-        // 두 파이프 모두 64KiB 버퍼를 넘기므로 하나라도 종료 뒤에 읽으면 자식이 쓰기에서 멈춘다
+        // Both pipes exceed 64 KiB; draining either only after exit would block the child writer.
         let script = "head -c 300000 /dev/zero | tr '\\0' 'a'; head -c 300000 /dev/zero | tr '\\0' 'b' >&2"
         let output = try await runner.run("/bin/sh", ["-c", script])
         #expect(output.count == 300_000)
@@ -55,7 +55,7 @@ import Testing
     }
 
     @Test func concurrentCallsKeepEveryByteOfOutput() async {
-        // 병렬로 도는 테스트와 앱의 동시 호출이 같은 조건이다: 프로세스가 먼저 끝나도 이미 쓴 출력은 모두 돌려받아야 한다
+        // Concurrent tests model simultaneous app calls; preserve all written output even when the process exits first.
         let runner = self.runner
         let failures = await withTaskGroup(of: String?.self) { group in
             for index in 0..<48 {
@@ -114,7 +114,7 @@ import Testing
         var alive = true
         for _ in 0..<100 where alive {
             try await Task.sleep(for: .milliseconds(20))
-            // 신호 0 은 존재 여부만 묻는다. ESRCH 면 프로세스가 정리된 것이다
+            // Signal zero probes existence only; ESRCH proves cleanup.
             alive = kill(child, 0) == 0
         }
         #expect(!alive)
@@ -136,7 +136,7 @@ import Testing
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
 
-        // SIGTERM 을 무시하므로 SIGKILL 로 넘어가는 시간(2초)을 넉넉히 기다린다
+        // Allow ample time for the two-second escalation to SIGKILL when SIGTERM is ignored.
         var alive = true
         for _ in 0..<200 where alive {
             try await Task.sleep(for: .milliseconds(25))
@@ -161,8 +161,8 @@ import Testing
     }
 
     @Test func giveUpOnALingeringChildClosesOurEndOfThePipe() async throws {
-        // 유예 시간이 지나 반환한 뒤에도 읽는 쪽이 열려 있으면 파이프를 쥔 자식의 쓰기가 계속 성공한다.
-        // 닫혔다면 쓰기가 실패하므로 자식이 남긴 종료 코드가 0 이 아니다
+        // If readers remained open after grace expiry, the descendant holding the pipe could still write successfully.
+        // Closing readers makes the write fail and produces a nonzero descendant exit code.
         let marker = FileManager.default.temporaryDirectory.appendingPathComponent("agent-float-\(UUID().uuidString).status")
         defer { try? FileManager.default.removeItem(at: marker) }
         let script = "(trap '' PIPE; sleep 2; echo late 2>/dev/null; echo $? > '\(marker.path)') & echo done"
