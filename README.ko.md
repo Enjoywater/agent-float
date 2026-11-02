@@ -34,6 +34,8 @@
   <sub>화면 녹화는 가상 세션과 가상 전송 결과로 촬영했다</sub>
 </p>
 
+영어 기능소개서는 [English guide](https://enjoywater.github.io/agent-float/en/)에서 볼 수 있다.
+
 ## 소개
 
 화면과 동작을 함께 보려면 [기능소개서 열기 ↗](https://enjoywater.github.io/agent-float/)를 참고한다. 브라우저에서 바로 열리며 설치 없이 기능 데모를 조작할 수 있다.

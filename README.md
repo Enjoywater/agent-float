@@ -3,7 +3,7 @@ English | [한국어](README.ko.md)
 <p align="center"><img src="docs/media/logo.png" width="120" alt="Agent Float"></p>
 <h1 align="center">Agent Float</h1>
 <p align="center">Never miss an agent waiting for you.<br><br>
-<a href="#installation">Install</a> · <a href="https://enjoywater.github.io/agent-float/">Feature Guide (Korean) ↗</a> · <a href="#supported-agents-and-discovery">Support</a> · <a href="#status-at-a-glance">Status</a> · <a href="#reply-from-the-floating-panel">Reply</a> · <a href="#known-limitations">Limitations</a> · <a href="#development">Development</a></p>
+<a href="#installation">Install</a> · <a href="https://enjoywater.github.io/agent-float/en/">Feature Guide ↗</a> · <a href="#supported-agents-and-discovery">Support</a> · <a href="#status-at-a-glance">Status</a> · <a href="#reply-from-the-floating-panel">Reply</a> · <a href="#known-limitations">Limitations</a> · <a href="#development">Development</a></p>
 <p align="center">
 <img src="https://img.shields.io/badge/macOS-26%2B-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS 26+">
 <img src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white" alt="Swift 6">
@@ -13,7 +13,7 @@ English | [한국어](README.ko.md)
 
 ## Introduction
 
-Try the interactive [feature guide (Korean) ↗](https://enjoywater.github.io/agent-float/) without installing anything.
+Try the interactive [feature guide ↗](https://enjoywater.github.io/agent-float/en/) without installing anything.
 
 When AI agents run in several terminals, checking who needs an answer means opening tabs one by one. Agent Float gathers discovered sessions into a small glass pill in the corner of your Mac's screen.
 
