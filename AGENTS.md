@@ -16,3 +16,5 @@
 - `docs/specs`·`docs/plans`·`docs/checklists`의 날짜 붙은 문서는 기록이라 번역하지 않는다.
 
 - 화면 문구는 앱의 `Strings`와 언어별 문구 구조체에 두고 한국어·영어를 함께 채운다. Core는 의미 값만 반환한다.
+
+- 질문 판별 규칙 변경 시 한국어·영어 정답표와 `scripts/question-eval` 전후 측정을 함께 남긴다. 측정 원문은 레포 밖에 둔다.

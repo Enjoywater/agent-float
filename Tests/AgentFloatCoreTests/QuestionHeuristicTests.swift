@@ -49,3 +49,45 @@ import Testing
     "출처\n\n- [Guide](https://example.com/guide)",
     "   \n\n  ",
 ]) func ignoresStatementVariants(_ text: String) { #expect(!QuestionHeuristic.endsWithQuestion(text)) }
+
+@Test(arguments: [
+    "Please confirm before I push.", "Let me know which option you prefer.",
+    "Once you merge, I'll continue.", "If you can share the log, I can investigate.",
+    "Waiting for your go-ahead.", "- whether to ship now or next week",
+    "지시가 올 때까지 대기하겠습니다.", "- 지금 바로 할지, 날짜를 정할지",
+    "구현하라고 하시면 바로 시작하겠습니다.", "PR을 올렸습니다. Should I merge it?",
+    "If you'd like, I can add tests. Which option should I use?",
+]) func detectsLanguageSpecificWaits(_ text: String) {
+    #expect(QuestionHeuristic.endsWithQuestion(text))
+}
+
+@Test(arguments: [
+    "If you'd like, I can also add tests.", "Let me know if you need anything else.", "Feel free to ask.",
+    "원하시면 바로 실행하겠습니다.", "알림을 끄고 싶으면 말씀해 주세요.", "추가로 궁금한 점 있으면 알려 주세요.",
+    "- 운영에서 API가 호출되는지", "- whether the API responds in production",
+    "user?.name 값을 고쳤습니다.", "Updated `user?.name`.", "See https://example.com/a?b=1",
+]) func ignoresOptionalOffersAndNonQuestionPunctuation(_ text: String) {
+    #expect(!QuestionHeuristic.endsWithQuestion(text))
+}
+
+@Test(arguments: [
+    "지금은 결과를 기다리고 있습니다.\n- 알림을 받으셨는지\n- 진행 지시",
+    "## 직접 확인이 필요한 항목\n- 테스트 화면이 정상으로 켜지는지",
+    "## 확인 필요\n- 팀 설정이 활성화되어 있는지",
+]) func preservesRequestedChecklistWaits(_ text: String) {
+    #expect(QuestionHeuristic.endsWithQuestion(text))
+}
+
+@Test(arguments: ["적용하려면 앱을 다시 시작해야 합니다.", "필요하시면 테스트를 더 추가하겠습니다."])
+func ignoresConditionalInstructions(_ text: String) {
+    #expect(!QuestionHeuristic.endsWithQuestion(text))
+}
+
+@Test(arguments: [
+    "진행하려면 어느 옵션을 쓸지 알려주세요.",
+    "목록에서 작업을 알아보려면 무엇이 보여야 하는지 궁금함.",
+    "조건부 제안(원하면 알려 주세요)은 대기여야 할까요, 완료여야 할까요?",
+    "의견을 기다리는 중입니다. 의견을 받으면 반영합니다.",
+]) func preservesQuestionsContainingConditionalExamples(_ text: String) {
+    #expect(QuestionHeuristic.endsWithQuestion(text))
+}
