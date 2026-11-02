@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import Synchronization
 
 enum AppLanguage: String, CaseIterable, Sendable {
     case ko, en
@@ -20,6 +21,8 @@ enum AppLanguage: String, CaseIterable, Sendable {
 
 @MainActor @Observable
 final class LanguageSettings {
+    nonisolated private static let snapshotValue = Mutex<AppLanguage>(.en)
+    nonisolated static var snapshot: AppLanguage { snapshotValue.withLock { $0 } }
     static let shared = LanguageSettings()
     private(set) var language: AppLanguage
     var strings: Strings { language == .ko ? .ko : .en }
@@ -32,11 +35,13 @@ final class LanguageSettings {
         self.defaults = defaults
         override = environment["AGENT_FLOAT_LANGUAGE"]
         language = AppLanguage.resolve(saved: defaults.string(forKey: "language"), override: override, preferred: preferred)
+        if defaults === UserDefaults.standard { Self.snapshotValue.withLock { $0 = language } }
     }
 
     func select(_ language: AppLanguage) {
         defaults.set(language.rawValue, forKey: "language")
         self.language = AppLanguage.resolve(saved: language.rawValue, override: override, preferred: [])
+        if defaults === UserDefaults.standard { Self.snapshotValue.withLock { $0 = self.language } }
         onChange?()
     }
 }

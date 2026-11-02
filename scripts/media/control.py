@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""실행 중인 촬영 앱의 가상 답장을 조작한다. 이 명령은 마우스·포커스를 사용한다."""
+"""Exercise fictional replies in the running media app. This command uses pointer and focus."""
 import argparse
 import json
 import os

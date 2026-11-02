@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         LanguageSettings.shared.onChange = { [weak model] in
             NSApp.mainMenu = MainMenu.make()
             model?.onChange?()
+            if isFake { model?.requestRefresh() }
         }
         applyIconPresence()
 
@@ -153,7 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return [FakeProvider(
                 count: count, startedAt: Date(),
                 mediaScene: environment["AGENT_FLOAT_MEDIA_SCENE"].flatMap(FakeProvider.MediaScene.init(rawValue:)),
-                mediaAgent: environment["AGENT_FLOAT_MEDIA_AGENT"].flatMap(FakeProvider.MediaAgent.init(rawValue:)) ?? .claude
+                mediaAgent: environment["AGENT_FLOAT_MEDIA_AGENT"].flatMap(FakeProvider.MediaAgent.init(rawValue:)) ?? .claude,
+                language: { LanguageSettings.snapshot }
             )]
         }
         let claude: ClaudeCodeProvider

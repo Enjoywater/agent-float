@@ -14,7 +14,7 @@ enum FakeReplyBackend {
                     onStage(stage)
                     try? await Task.sleep(for: .seconds(delay))
                     if mode == "draft", stage == .screen { return .notSent(.terminalDraft) }
-                    if mode == "stopped", stage == .typing { return .stopped(stage: "화면이 예상과 다르게 바뀜") }
+                    if mode == "stopped", stage == .typing { return .stopped(stage: "Screen changed unexpectedly") }
                 }
                 return outcome(draft: draft, prompt: prompt, mode: mode)
             }
@@ -36,13 +36,13 @@ enum FakeReplyBackend {
         guard mode == "mismatch" else { return .delivered(expected) }
         switch expected {
         case .text:
-            return .mismatched(sent: expected, recorded: .text("다른 글"))
+            return .mismatched(sent: expected, recorded: .text(LanguageSettings.snapshot == .ko ? "다른 글" : "Different text"))
         case let .choices(values):
             let questions: [ChoiceQuestion]
             if case let .choices(_, items) = prompt { questions = items } else { questions = [] }
             let different = values.map { key, value in
                 let options = questions.first { $0.text == key }?.options.map(\.label) ?? []
-                return (key, options.first { $0 != value } ?? "다른 답")
+                return (key, options.first { $0 != value } ?? (LanguageSettings.snapshot == .ko ? "다른 답" : "Different answer"))
             }
             return .mismatched(sent: expected, recorded: .choices(Dictionary(uniqueKeysWithValues: different)))
         }

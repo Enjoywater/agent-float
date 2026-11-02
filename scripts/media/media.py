@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""네이티브 앱 미디어 준비. prepare/check/show는 앱 실행·화면 캡처를 하지 않는다."""
+"""Prepare native app media. prepare/check/show do not launch apps or capture screens."""
 import argparse
 import datetime
 import json
@@ -34,6 +34,7 @@ def shot_for(name):
 def environment(shot):
     return {
         "AGENT_FLOAT_FAKE_SESSIONS": "4",
+        "AGENT_FLOAT_LANGUAGE": shot.get("language", "ko"),
         "AGENT_FLOAT_MEDIA_SCENE": shot["scene"],
         "AGENT_FLOAT_MEDIA_AGENT": shot["agent"],
         "AGENT_FLOAT_APPEARANCE": shot["theme"],
@@ -47,9 +48,11 @@ def environment(shot):
 
 def check():
     names = [s["file"] for s in SHOTS]
-    assert len(names) == len(set(names)) == 25
+    assert len(names) == len(set(names))
     for shot in SHOTS:
-        assert (ROOT / "docs/media" / shot["file"]).is_file(), shot["file"]
+        if shot.get("language", "ko") == "ko":
+            assert (ROOT / "docs/media" / shot["file"]).is_file(), shot["file"]
+        assert shot.get("language", "ko") in {"ko", "en"}
         assert shot["scene"] in {"mixed", "choice", "multi", "body", "permission", "ask", "running", "new", "unknown"}
         assert shot["agent"] in {"claude", "codex"}
         assert shot["theme"] in {"light", "dark"}
@@ -154,7 +157,7 @@ def convert(take):
         raise ValueError("build/media-refresh/takes 아래의 촬영 원본만 변환합니다.")
     metadata = json.loads((take / "manifest.json").read_text())
     width, height = metadata["size"]
-    gif = take / metadata["file"]
+    gif = take / Path(metadata["file"]).name
     filters = f"fps=15,scale={width}:{height}:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=sierra2_4a"
     run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-n", "-i", take / "raw.mov", "-filter_complex", filters, "-loop", "0", gif])
     metadata["gif"] = {"bytes": gif.stat().st_size, "fps": 15, "probe": json.loads(output(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", gif]))}

@@ -244,7 +244,8 @@ final class PanelController: NSObject {
         }
         if environment["AGENT_FLOAT_OPEN_REPLY_SEND"] == "1" {
             // Wait for availability assessment before sending.
-            _ = after(0.3) { $0.replyPrimary() }
+            let delay = Double(environment["AGENT_FLOAT_OPEN_REPLY_SEND_DELAY"] ?? "") ?? 0.3
+            _ = after(delay) { $0.replyPrimary() }
         }
         DebugLog.write("debug focus open=\(Self.focusedApplicationPid()) key=\(panel.isKeyWindow)")
         if let seconds = environment["AGENT_FLOAT_OPEN_REPLY_CLOSE_AFTER"].flatMap(Double.init) {

@@ -76,3 +76,17 @@ struct MediaScenarioTests {
         }
     }
 }
+
+@Test func englishFakeScenesContainNoKoreanOrRealLocators() throws {
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+    for scene in FakeProvider.MediaScene.allCases {
+        let provider = FakeProvider(count: 1, startedAt: start, mediaScene: scene, language: { .en })
+        for session in try provider.snapshot(now: start) {
+            #expect(session.title.range(of: "[가-힣]", options: .regularExpression) == nil)
+            #expect(session.locator == .none)
+            if let prompt = session.prompt {
+                #expect(String(describing: prompt).range(of: "[가-힣]", options: .regularExpression) == nil)
+            }
+        }
+    }
+}

@@ -10,6 +10,7 @@ struct FakeProvider: AgentProvider {
     /// Apply media scenarios only in fake mode, preserving the normal overflow fixture.
     var mediaScene: MediaScene? = nil
     var mediaAgent: MediaAgent = .claude
+    var language: @Sendable () -> AppLanguage = { .ko }
 
     enum MediaScene: String, CaseIterable { case mixed, choice, multi, body, permission, ask, running, new, unknown }
     enum MediaAgent: String, CaseIterable {
@@ -42,6 +43,12 @@ struct FakeProvider: AgentProvider {
     private static let reasons: [WaitReason] = [.question, .permission, .bodyQuestion, .worker]
 
     func snapshot(now: Date) throws -> [AgentSession] {
+        let sessions = rawSnapshot(now: now)
+        guard language() == .en else { return sessions }
+        return sessions.map(Self.englishSession)
+    }
+
+    private func rawSnapshot(now: Date) -> [AgentSession] {
         if let mediaScene { return mediaSnapshot(scene: mediaScene, now: now) }
         return (0..<count).map { index in
             let status = status(of: index, now: now)
@@ -180,4 +187,65 @@ struct FakeProvider: AgentProvider {
         if name == "~" { return NSHomeDirectory() }
         return NSHomeDirectory() + "/Documents/" + name
     }
+
+    private static func englishSession(_ session: AgentSession) -> AgentSession {
+        func text(_ value: String) -> String { englishText[value] ?? value }
+        let prompt: PendingPrompt?
+        switch session.prompt {
+        case let .choices(id, questions)?:
+            prompt = .choices(id: id, questions: questions.map { question in
+                ChoiceQuestion(text: text(question.text), header: question.header.map(text), multiSelect: question.multiSelect,
+                    options: question.options.map { ChoiceOption(label: text($0.label), description: $0.description.map(text), hasPreview: $0.hasPreview) })
+            })
+        case let .text(id, message)?: prompt = .text(id: id, message: text(message))
+        case let .permission(id, tool, summary)?: prompt = .permission(id: id, tool: tool, summary: text(summary))
+        case nil: prompt = nil
+        }
+        return AgentSession(key: session.key, agentName: session.agentName, title: text(session.title), cwd: session.cwd,
+            status: session.status, waitReason: session.waitReason, statusSince: session.statusSince, isStale: session.isStale,
+            lastActivityAt: session.lastActivityAt, terminalApp: session.terminalApp, locator: session.locator, prompt: prompt)
+    }
+
+    private static let englishText: [String: String] = [
+        "에이전트 상태 플로팅 위젯 Liquid Glass 펼침 전환과 테두리 빛 회전 다듬기": "Refine Liquid Glass transitions and the animated attention border",
+        "feat-checkout-retry: 결제 재시도 backoff 정책을 exponential jitter로 바꾸기": "feat-retry: add exponential backoff with jitter",
+        "빌드 캐시 설정 조사 (Gradle configuration cache + remote build cache)": "Investigate build cache configuration",
+        "로그 분석 스크립트 개선 — Loki query 결과를 CSV로 내보내고 요약하기": "Improve log export and summaries",
+        "API 문서 초안 정리": "Draft API documentation",
+        "릴리스 노트 작성": "Write release notes",
+        "온보딩 화면 카피 다듬기와 다크 모드 대비 점검": "Review onboarding copy and dark-mode contrast",
+        "검색 결과 페이지네이션 버그 재현 및 수정": "Fix search pagination",
+        "에이전트 이름 표시를 어디까지 적용할까요?": "Where should agent badges appear?",
+        "적용 범위": "Scope",
+        "목록과 답장 화면 (Recommended)": "List and reply view (Recommended)",
+        "두 화면에서 같은 배지를 사용합니다": "Use the same badge in both views",
+        "목록부터 적용": "Start with the list",
+        "답장 화면은 다음 단계로 진행합니다": "Add the reply view in the next step",
+        "결제 화면 개선": "Improve the checkout screen",
+        "세션 탐지 기능 추가": "Add session detection",
+        "API 응답 처리": "Handle API responses",
+        "회귀 테스트 보완": "Extend regression coverage",
+        "적용 범위 확인": "Confirm badge scope",
+        "테스트 실행 승인": "Approve test execution",
+        "에이전트 배지 적용": "Apply agent badges",
+        "만료 시간을 지금처럼 고정 10분으로 둘지, 마지막으로 읽은 때부터 다시 세는 방식으로 바꿀지 정해야 합니다. 바꾼 코드는 커밋하지 않고 대기 중입니다. 어느 쪽으로 할까요?": "Should expiry stay fixed at ten minutes or restart after each read? The changes are uncommitted. Which option should I use?",
+        "만료 방식": "Expiry policy",
+        "읽은 때부터 다시 세기 (Recommended)": "Restart after each read (Recommended)",
+        "읽을 때마다 만료가 10분 늘어남, 자주 쓰는 항목이 오래 남음": "Keep frequently used items for ten minutes after their last read",
+        "고정 10분 유지": "Keep fixed ten-minute expiry",
+        "방금 바꾼 코드를 되돌림": "Revert the pending changes",
+        "둘 다 지원 (설정으로 선택)": "Support both with a setting",
+        "설정 항목이 하나 늘어남": "Add one preference",
+        "서버와 앱 중 어느 쪽을 먼저 내보낼까요?": "Should the server or app ship first?",
+        "배포 순서": "Release order",
+        "서버 먼저 (Recommended)": "Server first (Recommended)",
+        "구 앱도 새 응답을 무시하므로 안전": "Older apps safely ignore the new response",
+        "동시에": "At the same time",
+        "심사 시점에 따라 어긋날 수 있음": "Review timing may differ",
+        "색인을 얼마나 자주 다시 만들까요?": "How often should the index rebuild?",
+        "색인 주기": "Index schedule",
+        "매일": "Daily",
+        "매주": "Weekly",
+        "재시도 간격을 1초 → 2초 → 4초로 늘리고, 세 번 실패하면 동기화 실패 안내를 띄우도록 바꿨습니다. 테스트 12개 모두 통과합니다.\n\n남은 것은 `SyncRetryPolicy`를 서버 설정값으로 뺄지 여부입니다. 지금은 앱에 고정값으로 두었습니다.\n\n다음 작업(서버 설정값으로 분리)을 진행할까요?": "Retry delays now increase from 1 to 2 to 4 seconds. After three failures, the app shows a sync error. All 12 tests pass.\n\nSyncRetryPolicy is still hardcoded in the app.\n\nShould I move it to server configuration?",
+    ]
 }

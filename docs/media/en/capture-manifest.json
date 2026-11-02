@@ -1,0 +1,333 @@
+{
+  "method": "native frame sequence",
+  "fake_sessions": true,
+  "synthetic_background": true,
+  "language": "en",
+  "shots": [
+    {
+      "file": "en/hero-light.gif",
+      "language": "en",
+      "scene": "mixed",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        460,
+        574
+      ]
+    },
+    {
+      "file": "en/reply-choice-light.gif",
+      "language": "en",
+      "scene": "choice",
+      "agent": "codex",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        480,
+        720
+      ]
+    },
+    {
+      "file": "en/hero-dark.gif",
+      "language": "en",
+      "scene": "mixed",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        460,
+        574
+      ]
+    },
+    {
+      "file": "en/reply-choice-dark.gif",
+      "language": "en",
+      "scene": "choice",
+      "agent": "codex",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        480,
+        720
+      ]
+    },
+    {
+      "file": "en/reply-multi.gif",
+      "language": "en",
+      "scene": "multi",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        480,
+        720
+      ]
+    },
+    {
+      "file": "en/reply-body.gif",
+      "language": "en",
+      "scene": "body",
+      "agent": "codex",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        480,
+        720
+      ]
+    },
+    {
+      "file": "en/reply-permission.gif",
+      "language": "en",
+      "scene": "permission",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        480,
+        720
+      ]
+    },
+    {
+      "file": "en/guard-draft.gif",
+      "language": "en",
+      "scene": "choice",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        480,
+        720
+      ]
+    },
+    {
+      "file": "en/guard-mismatch.gif",
+      "language": "en",
+      "scene": "choice",
+      "agent": "codex",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        480,
+        720
+      ]
+    },
+    {
+      "file": "en/placement-inline.gif",
+      "language": "en",
+      "scene": "choice",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        480,
+        982
+      ]
+    },
+    {
+      "file": "en/placement-card.gif",
+      "language": "en",
+      "scene": "choice",
+      "agent": "codex",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        720,
+        680
+      ]
+    },
+    {
+      "file": "en/state-ask-light.gif",
+      "language": "en",
+      "scene": "ask",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        348,
+        256
+      ]
+    },
+    {
+      "file": "en/state-ask-dark.gif",
+      "language": "en",
+      "scene": "ask",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        348,
+        256
+      ]
+    },
+    {
+      "file": "en/state-running-light.gif",
+      "language": "en",
+      "scene": "running",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        290,
+        256
+      ]
+    },
+    {
+      "file": "en/state-running-dark.gif",
+      "language": "en",
+      "scene": "running",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        290,
+        256
+      ]
+    },
+    {
+      "file": "en/state-new-light.gif",
+      "language": "en",
+      "scene": "new",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        416,
+        256
+      ]
+    },
+    {
+      "file": "en/state-new-dark.gif",
+      "language": "en",
+      "scene": "new",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        416,
+        256
+      ]
+    },
+    {
+      "file": "en/state-unknown-light.gif",
+      "language": "en",
+      "scene": "unknown",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        290,
+        256
+      ]
+    },
+    {
+      "file": "en/state-unknown-dark.gif",
+      "language": "en",
+      "scene": "unknown",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        290,
+        256
+      ]
+    },
+    {
+      "file": "en/bg-light.gif",
+      "language": "en",
+      "scene": "mixed",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        598,
+        256
+      ]
+    },
+    {
+      "file": "en/bg-dark.gif",
+      "language": "en",
+      "scene": "mixed",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        598,
+        256
+      ]
+    },
+    {
+      "file": "en/bg-doc.gif",
+      "language": "en",
+      "scene": "mixed",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        598,
+        256
+      ]
+    },
+    {
+      "file": "en/bg-sonoma.gif",
+      "language": "en",
+      "scene": "mixed",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        598,
+        256
+      ]
+    },
+    {
+      "file": "en/bg-code.gif",
+      "language": "en",
+      "scene": "mixed",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        598,
+        256
+      ]
+    },
+    {
+      "file": "en/bg-vivid.gif",
+      "language": "en",
+      "scene": "mixed",
+      "agent": "claude",
+      "synthetic_background": true,
+      "fake_sessions": true,
+      "frames": 3,
+      "size": [
+        598,
+        256
+      ]
+    }
+  ]
+}

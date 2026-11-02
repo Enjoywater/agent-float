@@ -136,7 +136,7 @@ final class AppModel {
     }
 
     /// Serialize overlapping watcher/poll snapshots and coalesce requests received while one is running (R20).
-    private func requestRefresh() {
+    func requestRefresh() {
         guard !isRefreshing else {
             needsAnotherRefresh = true
             return
