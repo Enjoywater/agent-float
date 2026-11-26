@@ -1,5 +1,3 @@
-[English](README.md) | 한국어
-
 <p align="center">
   <img src="docs/media/logo.png" width="120" alt="Agent Float">
 </p>
@@ -8,9 +6,22 @@
 
 <p align="center">
   나를 기다리는 에이전트를 놓치지 않게.
-  <br><br>
+</p>
+
+<p align="center">
+  <strong><a href="https://enjoywater.github.io/agent-float/">기능소개서 둘러보기 ↗</a></strong>
+  <br>
+  <sub>설치 없이 화면과 사용 흐름을 살펴보고, 기능 데모를 직접 체험해 보세요.</sub>
+</p>
+
+<p align="center">
+  README: <strong>한국어</strong> · <a href="README.en.md" lang="en">English</a>
+  <br>
+  기능소개서: <a href="https://enjoywater.github.io/agent-float/" lang="ko">한국어</a> · <a href="https://enjoywater.github.io/agent-float/en/" lang="en">English</a>
+</p>
+
+<p align="center">
   <a href="#설치">설치</a> ·
-  <a href="https://enjoywater.github.io/agent-float/">기능소개서 ↗</a> ·
   <a href="#지원-에이전트와-탐지-범위">지원 범위</a> ·
   <a href="#한눈에-보는-상태">상태</a> ·
   <a href="#플로팅에서-답하기">답하기</a> ·
@@ -33,8 +44,6 @@
   <br>
   <sub>화면 녹화는 가상 세션과 가상 전송 결과로 촬영했다</sub>
 </p>
-
-영어 기능소개서는 [English guide](https://enjoywater.github.io/agent-float/en/)에서 볼 수 있다.
 
 ## 소개
 
@@ -365,4 +374,4 @@ docs/
 
 자세한 판단 근거는 [설계 문서](docs/specs/2026-10-16-agent-float-design.md)와 [결정 기록](docs/plans/2026-10-16-agent-float-rulings.md)에 있다.
 
-화면 문구는 앱의 언어별 `Strings` 값에 두며 Core는 의미 값만 반환한다. README 두 판은 함께 수정한다. 날짜 붙은 docs 설계·계획·체크리스트는 한국어 기록으로 유지한다. 질문 규칙 변경은 `scripts/question-eval`로 같은 표본을 전후 비교하며, 원문은 레포 밖에 두고 숫자·가상 예시만 보고한다.
+화면 문구는 앱의 언어별 `Strings` 값에 두며 Core는 의미 값만 반환한다. README 두 판은 한국어판의 형식을 기준으로 함께 수정한다. 날짜 붙은 docs 설계·계획·체크리스트는 한국어 기록으로 유지한다. 질문 규칙 변경은 `scripts/question-eval`로 같은 표본을 전후 비교하며, 원문은 레포 밖에 두고 숫자·가상 예시만 보고한다.

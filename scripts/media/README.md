@@ -15,6 +15,14 @@ python3 scripts/media/media.py prepare
 
 `shots.json` includes a language dimension: 25 Korean and 25 English entries, each with 11 required scenes and 14 review scenes. Fake scene, agent, language, theme, and reply placement are fixed through environment variables. Fake mode disables real providers, navigators, and focus probes, and uses simulated reply results. Do not describe these captures as proof of actual terminal delivery.
 
+## Static Agent Identity Images
+
+```sh
+python3 scripts/media/render-identity.py
+```
+
+This renders `docs/media/en/agent-identity-light.png` and `agent-identity-dark.png` at 1370×786 using the production `SessionListContent`, `ReplyHeader`, and `AgentBadge` SwiftUI components. It opens no windows, does not capture the display, and uses fictional sessions with no terminal locators. It compiles the renderer under ignored `build/media-refresh/identity/`. The Korean guide defines the composition; preserve its list, reply header, and side-card arrangement when refreshing the English images. Keep the Korean PNGs unchanged.
+
 ## Display-Using Operations
 
 Tell the person immediately before starting. App windows and the synthetic backdrop can cover their display; reply operations may affect keyboard focus. If mouse or keyboard input must pause, say so and provide an estimated duration. When done, terminate only the media processes you started and tell the person they can continue.
